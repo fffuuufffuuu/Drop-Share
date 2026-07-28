@@ -1,8 +1,10 @@
 import type { NextFunction, Request, Response } from "express";
+import { UserRole } from "@prisma/client";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
 
 import { config } from "./config";
+import { prisma } from "./db";
 import type { AuthUser } from "./types";
 
 declare global {
@@ -34,6 +36,25 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   } catch {
     res.status(401).json({ message: "Invalid token" });
   }
+}
+
+export async function requireAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
+  if (!req.authUser) {
+    res.status(401).json({ message: "请先登录" });
+    return;
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: req.authUser.userId },
+    select: { role: true },
+  });
+
+  if (!user || user.role !== UserRole.ADMIN) {
+    res.status(403).json({ message: "仅管理员可访问" });
+    return;
+  }
+
+  next();
 }
 
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction): void {

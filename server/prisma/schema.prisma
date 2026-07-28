@@ -7,6 +7,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserRole {
+  USER
+  ADMIN
+}
+
 enum Visibility {
   visible
   hidden
@@ -17,6 +22,7 @@ model User {
   username    String       @unique
   passwordHash String
   phone       String?      @unique
+  role        UserRole     @default(USER)
   createdAt   DateTime     @default(now())
   spaces      Space[]
   deployments Deployment[] @relation("OwnerDeployments")
