@@ -1,5 +1,12 @@
+import { ZipArchive } from "archiver";
 import { Router } from "express";
 
+import {
+  appendDeploymentFolder,
+  archiveDisposition,
+  MissingDeploymentFolderError,
+  uniqueArchiveFolders,
+} from "./archive";
 import { prisma } from "./db";
 import { requireAdmin, requireAuth } from "./middleware";
 
@@ -35,6 +42,39 @@ adminRouter.get("/deployments/personal", async (_req, res) => {
   })));
 });
 
+adminRouter.get("/deployments/:id/download", async (req, res, next) => {
+  const deployment = await prisma.deployment.findFirst({
+    where: { id: String(req.params.id), deletedAt: null },
+    select: {
+      title: true,
+      rootPath: true,
+    },
+  });
+
+  if (!deployment) {
+    res.status(404).json({ message: "网页不存在或已被删除" });
+    return;
+  }
+
+  const archive = new ZipArchive({ zlib: { level: 9 } });
+  try {
+    await appendDeploymentFolder(archive, deployment.rootPath);
+  } catch (error) {
+    if (error instanceof MissingDeploymentFolderError) {
+      res.status(409).json({ message: error.message });
+      return;
+    }
+    next(error);
+    return;
+  }
+
+  res.type("application/zip");
+  res.setHeader("Content-Disposition", archiveDisposition(deployment.title, "site"));
+  archive.on("error", next);
+  archive.pipe(res);
+  await archive.finalize();
+});
+
 adminRouter.get("/spaces", async (_req, res) => {
   const spaces = await prisma.space.findMany({
     orderBy: { createdAt: "desc" },
@@ -64,6 +104,48 @@ adminRouter.get("/spaces", async (_req, res) => {
     ownerUsername: space.owner.username,
     deploymentCount: space._count.deployments,
   })));
+});
+
+adminRouter.get("/spaces/:id/download", async (req, res, next) => {
+  const space = await prisma.space.findUnique({
+    where: { id: String(req.params.id) },
+    select: {
+      name: true,
+      deployments: {
+        where: { deletedAt: null },
+        select: {
+          title: true,
+          rootPath: true,
+        },
+      },
+    },
+  });
+
+  if (!space) {
+    res.status(404).json({ message: "空间不存在或已被删除" });
+    return;
+  }
+
+  const archive = new ZipArchive({ zlib: { level: 9 } });
+  const folders = uniqueArchiveFolders(space.deployments.map((deployment) => deployment.title));
+  try {
+    for (const [index, deployment] of space.deployments.entries()) {
+      await appendDeploymentFolder(archive, deployment.rootPath, folders[index]);
+    }
+  } catch (error) {
+    if (error instanceof MissingDeploymentFolderError) {
+      res.status(409).json({ message: error.message });
+      return;
+    }
+    next(error);
+    return;
+  }
+
+  res.type("application/zip");
+  res.setHeader("Content-Disposition", archiveDisposition(space.name, "space"));
+  archive.on("error", next);
+  archive.pipe(res);
+  await archive.finalize();
 });
 
 adminRouter.get("/spaces/:id", async (req, res) => {

@@ -1,6 +1,9 @@
 import express from "express";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import request from "supertest";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { prisma } from "./db";
 import { adminRouter } from "./routes.admin";
@@ -9,6 +12,7 @@ vi.mock("./db", () => ({
   prisma: {
     deployment: {
       findMany: vi.fn(),
+      findFirst: vi.fn(),
     },
     space: {
       findMany: vi.fn(),
@@ -16,6 +20,17 @@ vi.mock("./db", () => ({
     },
   },
 }));
+
+const temporaryRoots: string[] = [];
+
+async function createDeploymentRoot(): Promise<string> {
+  const root = await mkdtemp(path.join(tmpdir(), "drop-share-route-"));
+  temporaryRoots.push(root);
+  await mkdir(path.join(root, "assets"));
+  await writeFile(path.join(root, "index.html"), "<h1>首页</h1>");
+  await writeFile(path.join(root, "assets", "app.js"), "console.log('ok')");
+  return root;
+}
 
 vi.mock("./middleware", () => ({
   requireAuth: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
@@ -34,6 +49,10 @@ function createApp() {
 describe("admin inventory routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(async () => {
+    await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
   });
 
   it("lists authenticated and anonymous personal deployments without private fields", async () => {
@@ -146,5 +165,60 @@ describe("admin inventory routes", () => {
         }),
       }),
     });
+  });
+
+  it("downloads a single deployment as a ZIP", async () => {
+    const rootPath = await createDeploymentRoot();
+    vi.mocked(prisma.deployment.findFirst).mockResolvedValue({
+      id: "d1",
+      title: "首页",
+      rootPath,
+    } as never);
+
+    const response = await request(createApp()).get("/api/admin/deployments/d1/download");
+
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"]).toMatch(/^application\/zip/);
+    expect(response.headers["content-disposition"]).toMatch(/\.zip/);
+  });
+
+  it("returns 404 when downloading an unknown deployment", async () => {
+    vi.mocked(prisma.deployment.findFirst).mockResolvedValue(null);
+
+    const response = await request(createApp()).get("/api/admin/deployments/missing/download");
+
+    expect(response.status).toBe(404);
+  });
+
+  it("returns 409 when a deployment source folder is missing", async () => {
+    vi.mocked(prisma.deployment.findFirst).mockResolvedValue({
+      id: "d1",
+      title: "首页",
+      rootPath: path.join(tmpdir(), `drop-share-missing-${Date.now()}`),
+    } as never);
+
+    const response = await request(createApp()).get("/api/admin/deployments/d1/download");
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({ message: "源文件已不存在" });
+  });
+
+  it("downloads a whole space as a ZIP", async () => {
+    const firstRoot = await createDeploymentRoot();
+    const secondRoot = await createDeploymentRoot();
+    vi.mocked(prisma.space.findUnique).mockResolvedValue({
+      id: "s1",
+      name: "作品空间",
+      deployments: [
+        { title: "作品", rootPath: firstRoot },
+        { title: "作品", rootPath: secondRoot },
+      ],
+    } as never);
+
+    const response = await request(createApp()).get("/api/admin/spaces/s1/download");
+
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"]).toMatch(/^application\/zip/);
+    expect(response.headers["content-disposition"]).toMatch(/\.zip/);
   });
 });
