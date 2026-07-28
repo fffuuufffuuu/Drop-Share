@@ -22,9 +22,22 @@ export type Deployment = {
   createdAt: string;
 };
 
+export type AdminDeployment = Deployment & {
+  ownerLabel: string;
+};
+
 export type Space = {
   id: string;
   name: string;
   slug: string;
   createdAt: string;
+};
+
+export type AdminSpace = Space & {
+  ownerUsername: string;
+  deploymentCount: number;
+};
+
+export type AdminSpaceDetail = Omit<AdminSpace, "deploymentCount"> & {
+  deployments: AdminDeployment[];
 };
