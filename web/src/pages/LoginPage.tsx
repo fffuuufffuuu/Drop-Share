@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { api, setAuthToken } from "../api";
+import type { AuthResponse } from "../types";
 
 type Mode = "login" | "register";
 
@@ -15,7 +16,7 @@ export function LoginPage() {
 
   async function handleLogin() {
     try {
-      const { data } = await api.post("/auth/login", { username, password });
+      const { data } = await api.post<AuthResponse>("/auth/login", { username, password });
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       setAuthToken(data.token);
@@ -36,7 +37,7 @@ export function LoginPage() {
       return;
     }
     try {
-      const { data } = await api.post("/auth/register", { username, password });
+      const { data } = await api.post<AuthResponse>("/auth/register", { username, password });
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       setAuthToken(data.token);
