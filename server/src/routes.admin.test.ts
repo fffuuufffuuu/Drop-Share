@@ -6,6 +6,10 @@ import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { prisma } from "./db";
+import {
+  permanentlyDeleteDeployment,
+  permanentlyDeleteSpace,
+} from "./admin-deletion";
 import { adminRouter } from "./routes.admin";
 
 vi.mock("./db", () => ({
@@ -40,9 +44,17 @@ vi.mock("./middleware", () => ({
   requireAdmin: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
 }));
 
+vi.mock("./admin-deletion", () => ({
+  permanentlyDeleteDeployment: vi.fn(),
+  permanentlyDeleteSpace: vi.fn(),
+}));
+
 function createApp() {
   const app = express();
   app.use("/api/admin", adminRouter);
+  app.use((error: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    res.status(400).json({ message: error.message });
+  });
   return app;
 }
 
@@ -220,5 +232,42 @@ describe("admin inventory routes", () => {
     expect(response.status).toBe(200);
     expect(response.headers["content-type"]).toMatch(/^application\/zip/);
     expect(response.headers["content-disposition"]).toMatch(/\.zip/);
+  });
+
+  it("permanently deletes a deployment", async () => {
+    vi.mocked(permanentlyDeleteDeployment).mockResolvedValue("deleted");
+
+    const response = await request(createApp()).delete("/api/admin/deployments/d1");
+
+    expect(response.status).toBe(200);
+    expect(permanentlyDeleteDeployment).toHaveBeenCalledWith("d1");
+    expect(response.body).toEqual({ message: "网页已永久删除" });
+  });
+
+  it("returns 404 when deleting an unknown deployment", async () => {
+    vi.mocked(permanentlyDeleteDeployment).mockResolvedValue("not-found");
+
+    const response = await request(createApp()).delete("/api/admin/deployments/missing");
+
+    expect(response.status).toBe(404);
+  });
+
+  it("passes deployment deletion failures to the error handler", async () => {
+    vi.mocked(permanentlyDeleteDeployment).mockRejectedValue(new Error("磁盘清理失败"));
+
+    const response = await request(createApp()).delete("/api/admin/deployments/d1");
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ message: "磁盘清理失败" });
+  });
+
+  it("permanently deletes a space", async () => {
+    vi.mocked(permanentlyDeleteSpace).mockResolvedValue("deleted");
+
+    const response = await request(createApp()).delete("/api/admin/spaces/s1");
+
+    expect(response.status).toBe(200);
+    expect(permanentlyDeleteSpace).toHaveBeenCalledWith("s1");
+    expect(response.body).toEqual({ message: "空间已永久删除" });
   });
 });

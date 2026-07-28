@@ -7,6 +7,10 @@ import {
   MissingDeploymentFolderError,
   uniqueArchiveFolders,
 } from "./archive";
+import {
+  permanentlyDeleteDeployment,
+  permanentlyDeleteSpace,
+} from "./admin-deletion";
 import { prisma } from "./db";
 import { requireAdmin, requireAuth } from "./middleware";
 
@@ -73,6 +77,19 @@ adminRouter.get("/deployments/:id/download", async (req, res, next) => {
   archive.on("error", next);
   archive.pipe(res);
   await archive.finalize();
+});
+
+adminRouter.delete("/deployments/:id", async (req, res, next) => {
+  try {
+    const result = await permanentlyDeleteDeployment(String(req.params.id));
+    if (result === "not-found") {
+      res.status(404).json({ message: "网页不存在或已被删除" });
+      return;
+    }
+    res.json({ message: "网页已永久删除" });
+  } catch (error) {
+    next(error);
+  }
 });
 
 adminRouter.get("/spaces", async (_req, res) => {
@@ -146,6 +163,19 @@ adminRouter.get("/spaces/:id/download", async (req, res, next) => {
   archive.on("error", next);
   archive.pipe(res);
   await archive.finalize();
+});
+
+adminRouter.delete("/spaces/:id", async (req, res, next) => {
+  try {
+    const result = await permanentlyDeleteSpace(String(req.params.id));
+    if (result === "not-found") {
+      res.status(404).json({ message: "空间不存在或已被删除" });
+      return;
+    }
+    res.json({ message: "空间已永久删除" });
+  } catch (error) {
+    next(error);
+  }
 });
 
 adminRouter.get("/spaces/:id", async (req, res) => {
