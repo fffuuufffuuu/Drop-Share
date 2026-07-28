@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Visibility {
+  visible
+  hidden
+}
+
+model User {
+  id          String       @id @default(cuid())
+  username    String       @unique
+  passwordHash String
+  phone       String?      @unique
+  createdAt   DateTime     @default(now())
+  spaces      Space[]
+  deployments Deployment[] @relation("OwnerDeployments")
+}
+
+model Space {
+  id          String       @id @default(cuid())
+  ownerUserId String
+  owner       User         @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  name        String
+  slug        String       @unique
+  createdAt   DateTime     @default(now())
+  deployments Deployment[]
+}
+
+model Deployment {
+  id             String      @id @default(cuid())
+  title          String
+  publicSlug     String      @unique
+  ownerUserId    String?
+  owner          User?       @relation("OwnerDeployments", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  spaceId        String?
+  space          Space?      @relation(fields: [spaceId], references: [id], onDelete: SetNull)
+  rootPath       String
+  expiresAt      DateTime
+  visibility     Visibility  @default(visible)
+  createdAt      DateTime    @default(now())
+  deletedAt      DateTime?
+  uploaderIp     String?
+  uploaderAgent  String?
+
+  @@index([expiresAt])
+  @@index([ownerUserId])
+  @@index([spaceId])
+}
