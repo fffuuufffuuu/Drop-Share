@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 
 import { api } from "../api";
-import { collectUploadEntries } from "../uploader";
+import { UploadDropzone } from "../components/UploadDropzone";
+import type { UploadEntry } from "../uploader";
 
 export function UploadPage() {
-  const [entries, setEntries] = useState<ReturnType<typeof collectUploadEntries>>([]);
+  const [entries, setEntries] = useState<UploadEntry[]>([]);
   const [message, setMessage] = useState("拖拽 HTML 文件或文件夹，匿名部署默认 3 小时。");
   const [durationHours, setDurationHours] = useState(3);
   const [spaceId, setSpaceId] = useState("");
@@ -48,27 +49,11 @@ export function UploadPage() {
     <section className="card">
       <h2>上传并部署</h2>
       <p className="hint">支持单个 HTML 文件或整个文件夹，自动生成临时访问链接。</p>
-      <div className="upload-actions">
-        <label className="upload-label">
-          <input
-            type="file"
-            multiple
-            onChange={(event) => setEntries(collectUploadEntries(event.target.files))}
-          />
-          <span>选择 HTML 文件</span>
-        </label>
-        <label className="upload-label">
-          <input
-            type="file"
-            // @ts-expect-error webkitdirectory is available in Chromium-based browsers
-            webkitdirectory="true"
-            multiple
-            onChange={(event) => setEntries(collectUploadEntries(event.target.files))}
-          />
-          <span>选择整个文件夹</span>
-        </label>
-      </div>
-      <p className="hint">二选一即可，重新选择会替换上一次选择。</p>
+      <UploadDropzone
+        entries={entries}
+        onEntriesChange={setEntries}
+        onError={setMessage}
+      />
 
       <div className="row">
         <label>
@@ -97,7 +82,6 @@ export function UploadPage() {
       </div>
 
       <pre className="message">{message}</pre>
-      <small>已选 {entries.length} 个文件</small>
     </section>
   );
 }
