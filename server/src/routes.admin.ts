@@ -1,4 +1,4 @@
-import { ZipArchive } from "archiver";
+import archiver from "archiver";
 import { Router } from "express";
 
 import {
@@ -60,7 +60,7 @@ adminRouter.get("/deployments/:id/download", async (req, res, next) => {
     return;
   }
 
-  const archive = new ZipArchive({ zlib: { level: 9 } });
+  const archive = archiver("zip", { zlib: { level: 9 } });
   try {
     await appendDeploymentFolder(archive, deployment.rootPath);
   } catch (error) {
@@ -143,7 +143,7 @@ adminRouter.get("/spaces/:id/download", async (req, res, next) => {
     return;
   }
 
-  const archive = new ZipArchive({ zlib: { level: 9 } });
+  const archive = archiver("zip", { zlib: { level: 9 } });
   const folders = uniqueArchiveFolders(space.deployments.map((deployment) => deployment.title));
   try {
     for (const [index, deployment] of space.deployments.entries()) {

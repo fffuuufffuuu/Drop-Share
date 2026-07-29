@@ -1,5 +1,5 @@
 import AdmZip from "adm-zip";
-import { ZipArchive } from "archiver";
+import archiver from "archiver";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -40,7 +40,7 @@ describe("archive helpers", () => {
 
   it("appends an existing deployment directory with its nested paths intact", async () => {
     const root = await createDeploymentRoot();
-    const archive = new ZipArchive();
+    const archive = archiver("zip");
     const output = new PassThrough();
     const chunks: Buffer[] = [];
     output.on("data", (chunk: Buffer) => chunks.push(chunk));
