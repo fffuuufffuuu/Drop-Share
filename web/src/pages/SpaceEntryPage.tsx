@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import { api, setAuthToken } from "../api";
-import { collectUploadEntries } from "../uploader";
+import { UploadDropzone } from "../components/UploadDropzone";
+import type { UploadEntry } from "../uploader";
 
 type DeploymentItem = {
   id: string;
@@ -29,8 +30,7 @@ export function SpaceEntryPage() {
   const { spaceSlug } = useParams();
   const [data, setData] = useState<SpaceEntryData | null>(null);
   const [message, setMessage] = useState("");
-  const [entries, setEntries] = useState<ReturnType<typeof collectUploadEntries>>([]);
-  const [dragging, setDragging] = useState(false);
+  const [entries, setEntries] = useState<UploadEntry[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [modalError, setModalError] = useState("");
@@ -53,22 +53,6 @@ export function SpaceEntryPage() {
   useEffect(() => {
     void load();
   }, [spaceSlug]);
-
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault();
-    setDragging(false);
-    const files = e.dataTransfer?.files;
-    if (files?.length) setEntries(collectUploadEntries(files));
-  }
-
-  function handleDragOver(e: React.DragEvent) {
-    e.preventDefault();
-    setDragging(true);
-  }
-
-  function handleDragLeave() {
-    setDragging(false);
-  }
 
   function openUploadModal() {
     setProjectName("");
@@ -129,40 +113,11 @@ export function SpaceEntryPage() {
         将要发布的静态站点上传到这里，系统会自动为该空间生成一个临时访问链接。
       </p>
 
-      <div
-        className={`upload-dropzone ${dragging ? "upload-dropzone-active" : ""}`}
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-      >
-        <div className="upload-dropzone-inner">
-          <div className="upload-dropzone-icon">⬆️</div>
-          <p className="upload-dropzone-title">拖拽文件或整个文件夹到此区域</p>
-          <p className="upload-dropzone-subtitle">
-            支持 HTML、CSS、JS、图片等静态资源；也可以点击下面按钮从本地选择。
-          </p>
-        </div>
-      </div>
-
-      <div className="upload-actions">
-        <label className="upload-label">
-          <span>选择文件 / 文件夹</span>
-          <input
-            type="file"
-            multiple
-            // @ts-expect-error webkitdirectory
-            webkitdirectory="true"
-            accept=".html,.htm,.css,.js,.json,.png,.jpg,.jpeg,.gif,.svg,.ico,.woff,.woff2,.ttf,.eot"
-            onChange={(e) => setEntries(collectUploadEntries(e.target.files))}
-          />
-        </label>
-      </div>
-
-      {entries.length > 0 && (
-        <p className="hint">
-          已选 {entries.length} 个文件（如选择的是文件夹，会自动包含子目录下所有文件）
-        </p>
-      )}
+      <UploadDropzone
+        entries={entries}
+        onEntriesChange={setEntries}
+        onError={setMessage}
+      />
       <button type="button" onClick={openUploadModal} disabled={!entries.length}>
         上传到该空间
       </button>

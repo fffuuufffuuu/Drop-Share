@@ -11,6 +11,7 @@ import { config } from "./config";
 import { prisma } from "./db";
 import { errorHandler } from "./middleware";
 import { authRouter } from "./routes.auth";
+import { adminRouter } from "./routes.admin";
 import { deploymentRouter } from "./routes.deployments";
 import { spaceRouter } from "./routes.spaces";
 import { ensureStorageRoot } from "./storage";
@@ -64,6 +65,7 @@ async function bootstrap(): Promise<void> {
   });
 
   app.use("/api/auth", authRouter);
+  app.use("/api/admin", adminRouter);
   app.use("/api/deployments", deploymentRouter);
   app.use("/api/spaces", spaceRouter);
 

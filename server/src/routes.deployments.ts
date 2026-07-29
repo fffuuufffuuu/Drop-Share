@@ -27,6 +27,27 @@ function buildUploadItems(files: Express.Multer.File[], paths: string[] | string
 
 export const deploymentRouter = Router();
 
+deploymentRouter.get("/", requireAuth, async (req, res) => {
+  const deployments = await prisma.deployment.findMany({
+    where: {
+      ownerUserId: req.authUser!.userId,
+      spaceId: null,
+    },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      title: true,
+      publicSlug: true,
+      visibility: true,
+      createdAt: true,
+      expiresAt: true,
+      deletedAt: true,
+    },
+  });
+
+  res.json(deployments);
+});
+
 deploymentRouter.post("/anonymous", upload.array("files", 1000), async (req, res) => {
   const files = (req.files as Express.Multer.File[]) ?? [];
   if (!files.length) {
