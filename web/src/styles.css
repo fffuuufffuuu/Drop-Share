@@ -343,6 +343,124 @@ td {
   color: #1d4ed8;
 }
 
+.dashboard-shell {
+  overflow: hidden;
+  padding: 0;
+}
+
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px;
+}
+
+.dashboard-header h2,
+.dashboard-header p {
+  margin: 0;
+}
+
+.dashboard-eyebrow {
+  margin-bottom: 5px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.dashboard-tabs {
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 14px 20px 0;
+  background: #f8fafc;
+}
+
+.dashboard-tabs button {
+  border-color: transparent;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+  color: #475569;
+}
+
+.dashboard-tabs .dashboard-tab-active {
+  border-color: #dbeafe;
+  border-bottom-color: #ffffff;
+  background: #ffffff;
+  color: #1d4ed8;
+}
+
+.dashboard-message {
+  margin: 18px 24px 0;
+}
+
+.dashboard-panel {
+  padding: 24px;
+}
+
+.dashboard-panel > h2 {
+  margin-top: 0;
+}
+
+.dashboard-deployment {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 18px 0;
+}
+
+.dashboard-deployment h3,
+.dashboard-deployment p {
+  margin: 0;
+}
+
+.dashboard-deployment p {
+  margin-top: 7px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.dashboard-deployment-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dashboard-deployment-actions a {
+  color: #1d4ed8;
+  text-decoration: none;
+}
+
+.dashboard-status {
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dashboard-status-active {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.dashboard-status-hidden {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.dashboard-status-expired {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.dashboard-status-deleted {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
 .admin-shell {
   padding: 0;
   overflow: hidden;
@@ -573,6 +691,12 @@ td {
 
   .home-features {
     grid-template-columns: 1fr;
+  }
+
+  .dashboard-header,
+  .dashboard-deployment {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .admin-header,

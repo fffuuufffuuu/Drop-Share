@@ -22,6 +22,10 @@ export type Deployment = {
   createdAt: string;
 };
 
+export type PersonalDeployment = Deployment & {
+  deletedAt: string | null;
+};
+
 export type AdminDeployment = Deployment & {
   ownerLabel: string;
 };
