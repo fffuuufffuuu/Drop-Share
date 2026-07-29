@@ -521,6 +521,39 @@ td {
   color: #1d4ed8;
 }
 
+.space-modal-overlay {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.space-modal {
+  display: grid;
+  gap: 16px;
+  width: min(440px, 100%);
+  border-top: 5px solid #246bfd;
+  border-radius: 12px;
+  padding: 24px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+}
+
+.space-modal h2,
+.space-modal p {
+  margin: 0;
+}
+
+.space-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+
 .dashboard-shell {
   overflow: hidden;
   padding: 0;
