@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { api, setAuthToken } from "../api";
+import { notifyAuthChanged } from "../auth";
 import type { AuthResponse } from "../types";
 
 type Mode = "login" | "register";
@@ -20,6 +21,7 @@ export function LoginPage() {
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       setAuthToken(data.token);
+      notifyAuthChanged();
       setMessage("登录成功");
       navigate("/dashboard");
     } catch (error: any) {
@@ -41,6 +43,7 @@ export function LoginPage() {
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       setAuthToken(data.token);
+      notifyAuthChanged();
       setMessage("注册并登录成功");
       navigate("/dashboard");
     } catch (error: any) {

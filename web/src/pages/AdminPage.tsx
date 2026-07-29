@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { api, setAuthToken } from "../api";
-import { getCurrentUser } from "../auth";
+import { getCurrentUser, notifyAuthChanged } from "../auth";
 import type {
   AdminDeployment,
   AdminSpace,
@@ -245,6 +245,7 @@ export function AdminPage() {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     setAuthToken();
+    notifyAuthChanged();
     navigate("/login");
   }
 

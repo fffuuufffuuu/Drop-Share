@@ -1,5 +1,11 @@
 import type { CurrentUser } from "./types";
 
+export const authChangedEvent = "drop-share-auth-changed";
+
+export function notifyAuthChanged(): void {
+  window.dispatchEvent(new Event(authChangedEvent));
+}
+
 export function getCurrentUser(): CurrentUser | null {
   const stored = localStorage.getItem("user");
   if (!stored) {

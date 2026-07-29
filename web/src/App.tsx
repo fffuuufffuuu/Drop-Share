@@ -1,6 +1,7 @@
+import { useEffect, useState } from "react";
 import { Link, Navigate, Route, Routes } from "react-router-dom";
 
-import { getCurrentUser } from "./auth";
+import { authChangedEvent, getCurrentUser } from "./auth";
 import { AdminPage } from "./pages/AdminPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -9,7 +10,17 @@ import { SpacePage } from "./pages/SpacePage";
 import { UploadPage } from "./pages/UploadPage";
 
 function NavBar() {
-  const currentUser = getCurrentUser();
+  const [currentUser, setCurrentUser] = useState(getCurrentUser);
+
+  useEffect(() => {
+    const refreshCurrentUser = () => setCurrentUser(getCurrentUser());
+    window.addEventListener(authChangedEvent, refreshCurrentUser);
+    window.addEventListener("storage", refreshCurrentUser);
+    return () => {
+      window.removeEventListener(authChangedEvent, refreshCurrentUser);
+      window.removeEventListener("storage", refreshCurrentUser);
+    };
+  }, []);
 
   return (
     <header className="navbar">
