@@ -184,6 +184,26 @@ git commit -m "Add personal deployment history endpoint"
 - Consumes: `getCurrentUser(): CurrentUser | null` 和 `authChangedEvent`
 - Produces: `/` 的介绍首页、`/upload` 的上传页，以及按登录状态变化的顶部导航
 
+**Design Direction:**
+- Color: `深海军蓝 #0f172a`、`链接蓝 #2563eb`、`浅链接蓝 #dbeafe`、`纸白 #ffffff`、`雾灰 #f3f4f6`、`正文灰 #475569`
+- Type: 首页标题使用 `Bahnschrift, "Arial Narrow", "Microsoft YaHei", sans-serif`；正文使用现有中文系统字体；示例网址使用 `Consolas, "SFMono-Regular", monospace`
+- Layout: 大标题和操作集中在首屏，发布地址预览作为唯一视觉记忆点，三个能力说明在下方等宽排列，手机端改为单列
+- Signature: 以 `drop.yaoguosir.com/p/your-page` 地址预览表达“上传网页后得到链接”这一核心用途
+
+```text
+┌────────────────────────────────────────────────────┐
+│ DROP & SHARE                                       │
+│ 把网页变成一个随时可分享的链接                     │
+│ 说明文字                                           │
+│ [免费使用] [登录/注册]                             │
+│ ┌ 已发布  drop.yaoguosir.com/p/your-page ───────┐ │
+│ └───────────────────────────────────────────────┘ │
+└────────────────────────────────────────────────────┘
+┌ 文件 ─────────┐ ┌ 链接 ─────────┐ ┌ 账号 ─────────┐
+│ 上传网页       │ │ 立即分享       │ │ 注册后管理     │
+└────────────────┘ └────────────────┘ └────────────────┘
+```
+
 - [ ] **Step 1: 写出首页内容与按钮的失败测试**
 
 ```tsx
@@ -289,23 +309,27 @@ export function HomePage() {
           <Link className="home-primary-action" to="/upload">免费使用</Link>
           <Link className="home-secondary-action" to="/login">登录/注册</Link>
         </div>
+        <div className="home-link-preview" aria-label="示例访问链接">
+          <span>已发布</span>
+          <code>drop.yaoguosir.com/p/your-page</code>
+        </div>
         <p className="home-retention">
           匿名上传默认保留 3 小时；登录后可选择 1–24 小时，并查看自己的上传记录。
         </p>
       </div>
       <div className="home-features" aria-label="主要功能">
         <article>
-          <span>01</span>
+          <span>文件</span>
           <h3>上传网页</h3>
           <p>支持单个 HTML 文件，也支持包含样式、图片和脚本的完整文件夹。</p>
         </article>
         <article>
-          <span>02</span>
+          <span>链接</span>
           <h3>立即分享</h3>
           <p>上传完成后立即获得访问链接，无需自行配置服务器。</p>
         </article>
         <article>
-          <span>03</span>
+          <span>账号</span>
           <h3>注册后管理</h3>
           <p>查看个人上传记录，并用独立空间整理需要集中管理的网页。</p>
         </article>
@@ -362,18 +386,6 @@ export function HomePage() {
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
 }
 
-.home-hero::after {
-  content: "";
-  position: absolute;
-  top: -70px;
-  right: -70px;
-  width: 220px;
-  height: 220px;
-  border: 38px solid #dbeafe;
-  border-radius: 50%;
-  opacity: 0.7;
-}
-
 .home-eyebrow {
   margin: 0 0 16px;
   color: #2563eb;
@@ -385,6 +397,7 @@ export function HomePage() {
 .home-hero h2 {
   max-width: 700px;
   margin: 0;
+  font-family: Bahnschrift, "Arial Narrow", "Microsoft YaHei", sans-serif;
   font-size: clamp(38px, 7vw, 68px);
   line-height: 1.05;
   letter-spacing: -0.04em;
@@ -420,6 +433,35 @@ export function HomePage() {
 .home-secondary-action {
   border: 1px solid #cbd5e1;
   color: #0f172a;
+}
+
+.home-link-preview {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 560px;
+  margin-top: 28px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  padding: 11px 14px;
+  background: #eff6ff;
+}
+
+.home-link-preview span {
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.home-link-preview code {
+  overflow: hidden;
+  color: #1e3a8a;
+  font-family: Consolas, "SFMono-Regular", monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .home-retention {
