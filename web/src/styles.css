@@ -465,6 +465,25 @@ label {
   gap: 6px;
 }
 
+.retention-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.retention-note {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.retention-note--visitor {
+  color: #c2410c;
+}
+
+.retention-note--user {
+  color: #2563eb;
+}
+
 input {
   padding: 8px;
   border: 1px solid #d1d5db;
