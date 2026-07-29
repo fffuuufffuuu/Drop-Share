@@ -31,7 +31,7 @@ describe("homepage and account navigation", () => {
     expect(within(screen.getByRole("navigation")).queryByText("首页")).not.toBeInTheDocument();
     const main = within(screen.getByRole("main"));
     expect(main.getByRole("heading", {
-      name: "随时部署，随时分享。",
+      name: "一键部署，随时分享。",
     })).toBeInTheDocument();
     expect(main.getByRole("link", { name: "免费使用" })).toHaveAttribute("href", "/upload");
   });
