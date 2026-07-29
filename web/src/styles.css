@@ -641,6 +641,18 @@ td {
   margin-top: 0;
 }
 
+.dashboard-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.dashboard-panel-heading h2,
+.dashboard-panel-heading p {
+  margin: 0;
+}
+
 .dashboard-deployment {
   display: flex;
   align-items: center;
