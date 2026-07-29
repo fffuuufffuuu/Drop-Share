@@ -471,6 +471,31 @@ label {
   gap: 6px;
 }
 
+.upload-settings {
+  display: flex;
+  align-items: flex-end;
+  gap: 36px;
+  flex-wrap: wrap;
+  margin: 22px 0 14px;
+}
+
+.upload-setting-field {
+  width: min(100%, 260px);
+}
+
+.upload-setting-field input,
+.upload-setting-field select {
+  box-sizing: border-box;
+  width: 100%;
+  height: 42px;
+}
+
+.space-field-note {
+  min-height: 18px;
+  color: #64748b;
+  font-size: 13px;
+}
+
 .retention-note {
   font-size: 13px;
   font-weight: 700;
@@ -484,10 +509,12 @@ label {
   color: #2563eb;
 }
 
-input {
+input,
+select {
   padding: 8px;
   border: 1px solid #d1d5db;
   border-radius: 6px;
+  background: white;
 }
 
 button {

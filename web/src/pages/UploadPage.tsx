@@ -1,17 +1,41 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
-import { api } from "../api";
+import { api, setAuthToken } from "../api";
 import { getCurrentUser } from "../auth";
+import { CreateSpaceModal } from "../components/CreateSpaceModal";
 import { UploadDropzone } from "../components/UploadDropzone";
+import type { Space } from "../types";
 import type { UploadEntry } from "../uploader";
 
 export function UploadPage() {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [entries, setEntries] = useState<UploadEntry[]>([]);
-  const [message, setMessage] = useState("拖拽 HTML 文件或文件夹，匿名部署默认 3 小时。");
+  const [message, setMessage] = useState("");
   const [durationHours, setDurationHours] = useState(3);
   const [spaceId, setSpaceId] = useState("");
+  const [spaces, setSpaces] = useState<Space[]>([]);
+  const [createSpaceOpen, setCreateSpaceOpen] = useState(false);
   const isLoggedIn = getCurrentUser() !== null;
   const maxDurationHours = isLoggedIn ? 24 : 3;
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      return;
+    }
+
+    setAuthToken(localStorage.getItem("token") ?? undefined);
+    void api.get<Space[]>("/spaces")
+      .then(({ data }) => setSpaces(data))
+      .catch((error: any) => {
+        setMessage(error.response?.data?.message || "空间列表加载失败");
+      });
+
+    if (searchParams.get("createSpace") === "1") {
+      setCreateSpaceOpen(true);
+    }
+  }, [isLoggedIn, searchParams]);
 
   const hasIndex = useMemo(
     () =>
@@ -58,8 +82,8 @@ export function UploadPage() {
         onError={setMessage}
       />
 
-      <div className="row">
-        <div className="retention-field">
+      <div className="upload-settings">
+        <div className="retention-field upload-setting-field">
           <label htmlFor="duration-hours">链接保留时长</label>
           <span
             id="retention-note"
@@ -84,14 +108,32 @@ export function UploadPage() {
             }}
           />
         </div>
-        <label>
-          上传到空间
-          <input
+        <div className="upload-setting-field">
+          <label htmlFor="space-select">上传到空间</label>
+          <span className="space-field-note">在一个空间里分享所有人的作品</span>
+          <select
+            id="space-select"
             value={spaceId}
-            placeholder="空间ID"
-            onChange={(event) => setSpaceId(event.target.value)}
-          />
-        </label>
+            onChange={(event) => {
+              const nextValue = event.target.value;
+              if (nextValue !== "__create_space__") {
+                setSpaceId(nextValue);
+                return;
+              }
+              if (isLoggedIn) {
+                setCreateSpaceOpen(true);
+              } else {
+                navigate("/login?mode=register&next=%2Fupload%3FcreateSpace%3D1");
+              }
+            }}
+          >
+            <option value="" hidden>仅个人上传（不加入空间）</option>
+            <option value="__create_space__">+ 新建空间</option>
+            {spaces.map((space) => (
+              <option key={space.id} value={space.id}>{space.name}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="row">
@@ -103,7 +145,19 @@ export function UploadPage() {
         </button>
       </div>
 
-      <pre className="message">{message}</pre>
+      {message && <pre className="message">{message}</pre>}
+      <CreateSpaceModal
+        open={createSpaceOpen}
+        onClose={() => setCreateSpaceOpen(false)}
+        onCreated={(space) => {
+          setSpaces((current) => [...current, space]);
+          setSpaceId(space.id);
+          setCreateSpaceOpen(false);
+          if (searchParams.get("createSpace") === "1") {
+            setSearchParams({}, { replace: true });
+          }
+        }}
+      />
     </section>
   );
 }
