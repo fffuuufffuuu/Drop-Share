@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -15,13 +15,52 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function renderApp() {
+function renderApp(initialEntry = "/login") {
   render(
-    <MemoryRouter initialEntries={["/login"]}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <App />
     </MemoryRouter>,
   );
 }
+
+describe("homepage and account navigation", () => {
+  it("uses the landing page at root and keeps the uploader at /upload", () => {
+    renderApp("/");
+
+    const main = within(screen.getByRole("main"));
+    expect(main.getByRole("heading", {
+      name: "把网页变成一个随时可分享的链接",
+    })).toBeInTheDocument();
+    expect(main.getByRole("link", { name: "免费使用" })).toHaveAttribute("href", "/upload");
+  });
+
+  it("shows login and registration together to a visitor", () => {
+    renderApp("/");
+
+    const navigation = within(screen.getByRole("navigation"));
+    expect(navigation.getByRole("link", { name: "登录/注册" })).toHaveAttribute(
+      "href",
+      "/login",
+    );
+  });
+
+  it("replaces login and registration with the username after login", () => {
+    localStorage.setItem("user", JSON.stringify({
+      id: "u2",
+      username: "member",
+      role: "USER",
+    }));
+
+    renderApp("/");
+
+    const navigation = within(screen.getByRole("navigation"));
+    expect(navigation.getByRole("link", { name: "member" })).toHaveAttribute(
+      "href",
+      "/dashboard",
+    );
+    expect(navigation.queryByRole("link", { name: "登录/注册" })).not.toBeInTheDocument();
+  });
+});
 
 describe("administrator navigation", () => {
   it("shows the admin link to an administrator", () => {
