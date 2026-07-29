@@ -19,8 +19,11 @@ describe("HomePage", () => {
 
     const main = within(screen.getByRole("main"));
     expect(main.getByRole("heading", {
-      name: "把网页变成一个随时可分享的链接",
+      name: "随时部署，随时分享。",
     })).toBeInTheDocument();
+    expect(main.getByText("portfolio/index.html")).toBeInTheDocument();
+    expect(main.getByText("部署完成")).toBeInTheDocument();
+    expect(main.getByText("drop.yaoguosir.com/p/your-page")).toBeInTheDocument();
     expect(main.getByRole("link", { name: "免费使用" })).toHaveAttribute("href", "/upload");
     expect(main.getByText(/匿名上传默认保留 3 小时/)).toBeInTheDocument();
     expect(main.getByText(/登录后可选择 1–24 小时/)).toBeInTheDocument();

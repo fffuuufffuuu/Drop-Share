@@ -25,9 +25,10 @@ function NavBar() {
 
   return (
     <header className="navbar">
-      <h1>临时网页部署工具</h1>
+      <Link className="navbar-brand" to="/">
+        Drop <span>&amp;</span> Share
+      </Link>
       <nav>
-        <Link to="/">首页</Link>
         <Link to="/upload">{currentUser ? "上传" : "免费使用"}</Link>
         {currentUser ? (
           <Link to="/dashboard">{currentUser.username}</Link>
