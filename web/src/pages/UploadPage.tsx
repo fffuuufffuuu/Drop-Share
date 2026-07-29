@@ -48,22 +48,27 @@ export function UploadPage() {
     <section className="card">
       <h2>上传并部署</h2>
       <p className="hint">支持单个 HTML 文件或整个文件夹，自动生成临时访问链接。</p>
-      <label className="upload-box">
-        <input
-          type="file"
-          multiple
-          onChange={(event) => setEntries(collectUploadEntries(event.target.files))}
-        />
-      </label>
-      <label className="upload-box">
-        <input
-          type="file"
-          // @ts-expect-error webkitdirectory is available in Chromium-based browsers
-          webkitdirectory="true"
-          multiple
-          onChange={(event) => setEntries(collectUploadEntries(event.target.files))}
-        />
-      </label>
+      <div className="upload-actions">
+        <label className="upload-label">
+          <input
+            type="file"
+            multiple
+            onChange={(event) => setEntries(collectUploadEntries(event.target.files))}
+          />
+          <span>选择 HTML 文件</span>
+        </label>
+        <label className="upload-label">
+          <input
+            type="file"
+            // @ts-expect-error webkitdirectory is available in Chromium-based browsers
+            webkitdirectory="true"
+            multiple
+            onChange={(event) => setEntries(collectUploadEntries(event.target.files))}
+          />
+          <span>选择整个文件夹</span>
+        </label>
+      </div>
+      <p className="hint">二选一即可，重新选择会替换上一次选择。</p>
 
       <div className="row">
         <label>
