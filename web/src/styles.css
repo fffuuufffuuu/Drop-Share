@@ -303,26 +303,54 @@ body {
 }
 
 .upload-dropzone {
-  border: 2px dashed #d1d5db;
-  border-radius: 8px;
-  padding: 24px;
+  border: 2px dashed #9bb7e8;
+  border-radius: 14px;
+  padding: clamp(24px, 5vw, 42px);
+  background: #f5f8ff;
   text-align: center;
-  color: #6b7280;
-  margin: 12px 0;
+  color: #10203b;
+  margin: 18px 0;
   transition: border-color 0.15s, background 0.15s;
 }
 .upload-dropzone:hover,
 .upload-dropzone-active {
-  border-color: #3b82f6;
-  background: #eff6ff;
-  color: #1d4ed8;
+  border-color: #246bfd;
+  background: #edf4ff;
+}
+
+.upload-dropzone-mark {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 14px;
+  place-items: center;
+  border-radius: 13px;
+  background: #0c172a;
+  color: #ffffff;
+  font-family: Bahnschrift, "Arial Narrow", sans-serif;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.upload-dropzone-title {
+  margin: 0;
+  font-family: Bahnschrift, "Arial Narrow", "Microsoft YaHei", sans-serif;
+  font-size: clamp(20px, 3vw, 26px);
+  font-weight: 700;
+}
+
+.upload-dropzone-subtitle {
+  margin: 9px auto 0;
+  color: #60728e;
+  line-height: 1.6;
 }
 
 .upload-actions {
   display: flex;
+  justify-content: center;
   gap: 12px;
   flex-wrap: wrap;
-  margin: 12px 0;
+  margin: 22px 0 14px;
 }
 .upload-label {
   display: inline-flex;
@@ -333,13 +361,28 @@ body {
   display: none;
 }
 .upload-label span {
-  padding: 8px 12px;
-  background: #e5e7eb;
-  border-radius: 6px;
+  border: 1px solid #aac2ea;
+  padding: 9px 14px;
+  background: #ffffff;
+  border-radius: 8px;
+  color: #17345f;
   font-size: 14px;
+  font-weight: 700;
 }
 .upload-label:hover span {
-  background: #d1d5db;
+  border-color: #246bfd;
+  background: #edf4ff;
+}
+
+.upload-label:focus-within span {
+  outline: 3px solid #79a8ff;
+  outline-offset: 3px;
+}
+
+.upload-selection-status {
+  margin: 0;
+  color: #52627a;
+  font-size: 13px;
 }
 
 button:disabled {
