@@ -1016,7 +1016,7 @@ git commit -m "Show personal upload history in dashboard"
 
 - [ ] **Step 1: 检查文案与敏感文件**
 
-Run: `rg -n "免费试用|永久保存" web/src docs/superpowers/specs/2026-07-29-homepage-and-user-dashboard-design.md`
+Run: `rg -n "免费试用|默认永久|永久保存" web/src`
 
 Expected: 无输出。
 
