@@ -18,9 +18,16 @@ describe("HomePage", () => {
     );
 
     const main = within(screen.getByRole("main"));
-    expect(main.getByRole("heading", {
+    const heading = main.getByRole("heading", {
       name: "随时部署，随时分享。",
-    })).toBeInTheDocument();
+    });
+    expect(heading).toBeInTheDocument();
+    expect(within(heading).getByText("随时部署，")).toHaveClass("home-title-line");
+    expect(within(heading).getByText("随时分享。")).toHaveClass("home-title-line");
+
+    const page = heading.closest(".home-page");
+    expect(page?.querySelector(":scope > .home-hero")).toBeInTheDocument();
+    expect(page?.querySelector(":scope > .home-features")).toBeInTheDocument();
     expect(main.getByText("portfolio/index.html")).toBeInTheDocument();
     expect(main.getByText("部署完成")).toBeInTheDocument();
     expect(main.getByText("drop.yaoguosir.com/p/your-page")).toBeInTheDocument();

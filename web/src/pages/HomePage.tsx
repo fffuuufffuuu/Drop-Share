@@ -6,7 +6,10 @@ export function HomePage() {
       <div className="home-hero">
         <div className="home-copy">
           <p className="home-eyebrow">DROP &amp; SHARE</p>
-          <h1>随时部署，随时分享。</h1>
+          <h1>
+            <span className="home-title-line">随时部署，</span>
+            <span className="home-title-line">随时分享。</span>
+          </h1>
           <p className="home-summary">
             上传单个 HTML 文件或完整网页文件夹，立即获得一个可以直接打开和分享的访问链接。
           </p>
