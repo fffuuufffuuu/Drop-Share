@@ -64,6 +64,68 @@ describe("homepage and account navigation", () => {
   });
 });
 
+describe("authentication destinations", () => {
+  const authResponse = {
+    token: "user-token",
+    user: {
+      id: "u2",
+      username: "member",
+      role: "USER",
+      createdAt: "2026-07-29T01:00:00.000Z",
+    },
+  };
+
+  it("opens the uploader after login", async () => {
+    vi.spyOn(api, "post").mockResolvedValue({ data: authResponse });
+    vi.spyOn(api, "get").mockResolvedValue({ data: [] });
+    const user = userEvent.setup();
+
+    renderApp("/login");
+    await user.type(screen.getByRole("textbox", { name: "用户名" }), "member");
+    await user.type(screen.getByLabelText("密码"), "password123");
+    const loginButtons = screen.getAllByRole("button", { name: "登录" });
+    await user.click(loginButtons[loginButtons.length - 1]);
+
+    expect(
+      await screen.findByRole("heading", { name: "上传并部署" }),
+    ).toBeInTheDocument();
+  });
+
+  it("selects registration from the URL and opens the uploader afterward", async () => {
+    vi.spyOn(api, "post").mockResolvedValue({ data: authResponse });
+    vi.spyOn(api, "get").mockResolvedValue({ data: [] });
+    const user = userEvent.setup();
+
+    renderApp("/login?mode=register");
+    expect(screen.getByRole("heading", { name: "账号注册" })).toBeInTheDocument();
+
+    await user.type(screen.getByRole("textbox", { name: "用户名" }), "member");
+    await user.type(screen.getByPlaceholderText("至少 8 位"), "password123");
+    await user.type(screen.getByLabelText("确认密码"), "password123");
+    await user.click(screen.getByRole("button", { name: "注册并登录" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "上传并部署" }),
+    ).toBeInTheDocument();
+  });
+
+  it("ignores an external post-login destination", async () => {
+    vi.spyOn(api, "post").mockResolvedValue({ data: authResponse });
+    vi.spyOn(api, "get").mockResolvedValue({ data: [] });
+    const user = userEvent.setup();
+
+    renderApp("/login?next=https%3A%2F%2Fexample.com");
+    await user.type(screen.getByRole("textbox", { name: "用户名" }), "member");
+    await user.type(screen.getByLabelText("密码"), "password123");
+    const loginButtons = screen.getAllByRole("button", { name: "登录" });
+    await user.click(loginButtons[loginButtons.length - 1]);
+
+    expect(
+      await screen.findByRole("heading", { name: "上传并部署" }),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("administrator navigation", () => {
   it("shows the admin link to an administrator", () => {
     localStorage.setItem("user", JSON.stringify({
