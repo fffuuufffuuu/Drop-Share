@@ -1016,7 +1016,7 @@ git commit -m "Show personal upload history in dashboard"
 
 - [ ] **Step 1: 检查文案与敏感文件**
 
-Run: `rg -n "免费试用|默认永久|永久保存" web/src`
+Run: `rg -n --glob "!*.test.tsx" "免费试用|默认永久|永久保存" web/src`
 
 Expected: 无输出。
 
