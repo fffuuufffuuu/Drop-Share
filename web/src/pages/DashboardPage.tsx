@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { api, setAuthToken } from "../api";
 import { getCurrentUser, notifyAuthChanged } from "../auth";
+import { CreateSpaceModal } from "../components/CreateSpaceModal";
 import type { PersonalDeployment, Space } from "../types";
 
 type DashboardPanel = "uploads" | "spaces";
@@ -29,8 +30,7 @@ export function DashboardPage() {
   const [activePanel, setActivePanel] = useState<DashboardPanel>("uploads");
   const [deployments, setDeployments] = useState<PersonalDeployment[]>([]);
   const [spaces, setSpaces] = useState<Space[]>([]);
-  const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
+  const [createSpaceOpen, setCreateSpaceOpen] = useState(false);
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
 
@@ -57,7 +57,7 @@ export function DashboardPage() {
     }
     setAuthToken(token);
     try {
-      const { data } = await api.get("/spaces");
+      const { data } = await api.get<Space[]>("/spaces");
       setSpaces(data);
     } catch (error: any) {
       setMessage(error.response?.data?.message || "加载空间失败");
@@ -72,18 +72,6 @@ export function DashboardPage() {
       void loadSpaces();
     }
   }, [activePanel]);
-
-  async function createSpace() {
-    try {
-      const { data } = await api.post("/spaces", { name, slug: slug || undefined });
-      setMessage(`创建成功：入口 ${data.entryUrl}`);
-      setName("");
-      setSlug("");
-      await loadSpaces();
-    } catch (error: any) {
-      setMessage(error.response?.data?.message || "创建失败");
-    }
-  }
 
   function logout() {
     localStorage.removeItem("token");
@@ -100,9 +88,7 @@ export function DashboardPage() {
           <p className="dashboard-eyebrow">个人控制台</p>
           <h2>{getCurrentUser()?.username ?? "当前用户"}</h2>
         </div>
-        <button type="button" onClick={logout}>
-          退出登录
-        </button>
+        <button type="button" onClick={logout}>退出登录</button>
       </header>
 
       <div className="dashboard-tabs" role="tablist" aria-label="控制台板块">
@@ -133,39 +119,49 @@ export function DashboardPage() {
           {deployments.length === 0 ? (
             <p className="hint">还没有个人上传记录。</p>
           ) : (
-            <div className="deployment-list">
-              {deployments.map((deployment) => {
-                const status = getPersonalDeploymentStatus(deployment);
-                return (
-                  <article className="dashboard-deployment" key={deployment.id}>
-                    <div>
-                      <h3>{deployment.title}</h3>
-                      <p>
-                        上传：{new Date(deployment.createdAt).toLocaleString()}
-                        {" · "}
-                        到期：{new Date(deployment.expiresAt).toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="dashboard-deployment-actions">
-                      <span
-                        className={`dashboard-status dashboard-status-${statusClassNames[status]}`}
-                      >
-                        {status}
-                      </span>
-                      {status === "正常" && (
-                        <a
-                          href={`/p/${deployment.publicSlug}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          aria-label={`访问${deployment.title}`}
-                        >
-                          访问
-                        </a>
-                      )}
-                    </div>
-                  </article>
-                );
-              })}
+            <div className="admin-table-scroll">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>网页</th>
+                    <th>上传时间</th>
+                    <th>到期时间</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deployments.map((deployment) => {
+                    const status = getPersonalDeploymentStatus(deployment);
+                    return (
+                      <tr key={deployment.id}>
+                        <td>{deployment.title}</td>
+                        <td>{new Date(deployment.createdAt).toLocaleString()}</td>
+                        <td>{new Date(deployment.expiresAt).toLocaleString()}</td>
+                        <td>
+                          <span
+                            className={`dashboard-status dashboard-status-${statusClassNames[status]}`}
+                          >
+                            {status}
+                          </span>
+                        </td>
+                        <td>
+                          {status === "正常" ? (
+                            <a
+                              href={`/p/${deployment.publicSlug}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              aria-label={`访问${deployment.title}`}
+                            >
+                              访问
+                            </a>
+                          ) : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
@@ -173,20 +169,15 @@ export function DashboardPage() {
 
       {activePanel === "spaces" && (
         <div className="dashboard-panel">
-          <h2>空间管理</h2>
-          <div className="row">
-            <label>
-              空间名称
-              <input value={name} onChange={(event) => setName(event.target.value)} />
-            </label>
-            <label>
-              自定义 slug
-              <input value={slug} onChange={(event) => setSlug(event.target.value)} />
-            </label>
+          <div className="dashboard-panel-heading">
+            <div>
+              <h2>空间管理</h2>
+              <p className="hint">在一个空间里分享所有人的作品</p>
+            </div>
+            <button type="button" onClick={() => setCreateSpaceOpen(true)}>
+              新建空间
+            </button>
           </div>
-          <button onClick={createSpace} type="button">
-            创建空间
-          </button>
           <ul>
             {spaces.map((space) => (
               <li key={space.id}>
@@ -198,6 +189,16 @@ export function DashboardPage() {
           </ul>
         </div>
       )}
+
+      <CreateSpaceModal
+        open={createSpaceOpen}
+        onClose={() => setCreateSpaceOpen(false)}
+        onCreated={(space) => {
+          setSpaces((current) => [...current, space]);
+          setCreateSpaceOpen(false);
+          setMessage("空间创建成功");
+        }}
+      />
     </section>
   );
 }

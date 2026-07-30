@@ -284,14 +284,11 @@ body {
   background: #ffffff;
 }
 
-.home-features span {
-  color: #246bfd;
-  font-size: 12px;
-  font-weight: 800;
-}
-
 .home-features h3 {
-  margin: 16px 0 8px;
+  margin: 0 0 12px;
+  color: #246bfd;
+  font-size: clamp(22px, 2vw, 28px);
+  line-height: 1.15;
 }
 
 .home-features p {
@@ -471,6 +468,31 @@ label {
   gap: 6px;
 }
 
+.upload-settings {
+  display: flex;
+  align-items: flex-end;
+  gap: 36px;
+  flex-wrap: wrap;
+  margin: 22px 0 14px;
+}
+
+.upload-setting-field {
+  width: min(100%, 260px);
+}
+
+.upload-setting-field input,
+.upload-setting-field select {
+  box-sizing: border-box;
+  width: 100%;
+  height: 42px;
+}
+
+.space-field-note {
+  min-height: 18px;
+  color: #64748b;
+  font-size: 13px;
+}
+
 .retention-note {
   font-size: 13px;
   font-weight: 700;
@@ -484,10 +506,12 @@ label {
   color: #2563eb;
 }
 
-input {
+input,
+select {
   padding: 8px;
   border: 1px solid #d1d5db;
   border-radius: 6px;
+  background: white;
 }
 
 button {
@@ -519,6 +543,39 @@ td {
 .message {
   white-space: pre-wrap;
   color: #1d4ed8;
+}
+
+.space-modal-overlay {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.space-modal {
+  display: grid;
+  gap: 16px;
+  width: min(440px, 100%);
+  border-top: 5px solid #246bfd;
+  border-radius: 12px;
+  padding: 24px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+}
+
+.space-modal h2,
+.space-modal p {
+  margin: 0;
+}
+
+.space-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
 }
 
 .dashboard-shell {
@@ -579,6 +636,18 @@ td {
 
 .dashboard-panel > h2 {
   margin-top: 0;
+}
+
+.dashboard-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.dashboard-panel-heading h2,
+.dashboard-panel-heading p {
+  margin: 0;
 }
 
 .dashboard-deployment {

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { api, setAuthToken } from "../api";
 import { notifyAuthChanged } from "../auth";
@@ -8,12 +8,19 @@ import type { AuthResponse } from "../types";
 type Mode = "login" | "register";
 
 export function LoginPage() {
-  const [mode, setMode] = useState<Mode>("login");
+  const [searchParams] = useSearchParams();
+  const [mode, setMode] = useState<Mode>(
+    searchParams.get("mode") === "register" ? "register" : "login",
+  );
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
+  const requestedNext = searchParams.get("next");
+  const destination = requestedNext === "/upload?createSpace=1"
+    ? requestedNext
+    : "/upload";
 
   async function handleLogin() {
     try {
@@ -23,7 +30,7 @@ export function LoginPage() {
       setAuthToken(data.token);
       notifyAuthChanged();
       setMessage("登录成功");
-      navigate("/dashboard");
+      navigate(destination);
     } catch (error: any) {
       setMessage(error.response?.data?.message || "登录失败");
     }
@@ -45,7 +52,7 @@ export function LoginPage() {
       setAuthToken(data.token);
       notifyAuthChanged();
       setMessage("注册并登录成功");
-      navigate("/dashboard");
+      navigate(destination);
     } catch (error: any) {
       setMessage(error.response?.data?.message || "注册失败");
     }

@@ -49,24 +49,17 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("DashboardPage", () => {
-  it("separates personal uploads from spaces and distinguishes inactive history", async () => {
+  it("shows personal upload history in a table and distinguishes inactive entries", async () => {
     vi.mocked(api.get).mockImplementation(async (url) => {
       if (url === "/deployments") {
         return {
           data: [
             activeDeployment,
-            {
-              ...activeDeployment,
-              id: "d2",
-              title: "隐藏网页",
-              publicSlug: "hidden-site",
-              visibility: "hidden",
-            },
+            { ...activeDeployment, id: "d2", title: "隐藏网页", visibility: "hidden" },
             {
               ...activeDeployment,
               id: "d3",
               title: "过期网页",
-              publicSlug: "expired-site",
               visibility: "hidden",
               expiresAt: "2020-01-01T00:00:00.000Z",
             },
@@ -74,7 +67,6 @@ describe("DashboardPage", () => {
               ...activeDeployment,
               id: "d4",
               title: "删除网页",
-              publicSlug: "deleted-site",
               visibility: "hidden",
               expiresAt: "2020-01-01T00:00:00.000Z",
               deletedAt: "2026-07-29T02:00:00.000Z",
@@ -90,11 +82,16 @@ describe("DashboardPage", () => {
 
     expect(screen.getByRole("button", { name: "我的上传" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "空间管理" })).toBeInTheDocument();
+    expect(await screen.findByRole("columnheader", { name: "网页" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "上传时间" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "到期时间" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "状态" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "操作" })).toBeInTheDocument();
 
-    const activeRow = (await screen.findByText("个人首页")).closest("article")!;
-    const hiddenRow = screen.getByText("隐藏网页").closest("article")!;
-    const expiredRow = screen.getByText("过期网页").closest("article")!;
-    const deletedRow = screen.getByText("删除网页").closest("article")!;
+    const activeRow = screen.getByText("个人首页").closest("tr")!;
+    const hiddenRow = screen.getByText("隐藏网页").closest("tr")!;
+    const expiredRow = screen.getByText("过期网页").closest("tr")!;
+    const deletedRow = screen.getByText("删除网页").closest("tr")!;
 
     expect(within(activeRow).getByText("正常")).toBeInTheDocument();
     expect(within(hiddenRow).getByText("已隐藏")).toBeInTheDocument();
@@ -109,7 +106,7 @@ describe("DashboardPage", () => {
     expect(within(deletedRow).queryByRole("link")).not.toBeInTheDocument();
   });
 
-  it("loads spaces only after selecting space management", async () => {
+  it("opens a modal instead of showing an inline space form", async () => {
     vi.mocked(api.get).mockImplementation(async (url) => {
       if (url === "/deployments") return { data: [] };
       if (url === "/spaces") {
@@ -127,15 +124,13 @@ describe("DashboardPage", () => {
     const user = userEvent.setup();
 
     renderPage();
-
     await waitFor(() => expect(api.get).toHaveBeenCalledWith("/deployments"));
-    expect(api.get).not.toHaveBeenCalledWith("/spaces");
-
     await user.click(screen.getByRole("button", { name: "空间管理" }));
 
     expect(await screen.findByText("作品空间")).toBeInTheDocument();
-    expect(api.get).toHaveBeenCalledWith("/spaces");
-    expect(setAuthToken).toHaveBeenCalledWith("user-token");
+    expect(screen.queryByLabelText("空间名称")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "新建空间" }));
+    expect(screen.getByRole("dialog", { name: "新建空间" })).toBeInTheDocument();
   });
 
   it("clears the account when the user logs out", async () => {
