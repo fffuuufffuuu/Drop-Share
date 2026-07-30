@@ -80,4 +80,36 @@ describe("CreateSpaceModal", () => {
 
     expect(await screen.findByRole("status")).toHaveTextContent("网址后缀已存在");
   });
+
+  it("marks the space name required and explains the optional URL suffix", async () => {
+    const user = userEvent.setup();
+    render(
+      <CreateSpaceModal
+        open
+        onClose={vi.fn()}
+        onCreated={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("*", { selector: ".required-mark" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /空间名称/ })).toBeRequired();
+    expect(screen.getByRole("textbox", { name: "自定义网址后缀" })).not.toBeRequired();
+
+    const help = screen.getByRole("button", { name: "查看自定义网址后缀示例" });
+    const tooltip = screen.getByRole("tooltip");
+    expect(help).toHaveAttribute("aria-describedby", "space-slug-help");
+    expect(tooltip).toHaveTextContent(
+      "例如填写 my-class，空间网址将是 drop.yaoguosir.com/s/my-class；不填写时系统会随机生成。",
+    );
+
+    await user.hover(help);
+    expect(tooltip).toHaveClass("is-visible");
+    await user.unhover(help);
+    expect(tooltip).not.toHaveClass("is-visible");
+
+    await user.tab();
+    await user.tab();
+    expect(help).toHaveFocus();
+    expect(tooltip).toHaveClass("is-visible");
+  });
 });

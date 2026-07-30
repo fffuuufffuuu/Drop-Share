@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 
 import { api, setAuthToken } from "../api";
 import { UploadDropzone } from "../components/UploadDropzone";
+import { WorkPreviewCard } from "../components/WorkPreviewCard";
 import type { UploadEntry } from "../uploader";
 
 type DeploymentItem = {
@@ -10,6 +11,7 @@ type DeploymentItem = {
   title: string;
   publicSlug: string;
   ownerUserId: string | null;
+  uploaderName: string;
 };
 
 type SpaceEntryData = {
@@ -108,12 +110,15 @@ export function SpaceEntryPage() {
 
   return (
     <section className="card space-entry">
-      <h2>{data.space.name} 空间入口</h2>
+      <header className="space-entry-hero">
+        <span className="space-entry-eyebrow">作品空间</span>
+        <h1 className="space-entry-title">{data.space.name}</h1>
+        <p className="space-entry-expiration">
+          空间内作品统一于 {new Date(data.space.expiresAt).toLocaleString()} 到期
+        </p>
+      </header>
       <p className="hint">
         将要发布的静态站点上传到这里，系统会自动为该空间生成一个临时访问链接。
-      </p>
-      <p className="retention-note retention-note--user">
-        空间内作品统一于 {new Date(data.space.expiresAt).toLocaleString()} 到期
       </p>
 
       <UploadDropzone
@@ -155,26 +160,34 @@ export function SpaceEntryPage() {
       )}
 
       <p className="message">{message}</p>
-      <h3>空间内项目</h3>
-      <ul className="deployment-list">
-        {data.deployments.map((deployment) => (
-          <li key={deployment.id} className="deployment-item">
-            <a href={`${window.location.origin}/p/${deployment.publicSlug}`} target="_blank" rel="noreferrer">
-              {deployment.title}
-            </a>
-            {currentUser && deployment.ownerUserId === currentUser.id && (
-              <button
-                type="button"
-                className="btn-close"
-                onClick={() => closeDeployment(deployment.id)}
-                title="关闭并删除该项目，释放临时链接"
-              >
-                关闭
-              </button>
-            )}
-          </li>
-        ))}
-      </ul>
+      <section className="space-work-section" aria-labelledby="space-work-title">
+        <h2 id="space-work-title">空间内作品</h2>
+        {data.deployments.length === 0 ? (
+          <p className="empty-state">这个空间还没有作品</p>
+        ) : (
+          <div className="work-card-grid">
+            {data.deployments.map((deployment) => (
+              <WorkPreviewCard
+                key={deployment.id}
+                title={deployment.title}
+                publicSlug={deployment.publicSlug}
+                meta={`上传者：${deployment.uploaderName}`}
+                actions={
+                  currentUser && deployment.ownerUserId === currentUser.id ? (
+                    <button
+                      type="button"
+                      className="btn-close"
+                      onClick={() => closeDeployment(deployment.id)}
+                    >
+                      关闭
+                    </button>
+                  ) : undefined
+                }
+              />
+            ))}
+          </div>
+        )}
+      </section>
     </section>
   );
 }

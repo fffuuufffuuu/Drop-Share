@@ -225,4 +225,54 @@ describe("space expiration", () => {
       }),
     }));
   });
+
+  it("returns a safe uploader label for public space works", async () => {
+    vi.mocked(prisma.space.findUnique).mockResolvedValue(activeSpace as never);
+    vi.mocked(prisma.deployment.findMany).mockResolvedValue([
+      {
+        id: "d1",
+        title: "登录作品",
+        publicSlug: "signed-work",
+        ownerUserId: "user-1",
+        visibility: "visible",
+        owner: { username: "member" },
+      },
+      {
+        id: "d2",
+        title: "匿名作品",
+        publicSlug: "anonymous-work",
+        ownerUserId: null,
+        visibility: "visible",
+        owner: null,
+      },
+    ] as never);
+
+    const response = await request(createApp()).get("/api/spaces/entry/portfolio");
+
+    expect(response.status).toBe(200);
+    expect(prisma.deployment.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      include: {
+        owner: {
+          select: { username: true },
+        },
+      },
+    }));
+    expect(response.body.deployments).toEqual([
+      {
+        id: "d1",
+        title: "登录作品",
+        publicSlug: "signed-work",
+        ownerUserId: "user-1",
+        uploaderName: "member",
+      },
+      {
+        id: "d2",
+        title: "匿名作品",
+        publicSlug: "anonymous-work",
+        ownerUserId: null,
+        uploaderName: "匿名",
+      },
+    ]);
+    expect(response.body.deployments[0]).not.toHaveProperty("owner");
+  });
 });

@@ -41,6 +41,14 @@ const activeSpace = {
   deploymentCount: 2,
 };
 
+function mockSignedInGets(spaces = [activeSpace], deployments: unknown[] = []) {
+  return vi.spyOn(api, "get").mockImplementation(async (url) => {
+    if (url === "/spaces") return { data: spaces } as never;
+    if (url === "/deployments") return { data: deployments } as never;
+    throw new Error(`Unexpected URL: ${url}`);
+  });
+}
+
 describe("UploadPage file choices", () => {
   it("uses the shared dropzone with separate file and folder fallbacks", () => {
     renderUploadPage();
@@ -64,12 +72,16 @@ describe("UploadPage file choices", () => {
     expect(screen.getByRole("option", { name: "仅个人上传（不加入空间）" }))
       .toBeInTheDocument();
     expect(screen.getByRole("option", { name: "+ 新建空间" })).toBeInTheDocument();
+    expect(screen.getByText("注册登录后，即可管理自己上传的所有作品。"))
+      .toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "登录/注册，管理作品" }))
+      .toHaveAttribute("href", "/login");
     expect(getSpy).not.toHaveBeenCalled();
   });
 
   it("lets a signed-in user switch from a space back to personal upload", async () => {
     signIn();
-    vi.spyOn(api, "get").mockResolvedValue({ data: [activeSpace] });
+    mockSignedInGets();
     const user = userEvent.setup();
 
     renderUploadPage();
@@ -97,7 +109,7 @@ describe("UploadPage file choices", () => {
 
   it("submits durationDays for a signed-in personal upload", async () => {
     signIn();
-    vi.spyOn(api, "get").mockResolvedValue({ data: [activeSpace] });
+    const getSpy = mockSignedInGets();
     const postSpy = vi.spyOn(api, "post").mockResolvedValue({
       data: {
         url: "https://drop.example/p/demo",
@@ -121,11 +133,14 @@ describe("UploadPage file choices", () => {
     expect(postSpy.mock.calls[0][0]).toBe("/deployments");
     expect(formData.get("durationDays")).toBe("30");
     expect(formData.get("spaceId")).toBeNull();
+    await waitFor(() => {
+      expect(getSpy.mock.calls.filter(([url]) => url === "/deployments")).toHaveLength(2);
+    });
   });
 
   it("submits a selected space without a personal duration", async () => {
     signIn();
-    vi.spyOn(api, "get").mockResolvedValue({ data: [activeSpace] });
+    mockSignedInGets();
     const postSpy = vi.spyOn(api, "post").mockResolvedValue({
       data: {
         url: "https://drop.example/p/demo",
@@ -154,7 +169,7 @@ describe("UploadPage file choices", () => {
 
   it("opens the create-space modal from a continued registration", async () => {
     signIn();
-    vi.spyOn(api, "get").mockResolvedValue({ data: [] });
+    mockSignedInGets([]);
 
     renderUploadPage("/upload?createSpace=1");
 
@@ -180,5 +195,46 @@ describe("UploadPage file choices", () => {
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith("/deployments/anonymous", expect.any(FormData));
     });
+  });
+
+  it("shows only accessible personal works as preview cards", async () => {
+    signIn();
+    mockSignedInGets([activeSpace], [
+      {
+        id: "active",
+        title: "有效作品",
+        publicSlug: "active-work",
+        visibility: "visible",
+        createdAt: "2026-07-29T01:00:00.000Z",
+        expiresAt: "2099-07-30T01:00:00.000Z",
+        deletedAt: null,
+      },
+      {
+        id: "expired",
+        title: "过期作品",
+        publicSlug: "expired-work",
+        visibility: "visible",
+        createdAt: "2020-01-01T00:00:00.000Z",
+        expiresAt: "2020-01-02T00:00:00.000Z",
+        deletedAt: null,
+      },
+      {
+        id: "deleted",
+        title: "删除作品",
+        publicSlug: "deleted-work",
+        visibility: "visible",
+        createdAt: "2026-07-29T01:00:00.000Z",
+        expiresAt: "2099-07-30T01:00:00.000Z",
+        deletedAt: "2026-07-29T02:00:00.000Z",
+      },
+    ]);
+
+    renderUploadPage();
+
+    expect(await screen.findByRole("heading", { name: "有效作品" })).toBeInTheDocument();
+    expect(screen.getByText(/到期时间：/)).toBeInTheDocument();
+    expect(screen.getByTitle("有效作品预览")).toBeInTheDocument();
+    expect(screen.queryByText("过期作品")).not.toBeInTheDocument();
+    expect(screen.queryByText("删除作品")).not.toBeInTheDocument();
   });
 });

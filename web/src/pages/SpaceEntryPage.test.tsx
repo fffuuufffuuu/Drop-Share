@@ -45,7 +45,7 @@ describe("SpaceEntryPage upload selection", () => {
     const file = new File(["html"], "index.html", { type: "text/html" });
     renderSpaceEntry();
 
-    expect(await screen.findByRole("heading", { name: "作品空间 空间入口" }))
+    expect(await screen.findByRole("heading", { level: 1, name: "作品空间" }))
       .toBeInTheDocument();
     expect(screen.getByText(
       `空间内作品统一于 ${new Date("2027-07-30T01:00:00.000Z").toLocaleString()} 到期`,
@@ -56,6 +56,7 @@ describe("SpaceEntryPage upload selection", () => {
       "webkitdirectory",
       "true",
     );
+    expect(screen.getByText("这个空间还没有作品")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("选择 HTML 文件"), {
       target: { files: [file] },
@@ -74,5 +75,34 @@ describe("SpaceEntryPage upload selection", () => {
     expect(formData.get("title")).toBe("作品集");
     expect(formData.getAll("paths")).toEqual(["index.html"]);
     expect(formData.getAll("files")).toEqual([file]);
+  });
+
+  it("highlights the space name and renders works as preview cards", async () => {
+    vi.spyOn(api, "get").mockResolvedValue({
+      data: {
+        space: {
+          id: "space-1",
+          name: "八年级作品展",
+          slug: "demo",
+          expiresAt: "2027-07-30T01:00:00.000Z",
+        },
+        deployments: [{
+          id: "d1",
+          title: "我的作品",
+          publicSlug: "my-work",
+          ownerUserId: "u1",
+          uploaderName: "member",
+        }],
+      },
+    });
+
+    renderSpaceEntry();
+
+    expect(await screen.findByText("作品空间")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "八年级作品展" }))
+      .toHaveClass("space-entry-title");
+    expect(screen.getByRole("heading", { name: "我的作品" })).toBeInTheDocument();
+    expect(screen.getByText("上传者：member")).toBeInTheDocument();
+    expect(screen.getByTitle("我的作品预览")).toHaveAttribute("sandbox", "");
   });
 });
