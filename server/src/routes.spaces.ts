@@ -59,6 +59,7 @@ spaceRouter.post("/", requireAuth, async (req, res) => {
 
   res.status(201).json({
     ...space,
+    deploymentCount: 0,
     entryUrl: `${config.baseUrl}/s/${space.slug}`,
   });
 });

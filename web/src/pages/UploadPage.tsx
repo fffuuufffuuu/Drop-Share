@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { api, setAuthToken } from "../api";
 import { getCurrentUser } from "../auth";
@@ -13,12 +13,12 @@ export function UploadPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [entries, setEntries] = useState<UploadEntry[]>([]);
   const [message, setMessage] = useState("");
-  const [durationHours, setDurationHours] = useState(3);
+  const [durationDays, setDurationDays] = useState(1);
   const [spaceId, setSpaceId] = useState("");
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [createSpaceOpen, setCreateSpaceOpen] = useState(false);
   const isLoggedIn = getCurrentUser() !== null;
-  const maxDurationHours = isLoggedIn ? 24 : 3;
+  const selectedSpace = spaces.find((space) => space.id === spaceId);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -44,7 +44,7 @@ export function UploadPage() {
     [entries],
   );
 
-  async function upload(isAuthed: boolean) {
+  async function upload() {
     if (!entries.length) {
       setMessage("请先选择文件。");
       return;
@@ -58,13 +58,14 @@ export function UploadPage() {
       formData.append("files", entry.file);
       formData.append("paths", entry.path);
     });
-    formData.append("durationHours", String(durationHours));
     if (spaceId.trim()) {
       formData.append("spaceId", spaceId.trim());
+    } else if (isLoggedIn) {
+      formData.append("durationDays", String(durationDays));
     }
 
     try {
-      const url = isAuthed ? "/deployments" : "/deployments/anonymous";
+      const url = isLoggedIn ? "/deployments" : "/deployments/anonymous";
       const { data } = await api.post(url, formData);
       setMessage(`部署成功：${data.url}（到期：${new Date(data.expiresAt).toLocaleString()}）`);
     } catch (error: any) {
@@ -84,29 +85,40 @@ export function UploadPage() {
 
       <div className="upload-settings">
         <div className="retention-field upload-setting-field">
-          <label htmlFor="duration-hours">链接保留时长</label>
-          <span
-            id="retention-note"
-            className={
-              isLoggedIn
-                ? "retention-note retention-note--user"
-                : "retention-note retention-note--visitor"
-            }
-          >
-            {isLoggedIn ? "登录用户最长可保留 24 小时" : "未登录用户仅限 3 小时"}
-          </span>
-          <input
-            id="duration-hours"
-            type="number"
-            min={1}
-            max={maxDurationHours}
-            value={durationHours}
-            aria-describedby="retention-note"
-            onChange={(event) => {
-              const nextValue = Number(event.target.value);
-              setDurationHours(Math.min(maxDurationHours, Math.max(1, nextValue)));
-            }}
-          />
+          {!isLoggedIn ? (
+            <>
+              <span className="upload-setting-label">链接保留时长</span>
+              <span className="retention-note retention-note--visitor">
+                匿名上传固定保留 1 天
+              </span>
+            </>
+          ) : selectedSpace ? (
+            <>
+              <span className="upload-setting-label">空间到期时间</span>
+              <span className="retention-note retention-note--user">
+                空间内作品跟随空间到期：{new Date(selectedSpace.expiresAt).toLocaleString()}
+              </span>
+            </>
+          ) : (
+            <>
+              <label htmlFor="duration-days">链接保留时长（天）</label>
+              <span id="retention-note" className="retention-note retention-note--user">
+                登录用户最长可保留 30 天
+              </span>
+              <input
+                id="duration-days"
+                type="number"
+                min={1}
+                max={30}
+                value={durationDays}
+                aria-describedby="retention-note"
+                onChange={(event) => {
+                  const nextValue = Number(event.target.value);
+                  setDurationDays(Math.min(30, Math.max(1, nextValue)));
+                }}
+              />
+            </>
+          )}
         </div>
         <div className="upload-setting-field">
           <label htmlFor="space-select">上传到空间</label>
@@ -127,9 +139,9 @@ export function UploadPage() {
               }
             }}
           >
-            <option value="" hidden>仅个人上传（不加入空间）</option>
+            <option value="">仅个人上传（不加入空间）</option>
             <option value="__create_space__">+ 新建空间</option>
-            {spaces.map((space) => (
+            {spaces.filter((space) => new Date(space.expiresAt) > new Date()).map((space) => (
               <option key={space.id} value={space.id}>{space.name}</option>
             ))}
           </select>
@@ -137,12 +149,18 @@ export function UploadPage() {
       </div>
 
       <div className="row">
-        <button type="button" onClick={() => upload(false)}>
-          匿名部署
-        </button>
-        <button type="button" onClick={() => upload(true)}>
-          登录后部署
-        </button>
+        {isLoggedIn ? (
+          <button type="button" onClick={() => void upload()}>
+            部署
+          </button>
+        ) : (
+          <>
+            <button type="button" onClick={() => void upload()}>
+              匿名部署
+            </button>
+            <Link className="button-link" to="/login">登录/注册</Link>
+          </>
+        )}
       </div>
 
       {message && <pre className="message">{message}</pre>}

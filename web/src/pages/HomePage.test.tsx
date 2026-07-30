@@ -37,5 +37,8 @@ describe("HomePage", () => {
     expect(main.getByText("drop.yaoguosir.com/p/your-page")).toBeInTheDocument();
     expect(main.getByRole("link", { name: "免费使用" })).toHaveAttribute("href", "/upload");
     expect(main.queryByText("免费试用")).not.toBeInTheDocument();
+    expect(main.getByText(
+      "匿名上传保留 1 天；登录后个人上传可选择 1–30 天；空间可设置 1–365 天，空间内作品跟随空间到期。",
+    )).toBeInTheDocument();
   });
 });

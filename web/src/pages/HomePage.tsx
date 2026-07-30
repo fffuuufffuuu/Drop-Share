@@ -18,7 +18,7 @@ export function HomePage() {
             <Link className="home-secondary-action" to="/login">登录/注册</Link>
           </div>
           <p className="home-retention">
-            匿名上传默认保留 3 小时；登录后可选择 1–24 小时，并查看自己的上传记录。
+            匿名上传保留 1 天；登录后个人上传可选择 1–30 天；空间可设置 1–365 天，空间内作品跟随空间到期。
           </p>
         </div>
         <aside className="deploy-card" aria-label="网页发布示例">
