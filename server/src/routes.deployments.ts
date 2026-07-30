@@ -7,13 +7,18 @@ import { z } from "zod";
 import { config } from "./config";
 import { prisma } from "./db";
 import { requireAuth } from "./middleware";
+import {
+  addDays,
+  ANONYMOUS_DAYS,
+  MAX_PERSONAL_DAYS,
+} from "./retention";
 import { removeDeploymentFolder, saveDeploymentFiles } from "./storage";
-import { addHours, randomSlug } from "./utils";
+import { randomSlug } from "./utils";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 const createSchema = z.object({
   title: z.string().min(1).max(80).optional(),
-  durationHours: z.coerce.number().int().min(1).max(24).optional(),
+  durationDays: z.coerce.number().int().min(1).max(MAX_PERSONAL_DAYS),
   spaceId: z.string().optional(),
 });
 
@@ -57,7 +62,7 @@ deploymentRouter.post("/anonymous", upload.array("files", 1000), async (req, res
   const publicSlug = randomSlug(10);
   const deploymentId = randomSlug(18);
   const now = new Date();
-  const expiresAt = addHours(now, config.defaultExpiresHours);
+  const expiresAt = addDays(now, ANONYMOUS_DAYS);
   const rootPath = await saveDeploymentFiles(
     path.join("anonymous", deploymentId),
     buildUploadItems(files, req.body.paths),
@@ -94,10 +99,9 @@ deploymentRouter.post("/", requireAuth, upload.array("files", 1000), async (req,
     return;
   }
 
-  const duration = payload.data.durationHours ?? config.defaultExpiresHours;
   const deploymentId = randomSlug(18);
   const publicSlug = randomSlug(10);
-  const expiresAt = addHours(new Date(), duration);
+  const expiresAt = addDays(new Date(), payload.data.durationDays);
 
   if (payload.data.spaceId) {
     const space = await prisma.space.findUnique({ where: { id: payload.data.spaceId } });
