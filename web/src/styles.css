@@ -595,6 +595,74 @@ td {
   margin-top: 6px;
 }
 
+.space-form-field {
+  display: grid;
+  gap: 6px;
+}
+
+.required-mark {
+  color: #d92d20;
+  font-weight: 800;
+}
+
+.field-label-with-help {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  justify-self: start;
+}
+
+.field-label-with-help > label {
+  display: inline;
+}
+
+.field-help-button {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid #c8d0dd;
+  border-radius: 50%;
+  background: #f5f7fa;
+  color: #7d8798;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.field-help-button:hover,
+.field-help-button:focus-visible {
+  border-color: #4b6fff;
+  color: #315cff;
+  outline: none;
+}
+
+.field-help-tooltip {
+  position: absolute;
+  z-index: 4;
+  bottom: calc(100% + 10px);
+  left: 0;
+  width: min(320px, 75vw);
+  padding: 10px 12px;
+  border: 1px solid #dbe4f3;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(15, 28, 54, 0.14);
+  color: #4c5b73;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.field-help-tooltip.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .work-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));

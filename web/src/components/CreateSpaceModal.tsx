@@ -19,6 +19,7 @@ export function CreateSpaceModal({
   const [durationDays, setDurationDays] = useState("365");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [slugHelpVisible, setSlugHelpVisible] = useState(false);
 
   if (!open) return null;
 
@@ -61,13 +62,45 @@ export function CreateSpaceModal({
       >
         <h2 id="create-space-title">新建空间</h2>
         <label>
-          空间名称
-          <input value={name} onChange={(event) => setName(event.target.value)} />
+          <span>
+            空间名称 <span className="required-mark" aria-hidden="true">*</span>
+          </span>
+          <input
+            required
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
         </label>
-        <label>
-          自定义网址后缀
-          <input value={slug} onChange={(event) => setSlug(event.target.value)} />
-        </label>
+        <div className="space-form-field">
+          <div className="field-label-with-help">
+            <label htmlFor="space-slug">自定义网址后缀</label>
+            <button
+              type="button"
+              className="field-help-button"
+              aria-label="查看自定义网址后缀示例"
+              aria-describedby="space-slug-help"
+              onMouseEnter={() => setSlugHelpVisible(true)}
+              onMouseLeave={() => setSlugHelpVisible(false)}
+              onFocus={() => setSlugHelpVisible(true)}
+              onBlur={() => setSlugHelpVisible(false)}
+            >
+              ?
+            </button>
+            <span
+              id="space-slug-help"
+              className={`field-help-tooltip${slugHelpVisible ? " is-visible" : ""}`}
+              role="tooltip"
+            >
+              例如填写 my-class，空间网址将是
+              drop.yaoguosir.com/s/my-class；不填写时系统会随机生成。
+            </span>
+          </div>
+          <input
+            id="space-slug"
+            value={slug}
+            onChange={(event) => setSlug(event.target.value)}
+          />
+        </div>
         <label>
           空间有效期（天）
           <input
