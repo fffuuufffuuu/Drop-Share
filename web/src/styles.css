@@ -662,6 +662,17 @@ td {
   gap: 24px;
 }
 
+.dashboard-space-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dashboard-space-actions button {
+  padding: 5px 9px;
+}
+
 .dashboard-panel-heading h2,
 .dashboard-panel-heading p {
   margin: 0;

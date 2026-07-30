@@ -26,6 +26,10 @@ export function getPersonalDeploymentStatus(
   return "正常";
 }
 
+export function getSpaceStatus(space: Space, now = new Date()): "有效" | "已过期" {
+  return new Date(space.expiresAt) > now ? "有效" : "已过期";
+}
+
 export function DashboardPage() {
   const [activePanel, setActivePanel] = useState<DashboardPanel>("uploads");
   const [deployments, setDeployments] = useState<PersonalDeployment[]>([]);
@@ -79,6 +83,20 @@ export function DashboardPage() {
     setAuthToken();
     notifyAuthChanged();
     navigate("/login");
+  }
+
+  async function extendSpace(spaceId: string) {
+    try {
+      const { data } = await api.post<Space>(`/spaces/${spaceId}/extend`);
+      setSpaces((current) => current.map((space) => (
+        space.id === spaceId
+          ? { ...space, ...data, deploymentCount: space.deploymentCount }
+          : space
+      )));
+      setMessage("空间到期时间已从现在起延长一年");
+    } catch (error: any) {
+      setMessage(error.response?.data?.message || "延长空间期限失败");
+    }
   }
 
   return (
@@ -178,15 +196,60 @@ export function DashboardPage() {
               新建空间
             </button>
           </div>
-          <ul>
-            {spaces.map((space) => (
-              <li key={space.id}>
-                <strong>{space.name}</strong> / {space.slug} -{" "}
-                <Link to={`/spaces/${space.id}`}>进入管理</Link> -{" "}
-                <Link to={`/s/${space.slug}`}>入口页面</Link>
-              </li>
-            ))}
-          </ul>
+          {spaces.length === 0 ? (
+            <p className="hint">还没有空间，点击“新建空间”开始创建。</p>
+          ) : (
+            <div className="admin-table-scroll">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>空间名称</th>
+                    <th>网址后缀</th>
+                    <th>作品数量</th>
+                    <th>到期时间</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {spaces.map((space) => {
+                    const status = getSpaceStatus(space);
+                    return (
+                      <tr key={space.id}>
+                        <td><strong>{space.name}</strong></td>
+                        <td>/{space.slug}</td>
+                        <td>{space.deploymentCount}</td>
+                        <td>{new Date(space.expiresAt).toLocaleString()}</td>
+                        <td>
+                          <span
+                            className={`dashboard-status dashboard-status-${
+                              status === "有效" ? "active" : "expired"
+                            }`}
+                          >
+                            {status}
+                          </span>
+                        </td>
+                        <td>
+                          {status === "有效" ? (
+                            <div className="dashboard-space-actions">
+                              <Link to={`/spaces/${space.id}`}>进入管理</Link>
+                              <Link to={`/s/${space.slug}`}>入口页面</Link>
+                              <button
+                                type="button"
+                                onClick={() => void extendSpace(space.id)}
+                              >
+                                延长一年
+                              </button>
+                            </div>
+                          ) : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
