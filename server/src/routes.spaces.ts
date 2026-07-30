@@ -271,10 +271,15 @@ spaceRouter.get("/entry/:slug", async (req, res) => {
       spaceId: space.id,
       deletedAt: null,
     },
+    include: {
+      owner: {
+        select: { username: true },
+      },
+    },
     orderBy: { createdAt: "desc" },
   });
 
-  const visible = deployments.filter((d: { visibility: string }) => d.visibility === "visible");
+  const visible = deployments.filter((deployment) => deployment.visibility === "visible");
   res.json({
     space: {
       id: space.id,
@@ -282,11 +287,12 @@ spaceRouter.get("/entry/:slug", async (req, res) => {
       slug: space.slug,
       expiresAt: space.expiresAt,
     },
-    deployments: visible.map((d: { id: string; title: string; publicSlug: string; ownerUserId: string | null }) => ({
-      id: d.id,
-      title: d.title,
-      publicSlug: d.publicSlug,
-      ownerUserId: d.ownerUserId,
+    deployments: visible.map((deployment) => ({
+      id: deployment.id,
+      title: deployment.title,
+      publicSlug: deployment.publicSlug,
+      ownerUserId: deployment.ownerUserId,
+      uploaderName: deployment.owner?.username ?? "匿名",
     })),
   });
 });
