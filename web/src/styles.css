@@ -595,6 +595,79 @@ td {
   margin-top: 6px;
 }
 
+.work-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 22px;
+  margin-top: 18px;
+}
+
+.work-preview-card {
+  overflow: hidden;
+  border: 1px solid #dbe4f3;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgba(15, 28, 54, 0.08);
+}
+
+.work-preview-frame {
+  position: relative;
+  height: 190px;
+  overflow: hidden;
+  border-bottom: 1px solid #dbe4f3;
+  background: #eef3fb;
+}
+
+.work-preview-frame::before {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 8px;
+  content: "";
+  background: #4b6fff;
+}
+
+.work-preview-frame iframe {
+  width: 1280px;
+  height: 760px;
+  border: 0;
+  pointer-events: none;
+  transform: scale(0.25);
+  transform-origin: top left;
+}
+
+.work-preview-body {
+  padding: 18px;
+}
+
+.work-preview-body h3 {
+  margin: 0;
+  color: #101b35;
+  font-size: 1.18rem;
+}
+
+.work-preview-meta {
+  margin-top: 8px;
+  color: #68758d;
+  font-size: 0.92rem;
+}
+
+.work-preview-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.work-preview-actions a {
+  color: #315cff;
+  font-weight: 700;
+  text-decoration: none;
+}
+
 .dashboard-shell {
   overflow: hidden;
   padding: 0;
