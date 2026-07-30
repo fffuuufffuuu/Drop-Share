@@ -6,14 +6,18 @@ import { z } from "zod";
 
 import { prisma } from "./db";
 import { requireAuth } from "./middleware";
+import {
+  addDays,
+  isExpired,
+  MAX_SPACE_DAYS,
+  SPACE_EXTENSION_DAYS,
+} from "./retention";
 import { saveDeploymentFiles } from "./storage";
-import { addHours, randomSlug } from "./utils";
+import { randomSlug } from "./utils";
 
 import { config } from "./config";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
-// 空间内部署：默认不再使用全局 3 小时，而是更长的有效期（例如 365 天）
-const SPACE_DEPLOY_DEFAULT_HOURS = 24 * 365;
 
 const createSpaceSchema = z.object({
   name: z.string().min(1).max(80),
@@ -23,6 +27,7 @@ const createSpaceSchema = z.object({
     .min(2)
     .max(40)
     .optional(),
+  durationDays: z.coerce.number().int().min(1).max(MAX_SPACE_DAYS),
 });
 
 function uploadItems(files: Express.Multer.File[], paths: string[] | string | undefined) {
@@ -48,6 +53,7 @@ spaceRouter.post("/", requireAuth, async (req, res) => {
       name: parsed.data.name,
       slug,
       ownerUserId: req.authUser!.userId,
+      expiresAt: addDays(new Date(), parsed.data.durationDays),
     },
   });
 
@@ -61,8 +67,29 @@ spaceRouter.get("/", requireAuth, async (req, res) => {
   const spaces = await prisma.space.findMany({
     where: { ownerUserId: req.authUser!.userId },
     orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      createdAt: true,
+      expiresAt: true,
+      _count: {
+        select: {
+          deployments: {
+            where: { deletedAt: null },
+          },
+        },
+      },
+    },
   });
-  res.json(spaces);
+  res.json(spaces.map((space) => ({
+    id: space.id,
+    name: space.name,
+    slug: space.slug,
+    createdAt: space.createdAt,
+    expiresAt: space.expiresAt,
+    deploymentCount: space._count.deployments,
+  })));
 });
 
 spaceRouter.get("/:id", requireAuth, async (req, res) => {
@@ -73,6 +100,10 @@ spaceRouter.get("/:id", requireAuth, async (req, res) => {
     res.status(404).json({ message: "Space not found" });
     return;
   }
+  if (isExpired(space.expiresAt)) {
+    res.status(410).json({ message: "Space has expired" });
+    return;
+  }
   const deployments = await prisma.deployment.findMany({
     where: { spaceId: space.id, deletedAt: null },
     orderBy: { createdAt: "desc" },
@@ -80,10 +111,34 @@ spaceRouter.get("/:id", requireAuth, async (req, res) => {
   res.json({ ...space, deployments });
 });
 
+spaceRouter.post("/:id/extend", requireAuth, async (req, res) => {
+  const space = await prisma.space.findUnique({
+    where: { id: String(req.params.id) },
+  });
+  if (!space || space.ownerUserId !== req.authUser?.userId) {
+    res.status(404).json({ message: "Space not found" });
+    return;
+  }
+  if (isExpired(space.expiresAt)) {
+    res.status(410).json({ message: "Space has expired and cannot be extended" });
+    return;
+  }
+
+  const updated = await prisma.space.update({
+    where: { id: space.id },
+    data: { expiresAt: addDays(new Date(), SPACE_EXTENSION_DAYS) },
+  });
+  res.json(updated);
+});
+
 spaceRouter.post("/:id/deployments", upload.array("files", 1000), async (req, res) => {
   const space = await prisma.space.findUnique({ where: { id: String(req.params.id) } });
   if (!space) {
     res.status(404).json({ message: "Space not found" });
+    return;
+  }
+  if (isExpired(space.expiresAt)) {
+    res.status(410).json({ message: "Space has expired" });
     return;
   }
 
@@ -106,10 +161,6 @@ spaceRouter.post("/:id/deployments", upload.array("files", 1000), async (req, re
     return;
   }
 
-  const durationRaw = req.body.durationHours;
-  const durationHours = durationRaw
-    ? Math.min(24, Math.max(1, Number(durationRaw)))
-    : SPACE_DEPLOY_DEFAULT_HOURS;
   const requesterToken = req.headers.authorization?.replace("Bearer ", "").trim() || "";
   let ownerUserId: string | null = null;
   if (requesterToken.length > 10) {
@@ -137,7 +188,7 @@ spaceRouter.post("/:id/deployments", upload.array("files", 1000), async (req, re
       spaceId: space.id,
       publicSlug,
       rootPath,
-      expiresAt: addHours(new Date(), durationHours),
+      expiresAt: space.expiresAt,
       uploaderIp: req.ip,
       uploaderAgent: req.headers["user-agent"] ?? null,
     },
@@ -154,6 +205,10 @@ spaceRouter.post("/:id/deployments/batch-upload", requireAuth, upload.array("fil
   const space = await prisma.space.findUnique({ where: { id: String(req.params.id) } });
   if (!space || space.ownerUserId !== req.authUser?.userId) {
     res.status(403).json({ message: "No permission" });
+    return;
+  }
+  if (isExpired(space.expiresAt)) {
+    res.status(410).json({ message: "Space has expired" });
     return;
   }
   const files = (req.files as Express.Multer.File[]) ?? [];
@@ -191,7 +246,7 @@ spaceRouter.post("/:id/deployments/batch-upload", requireAuth, upload.array("fil
         spaceId: space.id,
         publicSlug,
         rootPath,
-      expiresAt: addHours(new Date(), SPACE_DEPLOY_DEFAULT_HOURS),
+        expiresAt: space.expiresAt,
       },
     });
     created.push({ id: dep.id, url: `${config.baseUrl}/p/${dep.publicSlug}` });
@@ -206,6 +261,10 @@ spaceRouter.get("/entry/:slug", async (req, res) => {
     res.status(404).json({ message: "Space not found" });
     return;
   }
+  if (isExpired(space.expiresAt)) {
+    res.status(410).json({ message: "Space has expired" });
+    return;
+  }
   const deployments = await prisma.deployment.findMany({
     where: {
       spaceId: space.id,
@@ -216,7 +275,12 @@ spaceRouter.get("/entry/:slug", async (req, res) => {
 
   const visible = deployments.filter((d: { visibility: string }) => d.visibility === "visible");
   res.json({
-    space: { id: space.id, name: space.name, slug: space.slug },
+    space: {
+      id: space.id,
+      name: space.name,
+      slug: space.slug,
+      expiresAt: space.expiresAt,
+    },
     deployments: visible.map((d: { id: string; title: string; publicSlug: string; ownerUserId: string | null }) => ({
       id: d.id,
       title: d.title,

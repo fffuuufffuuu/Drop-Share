@@ -9,6 +9,7 @@ import path from "node:path";
 import { startCleanupJob } from "./cleanup";
 import { config } from "./config";
 import { prisma } from "./db";
+import { isDeploymentAvailable } from "./deployment-access";
 import { errorHandler } from "./middleware";
 import { authRouter } from "./routes.auth";
 import { adminRouter } from "./routes.admin";
@@ -75,14 +76,14 @@ async function bootstrap(): Promise<void> {
 
     const deployment = await prisma.deployment.findUnique({
       where: { publicSlug: slug },
+      include: {
+        space: {
+          select: { expiresAt: true },
+        },
+      },
     });
 
-    if (
-      !deployment ||
-      deployment.deletedAt ||
-      deployment.expiresAt < new Date() ||
-      deployment.visibility === "hidden"
-    ) {
+    if (!deployment || !isDeploymentAvailable(deployment)) {
       res.status(404).send("Site not available.");
       return;
     }

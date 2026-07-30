@@ -168,4 +168,27 @@ describe("personal deployment retention", () => {
       }));
     },
   );
+
+  it("uses the owned space cutoff without requiring personal duration", async () => {
+    const spaceExpiration = new Date("2027-01-01T00:00:00.000Z");
+    vi.mocked(prisma.space.findUnique).mockResolvedValue({
+      id: "s1",
+      ownerUserId: "user-1",
+      expiresAt: spaceExpiration,
+    } as never);
+
+    const response = await request(createApp())
+      .post("/api/deployments")
+      .set("Authorization", "Bearer user-token")
+      .field("spaceId", "s1")
+      .attach("files", Buffer.from("<html></html>"), "index.html");
+
+    expect(response.status).toBe(201);
+    expect(prisma.deployment.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        spaceId: "s1",
+        expiresAt: spaceExpiration,
+      }),
+    }));
+  });
 });

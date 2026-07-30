@@ -10,6 +10,7 @@ import { requireAuth } from "./middleware";
 import {
   addDays,
   ANONYMOUS_DAYS,
+  isExpired,
   MAX_PERSONAL_DAYS,
 } from "./retention";
 import { removeDeploymentFolder, saveDeploymentFiles } from "./storage";
@@ -18,7 +19,7 @@ import { randomSlug } from "./utils";
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 const createSchema = z.object({
   title: z.string().min(1).max(80).optional(),
-  durationDays: z.coerce.number().int().min(1).max(MAX_PERSONAL_DAYS),
+  durationDays: z.coerce.number().int().min(1).max(MAX_PERSONAL_DAYS).optional(),
   spaceId: z.string().optional(),
 });
 
@@ -101,7 +102,7 @@ deploymentRouter.post("/", requireAuth, upload.array("files", 1000), async (req,
 
   const deploymentId = randomSlug(18);
   const publicSlug = randomSlug(10);
-  const expiresAt = addDays(new Date(), payload.data.durationDays);
+  let expiresAt: Date;
 
   if (payload.data.spaceId) {
     const space = await prisma.space.findUnique({ where: { id: payload.data.spaceId } });
@@ -109,6 +110,17 @@ deploymentRouter.post("/", requireAuth, upload.array("files", 1000), async (req,
       res.status(403).json({ message: "No permission to this space" });
       return;
     }
+    if (isExpired(space.expiresAt)) {
+      res.status(410).json({ message: "Space has expired" });
+      return;
+    }
+    expiresAt = space.expiresAt;
+  } else {
+    if (payload.data.durationDays === undefined) {
+      res.status(400).json({ message: "durationDays is required" });
+      return;
+    }
+    expiresAt = addDays(new Date(), payload.data.durationDays);
   }
 
   const scope = payload.data.spaceId ? `spaces/${payload.data.spaceId}` : `users/${req.authUser?.userId}`;
