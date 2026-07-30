@@ -9,6 +9,7 @@ type SpaceDetail = {
   id: string;
   name: string;
   slug: string;
+  expiresAt: string;
   deployments: Deployment[];
 };
 
@@ -76,6 +77,9 @@ export function SpacePage() {
           <p>
             空间：<strong>{detail.name}</strong> / {detail.slug}
           </p>
+          <p className="retention-note retention-note--user">
+            空间内作品统一于 {new Date(detail.expiresAt).toLocaleString()} 到期
+          </p>
           <label className="upload-box">
             <input
               type="file"
@@ -93,7 +97,6 @@ export function SpacePage() {
               <tr>
                 <th>项目</th>
                 <th>可见性</th>
-                <th>到期</th>
                 <th>操作</th>
               </tr>
             </thead>
@@ -102,7 +105,6 @@ export function SpacePage() {
                 <tr key={deployment.id}>
                   <td>{deployment.title}</td>
                   <td>{deployment.visibility}</td>
-                  <td>{new Date(deployment.expiresAt).toLocaleString()}</td>
                   <td>
                     <button
                       type="button"

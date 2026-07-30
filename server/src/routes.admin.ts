@@ -100,6 +100,7 @@ adminRouter.get("/spaces", async (_req, res) => {
       name: true,
       slug: true,
       createdAt: true,
+      expiresAt: true,
       owner: {
         select: { username: true },
       },
@@ -118,6 +119,7 @@ adminRouter.get("/spaces", async (_req, res) => {
     name: space.name,
     slug: space.slug,
     createdAt: space.createdAt,
+    expiresAt: space.expiresAt,
     ownerUsername: space.owner.username,
     deploymentCount: space._count.deployments,
   })));
@@ -186,6 +188,7 @@ adminRouter.get("/spaces/:id", async (req, res) => {
       name: true,
       slug: true,
       createdAt: true,
+      expiresAt: true,
       owner: {
         select: { username: true },
       },
@@ -217,6 +220,7 @@ adminRouter.get("/spaces/:id", async (req, res) => {
     name: space.name,
     slug: space.slug,
     createdAt: space.createdAt,
+    expiresAt: space.expiresAt,
     ownerUsername: space.owner.username,
     deployments: space.deployments.map((deployment) => ({
       id: deployment.id,

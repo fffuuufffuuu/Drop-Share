@@ -13,7 +13,7 @@ type DeploymentItem = {
 };
 
 type SpaceEntryData = {
-  space: { id: string; name: string; slug: string };
+  space: { id: string; name: string; slug: string; expiresAt: string };
   deployments: DeploymentItem[];
 };
 
@@ -111,6 +111,9 @@ export function SpaceEntryPage() {
       <h2>{data.space.name} 空间入口</h2>
       <p className="hint">
         将要发布的静态站点上传到这里，系统会自动为该空间生成一个临时访问链接。
+      </p>
+      <p className="retention-note retention-note--user">
+        空间内作品统一于 {new Date(data.space.expiresAt).toLocaleString()} 到期
       </p>
 
       <UploadDropzone
