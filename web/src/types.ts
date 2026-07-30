@@ -35,6 +35,8 @@ export type Space = {
   name: string;
   slug: string;
   createdAt: string;
+  expiresAt: string;
+  deploymentCount: number;
 };
 
 export type AdminSpace = Space & {

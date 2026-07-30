@@ -53,10 +53,12 @@ function DeploymentTable({
   deployments,
   onDownload,
   onDelete,
+  showExpiration = true,
 }: {
   deployments: AdminDeployment[];
   onDownload: (deployment: AdminDeployment) => void;
   onDelete: (deployment: AdminDeployment) => void;
+  showExpiration?: boolean;
 }) {
   if (!deployments.length) {
     return <p className="admin-empty">当前没有可管理的网页。</p>;
@@ -70,7 +72,7 @@ function DeploymentTable({
             <th>网页</th>
             <th>上传者</th>
             <th>上传时间</th>
-            <th>到期时间</th>
+            {showExpiration && <th>到期时间</th>}
             <th>状态</th>
             <th>操作</th>
           </tr>
@@ -91,7 +93,7 @@ function DeploymentTable({
               </td>
               <td>{deployment.ownerLabel}</td>
               <td>{formatDate(deployment.createdAt)}</td>
-              <td>{formatDate(deployment.expiresAt)}</td>
+              {showExpiration && <td>{formatDate(deployment.expiresAt)}</td>}
               <td>
                 <span className={`admin-status admin-status-${deployment.visibility}`}>
                   {deployment.visibility === "visible" ? "显示中" : "已隐藏"}
@@ -321,6 +323,7 @@ export function AdminPage() {
                     <th>空间</th>
                     <th>创建者</th>
                     <th>创建时间</th>
+                    <th>空间到期时间</th>
                     <th>网页数</th>
                     <th>操作</th>
                   </tr>
@@ -331,6 +334,7 @@ export function AdminPage() {
                       <td><strong>{space.name}</strong><span className="admin-page-link">/{space.slug}</span></td>
                       <td>{space.ownerUsername}</td>
                       <td>{formatDate(space.createdAt)}</td>
+                      <td>{formatDate(space.expiresAt)}</td>
                       <td>{space.deploymentCount}</td>
                       <td>
                         <div className="admin-actions">
@@ -383,6 +387,7 @@ export function AdminPage() {
               </button>
               <h3>{detail.name}</h3>
               <p>/{detail.slug} · 创建者 {detail.ownerUsername}</p>
+              <p>空间内作品统一于 {formatDate(detail.expiresAt)} 到期</p>
             </div>
             <div className="admin-actions">
               <button
@@ -409,6 +414,7 @@ export function AdminPage() {
           </div>
           <DeploymentTable
             deployments={detail.deployments}
+            showExpiration={false}
             onDownload={(deployment) => void download(
               `/admin/deployments/${deployment.id}/download`,
               `${deployment.title}.zip`,

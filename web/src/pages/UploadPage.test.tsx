@@ -23,6 +23,24 @@ function renderUploadPage(initialEntry = "/upload") {
   );
 }
 
+function signIn() {
+  localStorage.setItem("token", "token");
+  localStorage.setItem("user", JSON.stringify({
+    id: "u2",
+    username: "member",
+    role: "USER",
+  }));
+}
+
+const activeSpace = {
+  id: "s1",
+  name: "作品集",
+  slug: "portfolio",
+  createdAt: "2026-07-29T01:00:00.000Z",
+  expiresAt: "2027-07-30T01:00:00.000Z",
+  deploymentCount: 2,
+};
+
 describe("UploadPage file choices", () => {
   it("uses the shared dropzone with separate file and folder fallbacks", () => {
     renderUploadPage();
@@ -33,69 +51,109 @@ describe("UploadPage file choices", () => {
     expect(screen.getByLabelText("选择整个文件夹")).toHaveAttribute("webkitdirectory", "true");
   });
 
-  it("limits visitors to three hours without loading private spaces", () => {
+  it("shows visitors a fixed one-day term and registration action", () => {
     const getSpy = vi.spyOn(api, "get");
+
     renderUploadPage();
 
-    const duration = screen.getByRole("spinbutton", { name: "链接保留时长" });
-    expect(duration).toHaveAttribute("min", "1");
-    expect(duration).toHaveAttribute("max", "3");
-    expect(screen.getByText("未登录用户仅限 3 小时")).toHaveClass(
-      "retention-note--visitor",
-    );
-
-    fireEvent.change(duration, { target: { value: "8" } });
-    expect(duration).toHaveValue(3);
-    expect(screen.getByRole("combobox", { name: "上传到空间" })).toHaveValue("");
+    expect(screen.getByText("匿名上传固定保留 1 天")).toBeInTheDocument();
+    expect(screen.queryByRole("spinbutton", { name: "链接保留时长（天）" }))
+      .not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "匿名部署" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "登录/注册" })).toHaveAttribute("href", "/login");
+    expect(screen.getByRole("option", { name: "仅个人上传（不加入空间）" }))
+      .toBeInTheDocument();
     expect(screen.getByRole("option", { name: "+ 新建空间" })).toBeInTheDocument();
-    expect(screen.queryByText("拖拽 HTML 文件或文件夹，匿名部署默认 3 小时。")).not.toBeInTheDocument();
     expect(getSpy).not.toHaveBeenCalled();
   });
 
-  it("loads the signed-in user's spaces and submits the selected space", async () => {
-    localStorage.setItem("token", "token");
-    localStorage.setItem("user", JSON.stringify({
-      id: "u2",
-      username: "member",
-      role: "USER",
-    }));
-    vi.spyOn(api, "get").mockResolvedValue({
-      data: [{ id: "s1", name: "作品集", slug: "portfolio", createdAt: "2026-07-29" }],
-    });
+  it("lets a signed-in user switch from a space back to personal upload", async () => {
+    signIn();
+    vi.spyOn(api, "get").mockResolvedValue({ data: [activeSpace] });
+    const user = userEvent.setup();
+
+    renderUploadPage();
+
+    const duration = screen.getByRole("spinbutton", { name: "链接保留时长（天）" });
+    expect(duration).toHaveAttribute("min", "1");
+    expect(duration).toHaveAttribute("max", "30");
+    expect(screen.getByText("登录用户最长可保留 30 天")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "部署" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "匿名部署" })).not.toBeInTheDocument();
+
+    const target = screen.getByRole("combobox", { name: "上传到空间" });
+    await screen.findByRole("option", { name: "作品集" });
+    await user.selectOptions(target, "s1");
+
+    expect(screen.getByText(/空间内作品跟随空间到期/)).toBeInTheDocument();
+    expect(screen.queryByRole("spinbutton", { name: "链接保留时长（天）" }))
+      .not.toBeInTheDocument();
+
+    await user.selectOptions(target, "");
+    expect(target).toHaveValue("");
+    expect(screen.getByRole("spinbutton", { name: "链接保留时长（天）" }))
+      .toBeInTheDocument();
+  });
+
+  it("submits durationDays for a signed-in personal upload", async () => {
+    signIn();
+    vi.spyOn(api, "get").mockResolvedValue({ data: [activeSpace] });
     const postSpy = vi.spyOn(api, "post").mockResolvedValue({
       data: {
         url: "https://drop.example/p/demo",
-        expiresAt: "2026-07-29T12:00:00.000Z",
+        expiresAt: "2026-08-29T01:00:00.000Z",
       },
     });
     const user = userEvent.setup();
     const file = new File(["html"], "index.html", { type: "text/html" });
 
     renderUploadPage();
-
-    const duration = screen.getByRole("spinbutton", { name: "链接保留时长" });
-    expect(duration).toHaveAttribute("max", "24");
-    expect(screen.getByText("登录用户最长可保留 24 小时")).toBeInTheDocument();
-    await screen.findByRole("option", { name: "作品集" });
-    await user.selectOptions(screen.getByRole("combobox", { name: "上传到空间" }), "s1");
+    fireEvent.change(screen.getByRole("spinbutton", { name: "链接保留时长（天）" }), {
+      target: { value: "30" },
+    });
     fireEvent.change(screen.getByLabelText("选择 HTML 文件"), {
       target: { files: [file] },
     });
-    await user.click(screen.getByRole("button", { name: "登录后部署" }));
+    await user.click(screen.getByRole("button", { name: "部署" }));
 
     await waitFor(() => expect(postSpy).toHaveBeenCalled());
     const formData = postSpy.mock.calls[0][1] as FormData;
     expect(postSpy.mock.calls[0][0]).toBe("/deployments");
+    expect(formData.get("durationDays")).toBe("30");
+    expect(formData.get("spaceId")).toBeNull();
+  });
+
+  it("submits a selected space without a personal duration", async () => {
+    signIn();
+    vi.spyOn(api, "get").mockResolvedValue({ data: [activeSpace] });
+    const postSpy = vi.spyOn(api, "post").mockResolvedValue({
+      data: {
+        url: "https://drop.example/p/demo",
+        expiresAt: activeSpace.expiresAt,
+      },
+    });
+    const user = userEvent.setup();
+    const file = new File(["html"], "index.html", { type: "text/html" });
+
+    renderUploadPage();
+    await screen.findByRole("option", { name: "作品集" });
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "上传到空间" }),
+      "s1",
+    );
+    fireEvent.change(screen.getByLabelText("选择 HTML 文件"), {
+      target: { files: [file] },
+    });
+    await user.click(screen.getByRole("button", { name: "部署" }));
+
+    await waitFor(() => expect(postSpy).toHaveBeenCalled());
+    const formData = postSpy.mock.calls[0][1] as FormData;
     expect(formData.get("spaceId")).toBe("s1");
+    expect(formData.get("durationDays")).toBeNull();
   });
 
   it("opens the create-space modal from a continued registration", async () => {
-    localStorage.setItem("token", "token");
-    localStorage.setItem("user", JSON.stringify({
-      id: "u2",
-      username: "member",
-      role: "USER",
-    }));
+    signIn();
     vi.spyOn(api, "get").mockResolvedValue({ data: [] });
 
     renderUploadPage("/upload?createSpace=1");
@@ -103,27 +161,24 @@ describe("UploadPage file choices", () => {
     expect(await screen.findByRole("dialog", { name: "新建空间" })).toBeInTheDocument();
   });
 
-  it.each([
-    ["匿名部署", "/deployments/anonymous"],
-    ["登录后部署", "/deployments"],
-  ])("keeps %s on its existing endpoint", async (buttonName, endpoint) => {
+  it("keeps anonymous deployment on its existing endpoint", async () => {
     vi.spyOn(api, "post").mockResolvedValue({
       data: {
         url: "https://drop.example/p/demo",
-        expiresAt: "2026-07-29T12:00:00.000Z",
+        expiresAt: "2026-07-31T01:00:00.000Z",
       },
     });
     const user = userEvent.setup();
     const file = new File(["html"], "index.html", { type: "text/html" });
-    renderUploadPage();
 
+    renderUploadPage();
     fireEvent.change(screen.getByLabelText("选择 HTML 文件"), {
       target: { files: [file] },
     });
-    await user.click(screen.getByRole("button", { name: buttonName }));
+    await user.click(screen.getByRole("button", { name: "匿名部署" }));
 
     await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith(endpoint, expect.any(FormData));
+      expect(api.post).toHaveBeenCalledWith("/deployments/anonymous", expect.any(FormData));
     });
   });
 });

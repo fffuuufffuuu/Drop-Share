@@ -29,7 +29,12 @@ describe("SpaceEntryPage upload selection", () => {
   it("uses the shared dropzone and keeps the space upload endpoint", async () => {
     vi.spyOn(api, "get").mockResolvedValue({
       data: {
-        space: { id: "space-1", name: "作品空间", slug: "demo" },
+        space: {
+          id: "space-1",
+          name: "作品空间",
+          slug: "demo",
+          expiresAt: "2027-07-30T01:00:00.000Z",
+        },
         deployments: [],
       },
     });
@@ -42,6 +47,9 @@ describe("SpaceEntryPage upload selection", () => {
 
     expect(await screen.findByRole("heading", { name: "作品空间 空间入口" }))
       .toBeInTheDocument();
+    expect(screen.getByText(
+      `空间内作品统一于 ${new Date("2027-07-30T01:00:00.000Z").toLocaleString()} 到期`,
+    )).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "上传网页文件" })).toBeInTheDocument();
     expect(screen.getByLabelText("选择 HTML 文件")).toHaveAttribute("type", "file");
     expect(screen.getByLabelText("选择整个文件夹")).toHaveAttribute(

@@ -113,6 +113,7 @@ describe("admin inventory routes", () => {
         name: "作品空间",
         slug: "portfolio",
         createdAt: new Date("2026-07-29T01:00:00.000Z"),
+        expiresAt: new Date("2027-07-30T01:00:00.000Z"),
         owner: { username: "owner" },
         _count: { deployments: 2 },
       },
@@ -125,6 +126,7 @@ describe("admin inventory routes", () => {
       id: "s1",
       deploymentCount: 2,
       ownerUsername: "owner",
+      expiresAt: "2027-07-30T01:00:00.000Z",
     });
     expect(prisma.space.findMany).toHaveBeenCalledWith(expect.objectContaining({
       orderBy: { createdAt: "desc" },
@@ -146,6 +148,7 @@ describe("admin inventory routes", () => {
       name: "作品空间",
       slug: "portfolio",
       createdAt: new Date("2026-07-29T01:00:00.000Z"),
+      expiresAt: new Date("2027-07-30T01:00:00.000Z"),
       owner: { username: "owner" },
       deployments: [
         {
@@ -166,6 +169,7 @@ describe("admin inventory routes", () => {
     expect(response.body).toMatchObject({
       id: "s1",
       ownerUsername: "owner",
+      expiresAt: "2027-07-30T01:00:00.000Z",
       deployments: [{ id: "d1", ownerLabel: "owner" }],
     });
     expect(prisma.space.findUnique).toHaveBeenCalledWith({

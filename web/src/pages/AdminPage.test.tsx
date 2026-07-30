@@ -36,6 +36,7 @@ const spaces = [
     slug: "portfolio",
     ownerUsername: "owner",
     createdAt: "2026-07-29T01:00:00.000Z",
+    expiresAt: "2027-07-30T01:00:00.000Z",
     deploymentCount: 1,
   },
 ];
@@ -125,9 +126,15 @@ describe("AdminPage", () => {
 
     renderPage();
     await user.click(screen.getByRole("button", { name: "空间" }));
+    expect(await screen.findByRole("columnheader", { name: "空间到期时间" }))
+      .toBeInTheDocument();
     await user.click(await screen.findByRole("button", { name: "查看作品空间详情" }));
 
     expect(await screen.findByText("空间首页")).toBeInTheDocument();
+    expect(screen.getByText(
+      `空间内作品统一于 ${new Date(spaceDetail.expiresAt).toLocaleString("zh-CN")} 到期`,
+    )).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "到期时间" })).not.toBeInTheDocument();
     expect(api.get).toHaveBeenCalledWith("/admin/spaces/s1");
   });
 

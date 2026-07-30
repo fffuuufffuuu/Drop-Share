@@ -35,7 +35,10 @@ model Space {
   name        String
   slug        String       @unique
   createdAt   DateTime     @default(now())
+  expiresAt   DateTime
   deployments Deployment[]
+
+  @@index([expiresAt])
 }
 
 model Deployment {

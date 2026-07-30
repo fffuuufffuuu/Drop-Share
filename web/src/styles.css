@@ -480,6 +480,12 @@ label {
   width: min(100%, 260px);
 }
 
+.upload-setting-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+}
+
 .upload-setting-field input,
 .upload-setting-field select {
   box-sizing: border-box;
@@ -521,6 +527,17 @@ button {
   border-radius: 6px;
   padding: 8px 12px;
   cursor: pointer;
+}
+
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #111827;
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: #111827;
+  font-weight: 600;
+  text-decoration: none;
 }
 
 table {
@@ -643,6 +660,17 @@ td {
   align-items: center;
   justify-content: space-between;
   gap: 24px;
+}
+
+.dashboard-space-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dashboard-space-actions button {
+  padding: 5px 9px;
 }
 
 .dashboard-panel-heading h2,

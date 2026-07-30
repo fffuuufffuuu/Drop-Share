@@ -20,6 +20,8 @@ describe("CreateSpaceModal", () => {
       name: "作品空间",
       slug: "class-work",
       createdAt: "2026-07-29T01:00:00.000Z",
+      expiresAt: "2027-07-29T01:00:00.000Z",
+      deploymentCount: 0,
     };
     vi.spyOn(api, "post").mockResolvedValue({ data: createdSpace });
     const onCreated = vi.fn();
@@ -35,18 +37,25 @@ describe("CreateSpaceModal", () => {
 
     expect(screen.getByRole("dialog", { name: "新建空间" })).toBeInTheDocument();
     expect(screen.queryByText(/slug/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("spinbutton", { name: "空间有效期（天）" }))
+      .toHaveAttribute("min", "1");
+    expect(screen.getByRole("spinbutton", { name: "空间有效期（天）" }))
+      .toHaveAttribute("max", "365");
 
     await user.type(screen.getByRole("textbox", { name: "空间名称" }), "作品空间");
     await user.type(
       screen.getByRole("textbox", { name: "自定义网址后缀" }),
       "class-work",
     );
+    await user.clear(screen.getByRole("spinbutton", { name: "空间有效期（天）" }));
+    await user.type(screen.getByRole("spinbutton", { name: "空间有效期（天）" }), "120");
     await user.click(screen.getByRole("button", { name: "创建空间" }));
 
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith("/spaces", {
         name: "作品空间",
         slug: "class-work",
+        durationDays: 120,
       });
       expect(onCreated).toHaveBeenCalledWith(createdSpace);
     });
