@@ -698,6 +698,33 @@ td {
   margin-top: 38px;
 }
 
+.upload-work-section {
+  margin-top: 42px;
+  padding-top: 30px;
+  border-top: 1px solid #e4eaf4;
+}
+
+.visitor-work-prompt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 24px;
+  border: 1px solid #dbe4f3;
+  border-radius: 16px;
+  background: #f7f9fd;
+}
+
+.visitor-work-prompt p {
+  margin: 0;
+  color: #4c5b73;
+}
+
+.visitor-work-prompt a {
+  color: #315cff;
+  font-weight: 800;
+}
+
 .dashboard-shell {
   overflow: hidden;
   padding: 0;
