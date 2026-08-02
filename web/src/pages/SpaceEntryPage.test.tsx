@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -104,5 +104,117 @@ describe("SpaceEntryPage upload selection", () => {
     expect(screen.getByRole("heading", { name: "我的作品" })).toBeInTheDocument();
     expect(screen.getByText("上传者：member")).toBeInTheDocument();
     expect(screen.getByTitle("我的作品预览")).toHaveAttribute("sandbox", "");
+    expect(screen.queryByRole("button", { name: "隐藏我的作品" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "删除我的作品" })).not.toBeInTheDocument();
+  });
+
+  it("shows administrator hide and delete controls but not the owner close control", async () => {
+    localStorage.setItem("token", "admin-token");
+    localStorage.setItem("user", JSON.stringify({
+      id: "admin-1",
+      username: "fffuuu",
+      role: "ADMIN",
+    }));
+    vi.spyOn(api, "get").mockResolvedValue({
+      data: {
+        space: {
+          id: "space-1",
+          name: "八年级作品展",
+          slug: "demo",
+          expiresAt: "2027-07-30T01:00:00.000Z",
+        },
+        deployments: [{
+          id: "d1",
+          title: "我的作品",
+          publicSlug: "my-work",
+          ownerUserId: "admin-1",
+          uploaderName: "fffuuu",
+        }],
+      },
+    });
+
+    renderSpaceEntry();
+
+    const card = (await screen.findByRole("heading", { name: "我的作品" }))
+      .closest("article")!;
+    expect(within(card).getByRole("link", { name: "打开我的作品" })).toBeInTheDocument();
+    expect(within(card).getByRole("button", { name: "隐藏我的作品" })).toBeInTheDocument();
+    expect(within(card).getByRole("button", { name: "删除我的作品" })).toBeInTheDocument();
+    expect(within(card).queryByRole("button", { name: "关闭" })).not.toBeInTheDocument();
+  });
+
+  it("removes a hidden work from the administrator space entry", async () => {
+    localStorage.setItem("token", "admin-token");
+    localStorage.setItem("user", JSON.stringify({
+      id: "admin-1",
+      username: "fffuuu",
+      role: "ADMIN",
+    }));
+    vi.spyOn(api, "get").mockResolvedValue({
+      data: {
+        space: {
+          id: "space-1",
+          name: "作品空间",
+          slug: "demo",
+          expiresAt: "2027-07-30T01:00:00.000Z",
+        },
+        deployments: [{
+          id: "d1",
+          title: "待隐藏作品",
+          publicSlug: "work",
+          ownerUserId: null,
+          uploaderName: "匿名",
+        }],
+      },
+    });
+    vi.spyOn(api, "patch").mockResolvedValue({ data: { id: "d1", visibility: "hidden" } });
+    const user = userEvent.setup();
+
+    renderSpaceEntry();
+    await user.click(await screen.findByRole("button", { name: "隐藏待隐藏作品" }));
+
+    expect(api.patch).toHaveBeenCalledWith(
+      "/admin/deployments/d1",
+      { visibility: "hidden" },
+    );
+    expect(screen.queryByRole("heading", { name: "待隐藏作品" })).not.toBeInTheDocument();
+  });
+
+  it("confirms before permanently deleting a work as administrator", async () => {
+    localStorage.setItem("token", "admin-token");
+    localStorage.setItem("user", JSON.stringify({
+      id: "admin-1",
+      username: "fffuuu",
+      role: "ADMIN",
+    }));
+    vi.spyOn(api, "get").mockResolvedValue({
+      data: {
+        space: {
+          id: "space-1",
+          name: "作品空间",
+          slug: "demo",
+          expiresAt: "2027-07-30T01:00:00.000Z",
+        },
+        deployments: [{
+          id: "d1",
+          title: "待删除作品",
+          publicSlug: "work",
+          ownerUserId: null,
+          uploaderName: "匿名",
+        }],
+      },
+    });
+    vi.spyOn(api, "delete").mockResolvedValue({ data: { message: "网页已永久删除" } });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const user = userEvent.setup();
+
+    renderSpaceEntry();
+    await user.click(await screen.findByRole("button", { name: "删除待删除作品" }));
+
+    expect(window.confirm).toHaveBeenCalledWith(
+      "此操作将永久删除该作品，无法恢复。确定继续吗？",
+    );
+    expect(api.delete).toHaveBeenCalledWith("/admin/deployments/d1");
+    expect(screen.queryByRole("heading", { name: "待删除作品" })).not.toBeInTheDocument();
   });
 });

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import { api, setAuthToken } from "../api";
+import { getCurrentUser } from "../auth";
 import { UploadDropzone } from "../components/UploadDropzone";
 import { WorkPreviewCard } from "../components/WorkPreviewCard";
 import type { UploadEntry } from "../uploader";
@@ -18,15 +19,6 @@ type SpaceEntryData = {
   space: { id: string; name: string; slug: string; expiresAt: string };
   deployments: DeploymentItem[];
 };
-
-function getCurrentUser(): { id: string } | null {
-  try {
-    const raw = localStorage.getItem("user");
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
 
 export function SpaceEntryPage() {
   const { spaceSlug } = useParams();
@@ -104,6 +96,33 @@ export function SpaceEntryPage() {
     }
   }
 
+  async function hideAsAdmin(deploymentId: string) {
+    try {
+      await api.patch(`/admin/deployments/${deploymentId}`, { visibility: "hidden" });
+      setData((current) => current ? {
+        ...current,
+        deployments: current.deployments.filter((item) => item.id !== deploymentId),
+      } : current);
+      setMessage("作品已隐藏，可在空间项目管理中恢复");
+    } catch (error: any) {
+      setMessage(error.response?.data?.message || "隐藏作品失败");
+    }
+  }
+
+  async function deleteAsAdmin(deploymentId: string) {
+    if (!confirm("此操作将永久删除该作品，无法恢复。确定继续吗？")) return;
+    try {
+      await api.delete(`/admin/deployments/${deploymentId}`);
+      setData((current) => current ? {
+        ...current,
+        deployments: current.deployments.filter((item) => item.id !== deploymentId),
+      } : current);
+      setMessage("作品已永久删除");
+    } catch (error: any) {
+      setMessage(error.response?.data?.message || "删除作品失败");
+    }
+  }
+
   if (!data) {
     return <section className="card">加载中...</section>;
   }
@@ -173,7 +192,32 @@ export function SpaceEntryPage() {
                 publicSlug={deployment.publicSlug}
                 meta={`上传者：${deployment.uploaderName}`}
                 actions={
-                  currentUser && deployment.ownerUserId === currentUser.id ? (
+                  currentUser?.role === "ADMIN" ? (
+                    <div className="work-admin-actions">
+                      <button
+                        type="button"
+                        className="work-icon-action"
+                        aria-label={`隐藏${deployment.title}`}
+                        title="隐藏作品"
+                        onClick={() => void hideAsAdmin(deployment.id)}
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M3 3l18 18M10.6 10.6a2 2 0 002.8 2.8M9.9 4.2A10.9 10.9 0 0112 4c5.5 0 9 5.5 9 5.5a14.4 14.4 0 01-2.1 2.7M6.2 6.2C3.9 7.7 3 9.5 3 9.5S6.5 15 12 15c1 0 2-.2 2.8-.5" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        className="work-icon-action work-icon-action-danger"
+                        aria-label={`删除${deployment.title}`}
+                        title="永久删除作品"
+                        onClick={() => void deleteAsAdmin(deployment.id)}
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M4 7h16M9 7V4h6v3m-8 0l1 13h8l1-13M10 11v5m4-5v5" />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : currentUser && deployment.ownerUserId === currentUser.id ? (
                     <button
                       type="button"
                       className="btn-close"

@@ -88,7 +88,9 @@ export function CreateSpaceModal({
             </button>
             <span
               id="space-slug-help"
-              className={`field-help-tooltip${slugHelpVisible ? " is-visible" : ""}`}
+              className={`field-help-tooltip field-help-tooltip-right${
+                slugHelpVisible ? " is-visible" : ""
+              }`}
               role="tooltip"
             >
               例如填写 my-class，空间网址将是

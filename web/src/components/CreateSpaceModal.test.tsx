@@ -98,6 +98,7 @@ describe("CreateSpaceModal", () => {
     const help = screen.getByRole("button", { name: "查看自定义网址后缀示例" });
     const tooltip = screen.getByRole("tooltip");
     expect(help).toHaveAttribute("aria-describedby", "space-slug-help");
+    expect(tooltip).toHaveClass("field-help-tooltip-right");
     expect(tooltip).toHaveTextContent(
       "例如填写 my-class，空间网址将是 drop.yaoguosir.com/s/my-class；不填写时系统会随机生成。",
     );
