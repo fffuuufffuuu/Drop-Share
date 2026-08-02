@@ -17,6 +17,8 @@ vi.mock("./db", () => ({
     deployment: {
       findMany: vi.fn(),
       findFirst: vi.fn(),
+      findUnique: vi.fn(),
+      update: vi.fn(),
     },
     space: {
       findMany: vi.fn(),
@@ -51,6 +53,7 @@ vi.mock("./admin-deletion", () => ({
 
 function createApp() {
   const app = express();
+  app.use(express.json());
   app.use("/api/admin", adminRouter);
   app.use((error: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     res.status(400).json({ message: error.message });
@@ -181,6 +184,46 @@ describe("admin inventory routes", () => {
         }),
       }),
     });
+  });
+
+  it("updates deployment visibility through the admin route", async () => {
+    vi.mocked(prisma.deployment.findUnique).mockResolvedValue({ id: "d1" } as never);
+    vi.mocked(prisma.deployment.update).mockResolvedValue({
+      id: "d1",
+      visibility: "hidden",
+    } as never);
+
+    const response = await request(createApp())
+      .patch("/api/admin/deployments/d1")
+      .send({ visibility: "hidden" });
+
+    expect(response.status).toBe(200);
+    expect(prisma.deployment.update).toHaveBeenCalledWith({
+      where: { id: "d1" },
+      data: { visibility: "hidden" },
+    });
+    expect(response.body).toMatchObject({ id: "d1", visibility: "hidden" });
+  });
+
+  it("rejects an invalid administrator visibility value", async () => {
+    const response = await request(createApp())
+      .patch("/api/admin/deployments/d1")
+      .send({ visibility: "archived" });
+
+    expect(response.status).toBe(400);
+    expect(prisma.deployment.update).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when an administrator changes a missing deployment", async () => {
+    vi.mocked(prisma.deployment.findUnique).mockResolvedValue(null);
+
+    const response = await request(createApp())
+      .patch("/api/admin/deployments/missing")
+      .send({ visibility: "hidden" });
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ message: "网页不存在或已被删除" });
+    expect(prisma.deployment.update).not.toHaveBeenCalled();
   });
 
   it("downloads a single deployment as a ZIP", async () => {

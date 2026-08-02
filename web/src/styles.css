@@ -663,6 +663,17 @@ td {
   transform: translateY(0);
 }
 
+.field-help-tooltip-right {
+  top: 50%;
+  bottom: auto;
+  left: calc(100% + 10px);
+  transform: translate(-4px, -50%);
+}
+
+.field-help-tooltip-right.is-visible {
+  transform: translate(0, -50%);
+}
+
 .work-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -736,10 +747,66 @@ td {
   text-decoration: none;
 }
 
+.work-admin-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.work-icon-action {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid #d8dee9;
+  border-radius: 9px;
+  background: #f7f8fa;
+  color: #7b8798;
+}
+
+.work-icon-action svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.work-icon-action:hover,
+.work-icon-action:focus-visible {
+  border-color: #9aa8bb;
+  background: #eef1f5;
+  color: #344054;
+}
+
+.work-icon-action-danger:hover,
+.work-icon-action-danger:focus-visible {
+  border-color: #f0b4b4;
+  background: #fff1f1;
+  color: #c52b2b;
+}
+
 .space-entry-hero {
   margin-bottom: 28px;
   padding: 12px 0 24px;
   border-bottom: 1px solid #e4eaf4;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .field-help-tooltip-right {
+    top: calc(100% + 10px);
+    right: 0;
+    left: auto;
+    transform: translateY(-4px);
+  }
+
+  .field-help-tooltip-right.is-visible {
+    transform: translateY(0);
+  }
 }
 
 .space-entry-eyebrow {
@@ -869,6 +936,26 @@ td {
 
 .dashboard-space-actions button {
   padding: 5px 9px;
+}
+
+.dashboard-delete-space {
+  border-color: #e6caca;
+  background: #fffafa;
+  color: #a12a2a;
+}
+
+.dashboard-delete-space:hover,
+.dashboard-delete-space:focus-visible {
+  border-color: #d98d8d;
+  background: #fff0f0;
+  color: #861d1d;
+}
+
+.space-deployment-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .dashboard-panel-heading h2,

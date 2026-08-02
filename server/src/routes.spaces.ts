@@ -4,6 +4,7 @@ import multer from "multer";
 import path from "node:path";
 import { z } from "zod";
 
+import { permanentlyDeleteSpace } from "./admin-deletion";
 import { prisma } from "./db";
 import { requireAuth } from "./middleware";
 import {
@@ -108,8 +109,19 @@ spaceRouter.get("/:id", requireAuth, async (req, res) => {
   const deployments = await prisma.deployment.findMany({
     where: { spaceId: space.id, deletedAt: null },
     orderBy: { createdAt: "desc" },
+    include: {
+      owner: {
+        select: { username: true },
+      },
+    },
   });
-  res.json({ ...space, deployments });
+  res.json({
+    ...space,
+    deployments: deployments.map(({ owner, ...deployment }) => ({
+      ...deployment,
+      uploaderName: owner?.username ?? "匿名",
+    })),
+  });
 });
 
 spaceRouter.post("/:id/extend", requireAuth, async (req, res) => {
@@ -130,6 +142,27 @@ spaceRouter.post("/:id/extend", requireAuth, async (req, res) => {
     data: { expiresAt: addDays(new Date(), SPACE_EXTENSION_DAYS) },
   });
   res.json(updated);
+});
+
+spaceRouter.delete("/:id", requireAuth, async (req, res, next) => {
+  const space = await prisma.space.findUnique({
+    where: { id: String(req.params.id) },
+  });
+  if (!space || space.ownerUserId !== req.authUser?.userId) {
+    res.status(404).json({ message: "空间不存在或无权删除" });
+    return;
+  }
+
+  try {
+    const result = await permanentlyDeleteSpace(space.id);
+    if (result === "not-found") {
+      res.status(404).json({ message: "空间不存在或已被删除" });
+      return;
+    }
+    res.json({ message: "空间已永久删除" });
+  } catch (error) {
+    next(error);
+  }
 });
 
 spaceRouter.post("/:id/deployments", upload.array("files", 1000), async (req, res) => {

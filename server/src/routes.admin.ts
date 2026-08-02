@@ -1,5 +1,7 @@
+import { Visibility } from "@prisma/client";
 import archiver from "archiver";
 import { Router } from "express";
+import { z } from "zod";
 
 import {
   appendDeploymentFolder,
@@ -44,6 +46,32 @@ adminRouter.get("/deployments/personal", async (_req, res) => {
     expiresAt: deployment.expiresAt,
     ownerLabel: deployment.owner?.username ?? "匿名",
   })));
+});
+
+adminRouter.patch("/deployments/:id", async (req, res) => {
+  const parsed = z.object({
+    visibility: z.enum([Visibility.visible, Visibility.hidden]),
+  }).safeParse(req.body);
+
+  if (!parsed.success) {
+    res.status(400).json({ message: "无效的可见状态" });
+    return;
+  }
+
+  const deployment = await prisma.deployment.findUnique({
+    where: { id: String(req.params.id) },
+    select: { id: true },
+  });
+  if (!deployment) {
+    res.status(404).json({ message: "网页不存在或已被删除" });
+    return;
+  }
+
+  const updated = await prisma.deployment.update({
+    where: { id: deployment.id },
+    data: { visibility: parsed.data.visibility },
+  });
+  res.json(updated);
 });
 
 adminRouter.get("/deployments/:id/download", async (req, res, next) => {
