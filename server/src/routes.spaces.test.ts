@@ -2,6 +2,7 @@ import express from "express";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { permanentlyDeleteSpace } from "./admin-deletion";
 import { prisma } from "./db";
 import { spaceRouter } from "./routes.spaces";
 import { saveDeploymentFiles } from "./storage";
@@ -27,6 +28,10 @@ vi.mock("./db", () => ({
 
 vi.mock("./storage", () => ({
   saveDeploymentFiles: vi.fn(),
+}));
+
+vi.mock("./admin-deletion", () => ({
+  permanentlyDeleteSpace: vi.fn(),
 }));
 
 vi.mock("./middleware", () => ({
@@ -58,7 +63,7 @@ const activeSpace = {
   name: "作品空间",
   slug: "portfolio",
   createdAt: new Date("2026-07-29T01:00:00.000Z"),
-  expiresAt: new Date("2026-08-01T01:00:00.000Z"),
+  expiresAt: new Date("2099-08-01T01:00:00.000Z"),
 };
 
 describe("space expiration", () => {
@@ -129,6 +134,43 @@ describe("space expiration", () => {
     });
   });
 
+  it("returns uploader labels in an owned space detail", async () => {
+    vi.mocked(prisma.space.findUnique).mockResolvedValue(activeSpace as never);
+    vi.mocked(prisma.deployment.findMany).mockResolvedValue([
+      {
+        id: "d1",
+        title: "登录作品",
+        publicSlug: "signed-work",
+        visibility: "visible",
+        createdAt: now,
+        expiresAt: activeSpace.expiresAt,
+        owner: { username: "member" },
+      },
+      {
+        id: "d2",
+        title: "匿名作品",
+        publicSlug: "anonymous-work",
+        visibility: "hidden",
+        createdAt: now,
+        expiresAt: activeSpace.expiresAt,
+        owner: null,
+      },
+    ] as never);
+
+    const response = await authed(request(createApp()).get("/api/spaces/s1"));
+
+    expect(response.status).toBe(200);
+    expect(prisma.deployment.findMany).toHaveBeenCalledWith({
+      where: { spaceId: "s1", deletedAt: null },
+      orderBy: { createdAt: "desc" },
+      include: { owner: { select: { username: true } } },
+    });
+    expect(response.body.deployments).toEqual([
+      expect.objectContaining({ id: "d1", uploaderName: "member" }),
+      expect.objectContaining({ id: "d2", uploaderName: "匿名" }),
+    ]);
+  });
+
   it("refreshes an active owned space to now plus 365 days", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(now);
@@ -175,6 +217,43 @@ describe("space expiration", () => {
 
     expect(response.status).toBe(404);
     expect(prisma.space.update).not.toHaveBeenCalled();
+  });
+
+  it("permanently deletes an owned active space", async () => {
+    vi.mocked(prisma.space.findUnique).mockResolvedValue(activeSpace as never);
+    vi.mocked(permanentlyDeleteSpace).mockResolvedValue("deleted");
+
+    const response = await authed(request(createApp()).delete("/api/spaces/s1"));
+
+    expect(response.status).toBe(200);
+    expect(permanentlyDeleteSpace).toHaveBeenCalledWith("s1");
+    expect(response.body).toEqual({ message: "空间已永久删除" });
+  });
+
+  it("allows an owner to permanently delete an expired space", async () => {
+    vi.mocked(prisma.space.findUnique).mockResolvedValue({
+      ...activeSpace,
+      expiresAt: new Date("2020-01-01T00:00:00.000Z"),
+    } as never);
+    vi.mocked(permanentlyDeleteSpace).mockResolvedValue("deleted");
+
+    const response = await authed(request(createApp()).delete("/api/spaces/s1"));
+
+    expect(response.status).toBe(200);
+    expect(permanentlyDeleteSpace).toHaveBeenCalledWith("s1");
+  });
+
+  it("does not delete another user's space", async () => {
+    vi.mocked(prisma.space.findUnique).mockResolvedValue({
+      ...activeSpace,
+      ownerUserId: "user-2",
+    } as never);
+
+    const response = await authed(request(createApp()).delete("/api/spaces/s1"));
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ message: "空间不存在或无权删除" });
+    expect(permanentlyDeleteSpace).not.toHaveBeenCalled();
   });
 
   it("rejects public uploads to an expired space", async () => {
