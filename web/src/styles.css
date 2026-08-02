@@ -938,6 +938,19 @@ td {
   padding: 5px 9px;
 }
 
+.dashboard-delete-space {
+  border-color: #e6caca;
+  background: #fffafa;
+  color: #a12a2a;
+}
+
+.dashboard-delete-space:hover,
+.dashboard-delete-space:focus-visible {
+  border-color: #d98d8d;
+  background: #fff0f0;
+  color: #861d1d;
+}
+
 .space-deployment-actions {
   display: flex;
   align-items: center;

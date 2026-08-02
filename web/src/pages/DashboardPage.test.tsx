@@ -13,6 +13,7 @@ vi.mock("../api", () => ({
   api: {
     get: vi.fn(),
     post: vi.fn(),
+    delete: vi.fn(),
   },
   setAuthToken: vi.fn(),
 }));
@@ -46,7 +47,10 @@ beforeEach(() => {
   }));
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 describe("DashboardPage", () => {
   it("shows personal upload history in a table and distinguishes inactive entries", async () => {
@@ -185,6 +189,61 @@ describe("DashboardPage", () => {
     expect(screen.queryByLabelText("空间名称")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "新建空间" }));
     expect(screen.getByRole("dialog", { name: "新建空间" })).toBeInTheDocument();
+  });
+
+  it("confirms and permanently deletes active or expired spaces", async () => {
+    const spaces = [
+      {
+        id: "s1",
+        name: "作品空间",
+        slug: "portfolio",
+        createdAt: "2026-07-29T01:00:00.000Z",
+        expiresAt: "2099-07-30T01:00:00.000Z",
+        deploymentCount: 4,
+      },
+      {
+        id: "s2",
+        name: "过期空间",
+        slug: "expired",
+        createdAt: "2026-07-29T01:00:00.000Z",
+        expiresAt: "2020-01-01T00:00:00.000Z",
+        deploymentCount: 0,
+      },
+    ];
+    vi.mocked(api.get).mockImplementation(async (url) => {
+      if (url === "/deployments") return { data: [] };
+      if (url === "/spaces") return { data: spaces };
+      throw new Error(`unexpected GET ${url}`);
+    });
+    vi.mocked(api.delete).mockResolvedValue({
+      data: { message: "空间已永久删除" },
+    });
+    vi.spyOn(window, "confirm")
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true);
+    const user = userEvent.setup();
+
+    renderPage();
+    await user.click(screen.getByRole("button", { name: "空间管理" }));
+
+    const activeRow = (await screen.findByText("作品空间")).closest("tr")!;
+    const expiredRow = screen.getByText("过期空间").closest("tr")!;
+    expect(within(activeRow).getByRole("button", { name: "删除作品空间" }))
+      .toBeInTheDocument();
+    expect(within(expiredRow).getByRole("button", { name: "删除过期空间" }))
+      .toBeInTheDocument();
+
+    await user.click(within(activeRow).getByRole("button", { name: "删除作品空间" }));
+    expect(api.delete).not.toHaveBeenCalled();
+
+    await user.click(within(expiredRow).getByRole("button", { name: "删除过期空间" }));
+    expect(window.confirm).toHaveBeenLastCalledWith(
+      "此操作将永久删除该空间及其中全部作品，无法恢复。确定继续吗？",
+    );
+    expect(api.delete).toHaveBeenCalledWith("/spaces/s2");
+    await waitFor(() => {
+      expect(screen.queryByText("过期空间")).not.toBeInTheDocument();
+    });
   });
 
   it("clears the account when the user logs out", async () => {

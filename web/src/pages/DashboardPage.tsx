@@ -99,6 +99,19 @@ export function DashboardPage() {
     }
   }
 
+  async function deleteSpace(space: Space) {
+    if (!confirm("此操作将永久删除该空间及其中全部作品，无法恢复。确定继续吗？")) {
+      return;
+    }
+    try {
+      await api.delete(`/spaces/${space.id}`);
+      setSpaces((current) => current.filter((item) => item.id !== space.id));
+      setMessage("空间及其中全部作品已永久删除");
+    } catch (error: any) {
+      setMessage(error.response?.data?.message || "删除空间失败");
+    }
+  }
+
   return (
     <section className="card dashboard-shell">
       <header className="dashboard-header">
@@ -230,8 +243,9 @@ export function DashboardPage() {
                           </span>
                         </td>
                         <td>
-                          {status === "有效" ? (
-                            <div className="dashboard-space-actions">
+                          <div className="dashboard-space-actions">
+                            {status === "有效" && (
+                              <>
                               <Link to={`/spaces/${space.id}`}>进入管理</Link>
                               <Link to={`/s/${space.slug}`}>入口页面</Link>
                               <button
@@ -240,8 +254,17 @@ export function DashboardPage() {
                               >
                                 延长一年
                               </button>
-                            </div>
-                          ) : "—"}
+                              </>
+                            )}
+                            <button
+                              type="button"
+                              className="dashboard-delete-space"
+                              aria-label={`删除${space.name}`}
+                              onClick={() => void deleteSpace(space)}
+                            >
+                              删除空间
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
