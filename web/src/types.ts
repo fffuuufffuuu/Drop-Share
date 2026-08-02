@@ -26,6 +26,10 @@ export type PersonalDeployment = Deployment & {
   deletedAt: string | null;
 };
 
+export type SpaceDeployment = Deployment & {
+  uploaderName: string;
+};
+
 export type AdminDeployment = Deployment & {
   ownerLabel: string;
 };

@@ -3,14 +3,14 @@ import { useParams } from "react-router-dom";
 
 import { api, setAuthToken } from "../api";
 import { collectUploadEntries } from "../uploader";
-import type { Deployment } from "../types";
+import type { SpaceDeployment } from "../types";
 
 type SpaceDetail = {
   id: string;
   name: string;
   slug: string;
   expiresAt: string;
-  deployments: Deployment[];
+  deployments: SpaceDeployment[];
 };
 
 export function SpacePage() {
@@ -96,6 +96,7 @@ export function SpacePage() {
             <thead>
               <tr>
                 <th>项目</th>
+                <th>上传者</th>
                 <th>可见性</th>
                 <th>操作</th>
               </tr>
@@ -104,22 +105,25 @@ export function SpacePage() {
               {detail.deployments.map((deployment) => (
                 <tr key={deployment.id}>
                   <td>{deployment.title}</td>
-                  <td>{deployment.visibility}</td>
+                  <td>{deployment.uploaderName}</td>
+                  <td>{deployment.visibility === "visible" ? "显示" : "隐藏"}</td>
                   <td>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        toggleVisibility(
-                          deployment.id,
-                          deployment.visibility === "visible" ? "hidden" : "visible",
-                        )
-                      }
-                    >
-                      显示/隐藏
-                    </button>
-                    <button type="button" onClick={() => removeDeployment(deployment.id)}>
-                      删除
-                    </button>
+                    <div className="space-deployment-actions">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          toggleVisibility(
+                            deployment.id,
+                            deployment.visibility === "visible" ? "hidden" : "visible",
+                          )
+                        }
+                      >
+                        显示/隐藏
+                      </button>
+                      <button type="button" onClick={() => removeDeployment(deployment.id)}>
+                        删除
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

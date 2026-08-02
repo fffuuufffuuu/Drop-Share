@@ -938,6 +938,13 @@ td {
   padding: 5px 9px;
 }
 
+.space-deployment-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .dashboard-panel-heading h2,
 .dashboard-panel-heading p {
   margin: 0;
