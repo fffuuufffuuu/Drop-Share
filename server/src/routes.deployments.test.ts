@@ -99,6 +99,62 @@ describe("personal deployment history", () => {
       deletedAt: "2026-07-29T02:00:00.000Z",
     });
   });
+
+  it("returns the current user's space uploads with their destination spaces", async () => {
+    vi.mocked(prisma.deployment.findMany).mockResolvedValue([
+      {
+        id: "space-deployment-1",
+        title: "班级作品",
+        publicSlug: "class-work",
+        visibility: "visible",
+        createdAt: new Date("2026-07-30T01:00:00.000Z"),
+        expiresAt: new Date("2027-07-30T01:00:00.000Z"),
+        deletedAt: null,
+        space: {
+          id: "space-1",
+          name: "物理作品集",
+          slug: "physics-gallery",
+        },
+      },
+    ] as never);
+
+    const response = await request(createApp())
+      .get("/api/deployments/space-uploads")
+      .set("Authorization", "Bearer user-token");
+
+    expect(response.status).toBe(200);
+    expect(prisma.deployment.findMany).toHaveBeenCalledWith({
+      where: {
+        ownerUserId: "user-1",
+        spaceId: { not: null },
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        title: true,
+        publicSlug: true,
+        visibility: true,
+        createdAt: true,
+        expiresAt: true,
+        deletedAt: true,
+        space: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
+      },
+    });
+    expect(response.body[0]).toMatchObject({
+      id: "space-deployment-1",
+      space: {
+        id: "space-1",
+        name: "物理作品集",
+        slug: "physics-gallery",
+      },
+    });
+  });
 });
 
 describe("personal deployment retention", () => {

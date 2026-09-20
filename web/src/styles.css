@@ -839,6 +839,36 @@ td {
   border-top: 1px solid #e4eaf4;
 }
 
+.upload-work-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
+}
+
+.upload-work-column {
+  min-width: 0;
+}
+
+.upload-work-column .work-card-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.space-work-meta {
+  display: grid;
+  gap: 5px;
+}
+
+.space-work-meta a {
+  color: #315cff;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.space-work-meta a:hover,
+.space-work-meta a:focus-visible {
+  text-decoration: underline;
+}
+
 .visitor-work-prompt {
   display: flex;
   align-items: center;
@@ -1262,6 +1292,10 @@ td {
   }
 
   .home-features {
+    grid-template-columns: 1fr;
+  }
+
+  .upload-work-columns {
     grid-template-columns: 1fr;
   }
 

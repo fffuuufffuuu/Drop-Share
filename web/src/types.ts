@@ -26,6 +26,14 @@ export type PersonalDeployment = Deployment & {
   deletedAt: string | null;
 };
 
+export type SpaceUploadDeployment = PersonalDeployment & {
+  space: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+};
+
 export type SpaceDeployment = Deployment & {
   uploaderName: string;
 };

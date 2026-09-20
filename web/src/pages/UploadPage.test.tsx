@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -41,10 +41,15 @@ const activeSpace = {
   deploymentCount: 2,
 };
 
-function mockSignedInGets(spaces = [activeSpace], deployments: unknown[] = []) {
+function mockSignedInGets(
+  spaces = [activeSpace],
+  deployments: unknown[] = [],
+  spaceDeployments: unknown[] = [],
+) {
   return vi.spyOn(api, "get").mockImplementation(async (url) => {
     if (url === "/spaces") return { data: spaces } as never;
     if (url === "/deployments") return { data: deployments } as never;
+    if (url === "/deployments/space-uploads") return { data: spaceDeployments } as never;
     throw new Error(`Unexpected URL: ${url}`);
   });
 }
@@ -236,5 +241,47 @@ describe("UploadPage file choices", () => {
     expect(screen.getByTitle("有效作品预览")).toBeInTheDocument();
     expect(screen.queryByText("过期作品")).not.toBeInTheDocument();
     expect(screen.queryByText("删除作品")).not.toBeInTheDocument();
+  });
+
+  it("shows personal and space uploads in separate columns with a space link", async () => {
+    signIn();
+    mockSignedInGets(
+      [activeSpace],
+      [{
+        id: "personal",
+        title: "个人主页",
+        publicSlug: "personal-home",
+        visibility: "visible",
+        createdAt: "2026-07-29T01:00:00.000Z",
+        expiresAt: "2099-07-30T01:00:00.000Z",
+        deletedAt: null,
+      }],
+      [{
+        id: "space-work",
+        title: "空间作品",
+        publicSlug: "space-work",
+        visibility: "visible",
+        createdAt: "2026-07-30T01:00:00.000Z",
+        expiresAt: "2099-07-30T01:00:00.000Z",
+        deletedAt: null,
+        space: {
+          id: "s1",
+          name: "作品集",
+          slug: "portfolio",
+        },
+      }],
+    );
+
+    renderUploadPage();
+
+    const personalColumn = await screen.findByRole("region", { name: "我的个人作品" });
+    const spaceColumn = screen.getByRole("region", { name: "我上传到空间的作品" });
+    expect(within(personalColumn).getByRole("heading", { name: "个人主页" }))
+      .toBeInTheDocument();
+    expect(within(spaceColumn).getByRole("heading", { name: "空间作品" }))
+      .toBeInTheDocument();
+    expect(within(spaceColumn).getByRole("link", { name: "作品集" }))
+      .toHaveAttribute("href", "/s/portfolio");
+    expect(within(spaceColumn).getByText(/到期时间：/)).toBeInTheDocument();
   });
 });

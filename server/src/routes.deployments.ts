@@ -54,6 +54,34 @@ deploymentRouter.get("/", requireAuth, async (req, res) => {
   res.json(deployments);
 });
 
+deploymentRouter.get("/space-uploads", requireAuth, async (req, res) => {
+  const deployments = await prisma.deployment.findMany({
+    where: {
+      ownerUserId: req.authUser!.userId,
+      spaceId: { not: null },
+    },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      title: true,
+      publicSlug: true,
+      visibility: true,
+      createdAt: true,
+      expiresAt: true,
+      deletedAt: true,
+      space: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+        },
+      },
+    },
+  });
+
+  res.json(deployments);
+});
+
 deploymentRouter.post("/anonymous", upload.array("files", 1000), async (req, res) => {
   const files = (req.files as Express.Multer.File[]) ?? [];
   if (!files.length) {
