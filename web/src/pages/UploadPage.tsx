@@ -5,8 +5,7 @@ import { api, setAuthToken } from "../api";
 import { getCurrentUser } from "../auth";
 import { CreateSpaceModal } from "../components/CreateSpaceModal";
 import { UploadDropzone } from "../components/UploadDropzone";
-import { WorkPreviewCard } from "../components/WorkPreviewCard";
-import type { PersonalDeployment, Space, SpaceUploadDeployment } from "../types";
+import type { Space } from "../types";
 import type { UploadEntry } from "../uploader";
 
 export function UploadPage() {
@@ -18,46 +17,8 @@ export function UploadPage() {
   const [spaceId, setSpaceId] = useState("");
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [createSpaceOpen, setCreateSpaceOpen] = useState(false);
-  const [personalWorks, setPersonalWorks] = useState<PersonalDeployment[]>([]);
-  const [personalWorksError, setPersonalWorksError] = useState("");
-  const [spaceWorks, setSpaceWorks] = useState<SpaceUploadDeployment[]>([]);
-  const [spaceWorksError, setSpaceWorksError] = useState("");
   const isLoggedIn = getCurrentUser() !== null;
   const selectedSpace = spaces.find((space) => space.id === spaceId);
-
-  async function loadPersonalWorks() {
-    try {
-      const { data } = await api.get<PersonalDeployment[]>("/deployments");
-      const now = new Date();
-      setPersonalWorks(data.filter((deployment) => (
-        !deployment.deletedAt
-        && deployment.visibility === "visible"
-        && new Date(deployment.expiresAt) > now
-      )));
-      setPersonalWorksError("");
-    } catch (error: any) {
-      setPersonalWorksError(
-        error.response?.data?.message || "个人作品加载失败，请稍后重试。",
-      );
-    }
-  }
-
-  async function loadSpaceWorks() {
-    try {
-      const { data } = await api.get<SpaceUploadDeployment[]>("/deployments/space-uploads");
-      const now = new Date();
-      setSpaceWorks(data.filter((deployment) => (
-        !deployment.deletedAt
-        && deployment.visibility === "visible"
-        && new Date(deployment.expiresAt) > now
-      )));
-      setSpaceWorksError("");
-    } catch (error: any) {
-      setSpaceWorksError(
-        error.response?.data?.message || "空间作品加载失败，请稍后重试。",
-      );
-    }
-  }
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -70,9 +31,6 @@ export function UploadPage() {
       .catch((error: any) => {
         setMessage(error.response?.data?.message || "空间列表加载失败");
       });
-    void loadPersonalWorks();
-    void loadSpaceWorks();
-
     if (searchParams.get("createSpace") === "1") {
       setCreateSpaceOpen(true);
     }
@@ -109,9 +67,6 @@ export function UploadPage() {
       const url = isLoggedIn ? "/deployments" : "/deployments/anonymous";
       const { data } = await api.post(url, formData);
       setMessage(`部署成功：${data.url}（到期：${new Date(data.expiresAt).toLocaleString()}）`);
-      if (isLoggedIn) {
-        await Promise.all([loadPersonalWorks(), loadSpaceWorks()]);
-      }
     } catch (error: any) {
       setMessage(error.response?.data?.message || "部署失败");
     }
@@ -208,75 +163,6 @@ export function UploadPage() {
       </div>
 
       {message && <pre className="message">{message}</pre>}
-      <section className="upload-work-section">
-        {isLoggedIn ? (
-          <div className="upload-work-columns">
-            <section
-              className="upload-work-column"
-              aria-labelledby="personal-work-title"
-            >
-              <h2 id="personal-work-title">我的个人作品</h2>
-              {personalWorksError ? (
-                <p className="message">{personalWorksError}</p>
-              ) : personalWorks.length === 0 ? (
-                <p className="empty-state">
-                  你还没有可访问的个人作品，上传后会显示在这里。
-                </p>
-              ) : (
-                <div className="work-card-grid">
-                  {personalWorks.map((deployment) => (
-                    <WorkPreviewCard
-                      key={deployment.id}
-                      title={deployment.title}
-                      publicSlug={deployment.publicSlug}
-                      meta={`到期时间：${new Date(deployment.expiresAt).toLocaleString()}`}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-            <section
-              className="upload-work-column"
-              aria-labelledby="space-upload-work-title"
-            >
-              <h2 id="space-upload-work-title">我上传到空间的作品</h2>
-              {spaceWorksError ? (
-                <p className="message">{spaceWorksError}</p>
-              ) : spaceWorks.length === 0 ? (
-                <p className="empty-state">
-                  你还没有上传到空间的可访问作品。
-                </p>
-              ) : (
-                <div className="work-card-grid">
-                  {spaceWorks.map((deployment) => (
-                    <WorkPreviewCard
-                      key={deployment.id}
-                      title={deployment.title}
-                      publicSlug={deployment.publicSlug}
-                      meta={(
-                        <div className="space-work-meta">
-                          <span>到期时间：{new Date(deployment.expiresAt).toLocaleString()}</span>
-                          <span>
-                            所在空间：
-                            <Link to={`/s/${deployment.space.slug}`}>
-                              {deployment.space.name}
-                            </Link>
-                          </span>
-                        </div>
-                      )}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-          </div>
-        ) : (
-          <div className="visitor-work-prompt">
-            <p>注册登录后，即可管理自己上传的所有作品。</p>
-            <Link to="/login" aria-label="登录/注册，管理作品">登录/注册</Link>
-          </div>
-        )}
-      </section>
       <CreateSpaceModal
         open={createSpaceOpen}
         onClose={() => setCreateSpaceOpen(false)}

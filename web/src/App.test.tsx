@@ -46,7 +46,7 @@ describe("homepage and account navigation", () => {
     );
   });
 
-  it("replaces login and registration with the username after login", () => {
+  it("replaces login and registration with a my-works link after login", () => {
     localStorage.setItem("user", JSON.stringify({
       id: "u2",
       username: "member",
@@ -56,11 +56,23 @@ describe("homepage and account navigation", () => {
     renderApp("/");
 
     const navigation = within(screen.getByRole("navigation"));
-    expect(navigation.getByRole("link", { name: "member" })).toHaveAttribute(
+    expect(navigation.getByRole("link", { name: "我的作品" })).toHaveAttribute(
       "href",
       "/dashboard",
     );
+    expect(navigation.queryByText("member")).not.toBeInTheDocument();
     expect(navigation.queryByRole("link", { name: "登录/注册" })).not.toBeInTheDocument();
+  });
+
+  it("shows the CashewLab author and GitHub profile in the footer", () => {
+    renderApp("/");
+
+    const footer = within(screen.getByRole("contentinfo"));
+    expect(footer.getByText(/作者：/)).toHaveTextContent("作者：CashewLab");
+    expect(footer.getByRole("link", { name: "GitHub 主页" })).toHaveAttribute(
+      "href",
+      "https://github.com/fffuuufffuuu",
+    );
   });
 });
 
@@ -127,7 +139,7 @@ describe("authentication destinations", () => {
 });
 
 describe("administrator navigation", () => {
-  it("shows the admin link to an administrator", () => {
+  it("shows the admin link in the footer instead of the top navigation", () => {
     localStorage.setItem("user", JSON.stringify({
       id: "u1",
       username: "fffuuu",
@@ -136,7 +148,10 @@ describe("administrator navigation", () => {
 
     renderApp();
 
-    expect(screen.getByRole("link", { name: "管理后台" })).toHaveAttribute("href", "/admin");
+    expect(within(screen.getByRole("navigation")).queryByRole("link", { name: "管理后台" }))
+      .not.toBeInTheDocument();
+    expect(within(screen.getByRole("contentinfo")).getByRole("link", { name: "管理后台" }))
+      .toHaveAttribute("href", "/admin");
   });
 
   it("does not show the admin link to an ordinary user", () => {
@@ -148,7 +163,8 @@ describe("administrator navigation", () => {
 
     renderApp();
 
-    expect(screen.queryByRole("link", { name: "管理后台" })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("contentinfo")).queryByRole("link", { name: "管理后台" }))
+      .not.toBeInTheDocument();
   });
 
   it("shows the admin link immediately after an administrator logs in", async () => {
@@ -173,7 +189,8 @@ describe("administrator navigation", () => {
     await user.click(loginButtons[loginButtons.length - 1]);
 
     await waitFor(() => {
-      expect(screen.getByRole("link", { name: "管理后台" })).toHaveAttribute("href", "/admin");
+      expect(within(screen.getByRole("contentinfo")).getByRole("link", { name: "管理后台" }))
+        .toHaveAttribute("href", "/admin");
     });
   });
 });

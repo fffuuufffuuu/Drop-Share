@@ -4,27 +4,10 @@ import { Link, useNavigate } from "react-router-dom";
 import { api, setAuthToken } from "../api";
 import { getCurrentUser, notifyAuthChanged } from "../auth";
 import { CreateSpaceModal } from "../components/CreateSpaceModal";
-import type { PersonalDeployment, Space } from "../types";
+import { WorkPreviewCard } from "../components/WorkPreviewCard";
+import type { PersonalDeployment, Space, SpaceUploadDeployment } from "../types";
 
 type DashboardPanel = "uploads" | "spaces";
-type PersonalDeploymentStatus = "正常" | "已隐藏" | "已过期" | "已删除";
-
-const statusClassNames: Record<PersonalDeploymentStatus, string> = {
-  正常: "active",
-  已隐藏: "hidden",
-  已过期: "expired",
-  已删除: "deleted",
-};
-
-export function getPersonalDeploymentStatus(
-  deployment: PersonalDeployment,
-  now = new Date(),
-): PersonalDeploymentStatus {
-  if (deployment.deletedAt) return "已删除";
-  if (new Date(deployment.expiresAt) <= now) return "已过期";
-  if (deployment.visibility === "hidden") return "已隐藏";
-  return "正常";
-}
 
 export function getSpaceStatus(space: Space, now = new Date()): "有效" | "已过期" {
   return new Date(space.expiresAt) > now ? "有效" : "已过期";
@@ -32,7 +15,8 @@ export function getSpaceStatus(space: Space, now = new Date()): "有效" | "已�
 
 export function DashboardPage() {
   const [activePanel, setActivePanel] = useState<DashboardPanel>("uploads");
-  const [deployments, setDeployments] = useState<PersonalDeployment[]>([]);
+  const [personalWorks, setPersonalWorks] = useState<PersonalDeployment[]>([]);
+  const [spaceWorks, setSpaceWorks] = useState<SpaceUploadDeployment[]>([]);
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [createSpaceOpen, setCreateSpaceOpen] = useState(false);
   const [message, setMessage] = useState("");
@@ -46,10 +30,20 @@ export function DashboardPage() {
     }
     setAuthToken(token);
     try {
-      const { data } = await api.get<PersonalDeployment[]>("/deployments");
-      setDeployments(data);
+      const [{ data: personalData }, { data: spaceData }] = await Promise.all([
+        api.get<PersonalDeployment[]>("/deployments"),
+        api.get<SpaceUploadDeployment[]>("/deployments/space-uploads"),
+      ]);
+      const now = new Date();
+      const isAccessible = (deployment: PersonalDeployment) => (
+        !deployment.deletedAt
+        && deployment.visibility === "visible"
+        && new Date(deployment.expiresAt) > now
+      );
+      setPersonalWorks(personalData.filter(isAccessible));
+      setSpaceWorks(spaceData.filter(isAccessible));
     } catch (error: any) {
-      setMessage(error.response?.data?.message || "加载个人上传失败");
+      setMessage(error.response?.data?.message || "加载我的上传失败");
     }
   }
 
@@ -145,56 +139,60 @@ export function DashboardPage() {
         <div className="dashboard-panel">
           <h2>我的上传</h2>
           <p className="hint">
-            这里保留登录后直接上传的个人网页历史，不包含匿名上传或空间网页。
+            查看仍可访问的个人作品，以及你上传到各个空间的作品。
           </p>
-          {deployments.length === 0 ? (
-            <p className="hint">还没有个人上传记录。</p>
-          ) : (
-            <div className="admin-table-scroll">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>网页</th>
-                    <th>上传时间</th>
-                    <th>到期时间</th>
-                    <th>状态</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {deployments.map((deployment) => {
-                    const status = getPersonalDeploymentStatus(deployment);
-                    return (
-                      <tr key={deployment.id}>
-                        <td>{deployment.title}</td>
-                        <td>{new Date(deployment.createdAt).toLocaleString()}</td>
-                        <td>{new Date(deployment.expiresAt).toLocaleString()}</td>
-                        <td>
-                          <span
-                            className={`dashboard-status dashboard-status-${statusClassNames[status]}`}
-                          >
-                            {status}
+          <div className="dashboard-upload-columns">
+            <section
+              className="dashboard-upload-column"
+              aria-labelledby="dashboard-personal-works-title"
+            >
+              <h3 id="dashboard-personal-works-title">个人作品</h3>
+              {personalWorks.length === 0 ? (
+                <p className="empty-state">你还没有可访问的个人作品。</p>
+              ) : (
+                <div className="work-card-grid">
+                  {personalWorks.map((deployment) => (
+                    <WorkPreviewCard
+                      key={deployment.id}
+                      title={deployment.title}
+                      publicSlug={deployment.publicSlug}
+                      meta={`到期时间：${new Date(deployment.expiresAt).toLocaleString()}`}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+            <section
+              className="dashboard-upload-column"
+              aria-labelledby="dashboard-space-works-title"
+            >
+              <h3 id="dashboard-space-works-title">在空间里上传的作品</h3>
+              {spaceWorks.length === 0 ? (
+                <p className="empty-state">你还没有上传到空间的可访问作品。</p>
+              ) : (
+                <div className="work-card-grid">
+                  {spaceWorks.map((deployment) => (
+                    <WorkPreviewCard
+                      key={deployment.id}
+                      title={deployment.title}
+                      publicSlug={deployment.publicSlug}
+                      meta={(
+                        <div className="space-work-meta">
+                          <span>到期时间：{new Date(deployment.expiresAt).toLocaleString()}</span>
+                          <span>
+                            所在空间：
+                            <Link to={`/s/${deployment.space.slug}`}>
+                              {deployment.space.name}
+                            </Link>
                           </span>
-                        </td>
-                        <td>
-                          {status === "正常" ? (
-                            <a
-                              href={`/p/${deployment.publicSlug}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              aria-label={`访问${deployment.title}`}
-                            >
-                              访问
-                            </a>
-                          ) : "—"}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+                        </div>
+                      )}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
         </div>
       )}
 
