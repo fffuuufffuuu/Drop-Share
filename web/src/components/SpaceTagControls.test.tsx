@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 
@@ -51,6 +51,10 @@ it("adds multiple tags for selected works in the admin console", async () => {
   });
   expect(clear).toHaveBeenCalled();
   expect(refresh).toHaveBeenCalled();
+  await waitFor(() => {
+    expect(screen.getByRole("checkbox", { name: "物理" })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "课件" })).not.toBeChecked();
+  });
 });
 
 it("lets the space owner create tags and tag multiple selected works", async () => {

@@ -108,6 +108,7 @@ export function SpaceTagControls({
         action, ids: selectedIds,
         ...(action === "addTags" ? { tagIds: assignmentIds } : {}),
       });
+      if (action === "addTags") setAssignmentIds([]);
       onSelectionClear();
       setMessage(action === "addTags" ? "标签已添加到选中作品" : "作品已删除");
       await onRefresh();
