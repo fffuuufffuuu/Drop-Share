@@ -6,7 +6,7 @@ import { getCurrentUser, notifyAuthChanged } from "../auth";
 import { EditSpaceModal } from "../components/EditSpaceModal";
 import { SpaceDownloadSwitch } from "../components/SpaceDownloadSwitch";
 import { MergeSpacesModal } from "../components/MergeSpacesModal";
-import { SpaceTagControls, TagChips } from "../components/SpaceTagControls";
+import { SpaceTagControls, TagChips, TagFilter } from "../components/SpaceTagControls";
 import type {
   AdminDeployment,
   AdminSpace,
@@ -199,9 +199,9 @@ export function AdminPage() {
   const [spaceSlug, setSpaceSlug] = useState("");
   const [spaceEditError, setSpaceEditError] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [tagFilter, setTagFilter] = useState<string[]>([]);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
   const filteredSpaceDeployments = detail?.deployments.filter((deployment) =>
-    tagFilter.every((tagId) => (deployment.tagIds ?? []).includes(tagId))) ?? [];
+    !tagFilter || (deployment.tagIds ?? []).includes(tagFilter)) ?? [];
 
   async function loadPersonal() {
     setLoading(true);
@@ -257,7 +257,7 @@ export function AdminPage() {
     setPanel(nextPanel);
     setDetail(null);
     setSelectedIds([]);
-    setTagFilter([]);
+    setTagFilter(null);
     if (nextPanel === "personal") {
       await loadPersonal();
     } else {
@@ -480,7 +480,7 @@ export function AdminPage() {
                             aria-label={`查看${space.name}详情`}
                             onClick={() => {
                               setSelectedIds([]);
-                              setTagFilter([]);
+                              setTagFilter(null);
                               void loadSpaceDetail(space.id);
                             }}
                           >
@@ -559,27 +559,30 @@ export function AdminPage() {
             onToggle={(enabled) => void toggleSpaceDownloads(enabled)} />
           <SpaceTagControls
             admin spaceId={detail.id} tags={detail.tags ?? []} selectedIds={selectedIds}
-            filter={tagFilter} onFilterChange={setTagFilter}
+            activeTagId={tagFilter} onActiveTagChange={setTagFilter}
             onSelectionClear={() => setSelectedIds([])} onRefresh={() => loadSpaceDetail(detail.id)}
           />
-          <DeploymentTable
-            deployments={filteredSpaceDeployments}
-            showExpiration={false}
-            titleLinksToPreview
-            selection={{ ids: selectedIds, onChange: setSelectedIds, tags: detail.tags ?? [] }}
-            onToggleVisibility={(deployment, visibility) => {
-              void toggleDeploymentVisibility(deployment, visibility);
-            }}
-            onDownload={(deployment) => void download(
-              `/admin/deployments/${deployment.id}/download`,
-              `${deployment.title}.zip`,
-            )}
-            onDelete={(deployment) => setDeleteTarget({
-              kind: "deployment",
-              id: deployment.id,
-              name: deployment.title,
-            })}
-          />
+          <section className="space-work-list-panel" aria-label="空间作品列表">
+            <TagFilter tags={detail.tags ?? []} selectedId={tagFilter} onChange={setTagFilter} />
+            <DeploymentTable
+              deployments={filteredSpaceDeployments}
+              showExpiration={false}
+              titleLinksToPreview
+              selection={{ ids: selectedIds, onChange: setSelectedIds, tags: detail.tags ?? [] }}
+              onToggleVisibility={(deployment, visibility) => {
+                void toggleDeploymentVisibility(deployment, visibility);
+              }}
+              onDownload={(deployment) => void download(
+                `/admin/deployments/${deployment.id}/download`,
+                `${deployment.title}.zip`,
+              )}
+              onDelete={(deployment) => setDeleteTarget({
+                kind: "deployment",
+                id: deployment.id,
+                name: deployment.title,
+              })}
+            />
+          </section>
         </div>
       )}
 

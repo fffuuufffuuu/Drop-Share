@@ -4,22 +4,20 @@ import { api } from "../api";
 import type { SpaceTag } from "../types";
 
 export function TagFilter({
-  tags, selectedIds, onChange,
+  tags, selectedId, onChange,
 }: {
   tags: SpaceTag[];
-  selectedIds: string[];
-  onChange: (ids: string[]) => void;
+  selectedId: string | null;
+  onChange: (id: string | null) => void;
 }) {
   return (
     <div className="space-tag-filter" aria-label="按标签筛选">
-      <button type="button" className={!selectedIds.length ? "space-folder-active" : ""}
-        onClick={() => onChange([])}>全部作品</button>
+      <button type="button" className={!selectedId ? "space-folder-active" : ""}
+        aria-pressed={!selectedId} onClick={() => onChange(null)}>全部作品</button>
       {tags.map((tag) => <button type="button" key={tag.id}
-        className={selectedIds.includes(tag.id) ? "space-folder-active" : ""}
-        aria-pressed={selectedIds.includes(tag.id)}
-        onClick={() => onChange(selectedIds.includes(tag.id)
-          ? selectedIds.filter((id) => id !== tag.id)
-          : [...selectedIds, tag.id])}>{tag.name}</button>)}
+        className={selectedId === tag.id ? "space-folder-active" : ""}
+        aria-pressed={selectedId === tag.id}
+        onClick={() => onChange(tag.id)}>{tag.name}</button>)}
     </div>
   );
 }
@@ -33,13 +31,13 @@ export function TagChips({ tags, tagIds }: { tags: SpaceTag[]; tagIds: string[] 
 }
 
 export function SpaceTagControls({
-  spaceId, tags, selectedIds, filter, onFilterChange, onSelectionClear, onRefresh, admin = false, manageTags = false,
+  spaceId, tags, selectedIds, activeTagId, onActiveTagChange, onSelectionClear, onRefresh, admin = false, manageTags = false,
 }: {
   spaceId: string;
   tags: SpaceTag[];
   selectedIds: string[];
-  filter: string[];
-  onFilterChange: (ids: string[]) => void;
+  activeTagId: string | null;
+  onActiveTagChange: (id: string | null) => void;
   onSelectionClear: () => void;
   onRefresh: () => Promise<void>;
   admin?: boolean;
@@ -88,7 +86,7 @@ export function SpaceTagControls({
     setBusy(true);
     try {
       await api.delete(`${base}/tags/${tag.id}`);
-      onFilterChange(filter.filter((id) => id !== tag.id));
+      if (activeTagId === tag.id) onActiveTagChange(null);
       setAssignmentIds((current) => current.filter((id) => id !== tag.id));
       setMessage("标签已删除");
       await onRefresh();
@@ -122,7 +120,6 @@ export function SpaceTagControls({
 
   return (
     <section className="space-folder-controls" aria-label="空间标签与批量操作">
-      <TagFilter tags={tags} selectedIds={filter} onChange={onFilterChange} />
       {canManageTags && <>
         <div className="space-folder-create">
           <label htmlFor="new-space-tag">作品标签</label>

@@ -38,9 +38,9 @@ export function SpaceEntryPage() {
   const [renameTarget, setRenameTarget] = useState<DeploymentItem | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [renameError, setRenameError] = useState("");
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const visibleDeployments = data?.deployments.filter((deployment) =>
-    selectedTags.every((tagId) => (deployment.tagIds ?? []).includes(tagId))) ?? [];
+    !selectedTag || (deployment.tagIds ?? []).includes(selectedTag)) ?? [];
 
   const currentUser = getCurrentUser();
   const canManageSpace = !!data && !!currentUser && (currentUser.role === "ADMIN" || currentUser.id === data.space.ownerUserId);
@@ -221,8 +221,8 @@ export function SpaceEntryPage() {
       <p className="message">{message}</p>
       <section className="space-work-section" aria-labelledby="space-work-title">
         <h2 id="space-work-title">空间内作品</h2>
-        {(data.tags ?? []).length > 0 && <TagFilter tags={data.tags} selectedIds={selectedTags}
-          onChange={setSelectedTags} />}
+        {(data.tags ?? []).length > 0 && <TagFilter tags={data.tags} selectedId={selectedTag}
+          onChange={setSelectedTag} />}
         {visibleDeployments.length === 0 ? (
           <p className="empty-state">{data.deployments.length ? "没有符合所选标签的作品" : "这个空间还没有作品"}</p>
         ) : <div className="work-card-grid">

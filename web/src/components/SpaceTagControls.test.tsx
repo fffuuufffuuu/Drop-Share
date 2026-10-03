@@ -18,15 +18,20 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-it("toggles multiple filter tags", async () => {
+it("selects only one filter tag at a time", async () => {
   const onChange = vi.fn();
   const user = userEvent.setup();
-  const { rerender } = render(<TagFilter tags={tags} selectedIds={[]} onChange={onChange} />);
+  const { rerender } = render(<TagFilter tags={tags} selectedId={null} onChange={onChange} />);
   await user.click(screen.getByRole("button", { name: "物理" }));
-  expect(onChange).toHaveBeenCalledWith(["t1"]);
-  rerender(<TagFilter tags={tags} selectedIds={["t1"]} onChange={onChange} />);
+  expect(onChange).toHaveBeenCalledWith("t1");
+  rerender(<TagFilter tags={tags} selectedId="t1" onChange={onChange} />);
   await user.click(screen.getByRole("button", { name: "课件" }));
-  expect(onChange).toHaveBeenLastCalledWith(["t1", "t2"]);
+  expect(onChange).toHaveBeenLastCalledWith("t2");
+  rerender(<TagFilter tags={tags} selectedId="t2" onChange={onChange} />);
+  expect(screen.getByRole("button", { name: "物理" })).toHaveAttribute("aria-pressed", "false");
+  expect(screen.getByRole("button", { name: "课件" })).toHaveAttribute("aria-pressed", "true");
+  await user.click(screen.getByRole("button", { name: "全部作品" }));
+  expect(onChange).toHaveBeenLastCalledWith(null);
 });
 
 it("adds multiple tags for selected works in the admin console", async () => {
@@ -34,7 +39,7 @@ it("adds multiple tags for selected works in the admin console", async () => {
   const refresh = vi.fn().mockResolvedValue(undefined);
   const clear = vi.fn();
   render(<SpaceTagControls admin spaceId="s1" tags={tags}
-    selectedIds={["d1"]} filter={[]} onFilterChange={vi.fn()}
+    selectedIds={["d1"]} activeTagId={null} onActiveTagChange={vi.fn()}
     onSelectionClear={clear} onRefresh={refresh} />);
 
   await userEvent.click(screen.getByRole("checkbox", { name: "物理" }));
@@ -52,7 +57,7 @@ it("lets the space owner create tags and tag multiple selected works", async () 
   const post = vi.spyOn(api, "post").mockResolvedValue({ data: {} });
   const refresh = vi.fn().mockResolvedValue(undefined);
   render(<SpaceTagControls manageTags spaceId="s1" tags={tags}
-    selectedIds={["d1", "d2"]} filter={[]} onFilterChange={vi.fn()}
+    selectedIds={["d1", "d2"]} activeTagId={null} onActiveTagChange={vi.fn()}
     onSelectionClear={vi.fn()} onRefresh={refresh} />);
   const user = userEvent.setup();
   await user.type(screen.getByPlaceholderText("新标签名称"), "实验");

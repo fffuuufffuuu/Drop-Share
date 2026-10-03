@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -160,6 +160,9 @@ describe("AdminPage", () => {
       `空间内作品统一于 ${new Date(spaceDetail.expiresAt).toLocaleString("zh-CN")} 到期`,
     )).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "到期时间" })).not.toBeInTheDocument();
+    const worksPanel = screen.getByRole("region", { name: "空间作品列表" });
+    expect(within(worksPanel).getByLabelText("按标签筛选")).toBeInTheDocument();
+    expect(within(worksPanel).getByRole("table")).toBeInTheDocument();
     expect(api.get).toHaveBeenCalledWith("/admin/spaces/s1");
   });
 

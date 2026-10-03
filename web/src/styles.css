@@ -1039,6 +1039,19 @@ td {
   background: #f8fbff;
 }
 
+.space-work-list-panel {
+  margin-top: 20px;
+  border: 1px solid #dbe4f3;
+  border-radius: 14px;
+  padding: 16px;
+  background: #fff;
+  overflow-x: auto;
+}
+
+.space-work-list-panel > .space-tag-filter {
+  margin-bottom: 16px;
+}
+
 .space-tag-filter,
 .space-tag-chips {
   display: flex;

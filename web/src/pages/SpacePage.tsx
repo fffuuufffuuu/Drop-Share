@@ -7,7 +7,7 @@ import { ProjectNameModal } from "../components/ProjectNameModal";
 import { EditNameButton } from "../components/EditNameButton";
 import { EditSpaceModal } from "../components/EditSpaceModal";
 import { SpaceDownloadSwitch } from "../components/SpaceDownloadSwitch";
-import { SpaceTagControls, TagChips } from "../components/SpaceTagControls";
+import { SpaceTagControls, TagChips, TagFilter } from "../components/SpaceTagControls";
 import { downloadZip } from "../download";
 import { isDeadlineNear } from "../space-deadline";
 import type { SpaceDeployment, SpaceTag } from "../types";
@@ -40,9 +40,9 @@ export function SpacePage() {
   const [spaceError, setSpaceError] = useState("");
   const [batchReport, setBatchReport] = useState<BatchReportItem[] | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [tagFilter, setTagFilter] = useState<string[]>([]);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
   const visibleDeployments = detail?.deployments.filter((deployment) =>
-    tagFilter.every((tagId) => (deployment.tagIds ?? []).includes(tagId))) ?? [];
+    !tagFilter || (deployment.tagIds ?? []).includes(tagFilter)) ?? [];
 
   function toggleSelected(id: string) {
     setSelectedIds((current) => current.includes(id)
@@ -225,9 +225,11 @@ export function SpacePage() {
             onToggle={(enabled) => void toggleDownloads(enabled)} />
           <SpaceTagControls
             manageTags spaceId={detail.id} tags={detail.tags ?? []} selectedIds={selectedIds}
-            filter={tagFilter} onFilterChange={setTagFilter}
+            activeTagId={tagFilter} onActiveTagChange={setTagFilter}
             onSelectionClear={() => setSelectedIds([])} onRefresh={loadDetail}
           />
+          <section className="space-work-list-panel" aria-label="空间作品列表">
+            <TagFilter tags={detail.tags ?? []} selectedId={tagFilter} onChange={setTagFilter} />
           <table>
             <thead>
               <tr>
@@ -279,6 +281,7 @@ export function SpacePage() {
               ))}
             </tbody>
           </table>
+          </section>
         </>
       ) : (
         <p>加载中...</p>

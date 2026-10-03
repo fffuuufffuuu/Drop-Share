@@ -87,7 +87,7 @@ describe("SpaceEntryPage upload selection", () => {
     expect(screen.queryByText("无标签")).not.toBeInTheDocument();
   });
 
-  it("filters public cards by all selected tags", async () => {
+  it("filters public cards by one selected tag", async () => {
     vi.spyOn(api, "get").mockResolvedValue({ data: {
       space: { id: "space-1", name: "作品空间", slug: "demo", expiresAt: "2099-01-01" },
       tags: [
@@ -105,6 +105,8 @@ describe("SpaceEntryPage upload selection", () => {
     await user.click(screen.getByRole("button", { name: "物理" }));
     expect(screen.getByRole("heading", { name: "首页" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "课件" }));
+    expect(screen.getByRole("button", { name: "物理" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "课件" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("heading", { name: "轨道演示" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "首页" })).not.toBeInTheDocument();
   });

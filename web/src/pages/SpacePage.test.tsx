@@ -20,6 +20,36 @@ afterEach(() => {
 });
 
 describe("SpacePage", () => {
+  it("keeps single-tag filtering with the works table", async () => {
+    vi.spyOn(api, "get").mockResolvedValue({ data: {
+      id: "s1", name: "作品空间", slug: "portfolio", expiresAt: "2099-01-01",
+      tags: [
+        { id: "t1", name: "物理", spaceId: "s1", createdAt: "2026-01-01" },
+        { id: "t2", name: "课件", spaceId: "s1", createdAt: "2026-01-01" },
+      ],
+      deployments: [
+        { id: "d1", title: "物理作品", publicSlug: "physics", visibility: "visible",
+          createdAt: "2026-01-01", expiresAt: "2099-01-01", uploaderName: "member", tagIds: ["t1"] },
+        { id: "d2", title: "课件作品", publicSlug: "slides", visibility: "visible",
+          createdAt: "2026-01-01", expiresAt: "2099-01-01", uploaderName: "member", tagIds: ["t2"] },
+      ],
+    } });
+    render(<MemoryRouter initialEntries={["/spaces/s1"]}>
+      <Routes><Route path="/spaces/:spaceId" element={<SpacePage />} /></Routes>
+    </MemoryRouter>);
+
+    const panel = await screen.findByRole("region", { name: "空间作品列表" });
+    expect(within(panel).getByRole("table")).toBeInTheDocument();
+    const filter = within(panel).getByLabelText("按标签筛选");
+    const user = userEvent.setup();
+    await user.click(within(filter).getByRole("button", { name: "物理" }));
+    expect(within(panel).getByRole("link", { name: "物理作品" })).toBeInTheDocument();
+    expect(within(panel).queryByRole("link", { name: "课件作品" })).not.toBeInTheDocument();
+    await user.click(within(filter).getByRole("button", { name: "课件" }));
+    expect(within(panel).queryByRole("link", { name: "物理作品" })).not.toBeInTheDocument();
+    expect(within(panel).getByRole("link", { name: "课件作品" })).toBeInTheDocument();
+  });
+
   it("lets the creator enable public downloads", async () => {
     vi.spyOn(api, "get").mockResolvedValue({ data: {
       id: "s1", name: "作品空间", slug: "portfolio",
