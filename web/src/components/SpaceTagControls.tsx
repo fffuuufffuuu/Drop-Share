@@ -132,11 +132,18 @@ export function SpaceTagControls({
         </div>
         <div className="space-folder-list">
           {tags.map((tag) => <div className="space-folder-item" key={tag.id}>
-            <span className="space-tag-chip">{tag.name}</span>
-            <button type="button" aria-label={`重命名标签${tag.name}`} disabled={busy}
-              onClick={() => void renameTag(tag)}>✎</button>
-            <button type="button" aria-label={`删除标签${tag.name}`} disabled={busy}
-              onClick={() => void deleteTag(tag)}>×</button>
+            <label className="space-folder-item-select">
+              <input type="checkbox" checked={assignmentIds.includes(tag.id)}
+                onChange={() => setAssignmentIds((current) => current.includes(tag.id)
+                  ? current.filter((id) => id !== tag.id) : [...current, tag.id])} />
+              <span className="space-tag-chip">{tag.name}</span>
+            </label>
+            <div className="space-folder-item-actions">
+              <button type="button" aria-label={`重命名标签${tag.name}`} disabled={busy}
+                onClick={() => void renameTag(tag)}>✎</button>
+              <button type="button" aria-label={`删除标签${tag.name}`} disabled={busy}
+                onClick={() => void deleteTag(tag)}>×</button>
+            </div>
           </div>)}
         </div>
       </>}
@@ -144,14 +151,6 @@ export function SpaceTagControls({
         <span>已选 {selectedIds.length} 件作品</span>
         {canManageTags && <>
           <span className="hint">添加标签会保留作品原有的标签。</span>
-          <div className="space-tag-assignment" aria-label="设置选中作品的标签">
-            {tags.map((tag) => <label key={tag.id}>
-              <input type="checkbox" checked={assignmentIds.includes(tag.id)}
-                onChange={() => setAssignmentIds((current) => current.includes(tag.id)
-                  ? current.filter((id) => id !== tag.id) : [...current, tag.id])} />
-              {tag.name}
-            </label>)}
-          </div>
           <button type="button" disabled={busy || !selectedIds.length || !assignmentIds.length}
             onClick={() => void bulk("addTags")}>为选中作品添加标签</button>
         </>}

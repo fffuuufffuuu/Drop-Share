@@ -1040,8 +1040,7 @@ td {
 }
 
 .space-tag-filter,
-.space-tag-chips,
-.space-tag-assignment {
+.space-tag-chips {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -1076,7 +1075,6 @@ td {
   font-weight: 600;
 }
 
-.space-tag-assignment label,
 .space-download-setting {
   display: inline-flex;
   align-items: center;
@@ -1163,6 +1161,8 @@ td {
 }
 
 .space-folder-list {
+  flex-direction: column;
+  align-items: stretch;
   border-top: 1px solid #e1e8f4;
   padding-top: 12px;
 }
@@ -1175,16 +1175,32 @@ td {
   color: #3153ac;
 }
 
-.space-folder-list .space-folder-active {
-  border-color: #315cff;
-  background: #e8efff;
-}
-
 .space-folder-item {
-  gap: 2px;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 12px;
 }
 
-.space-folder-item button:not(:first-child) {
+.space-folder-item-select {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.space-folder-item-select .space-tag-chip {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.space-folder-item-actions {
+  display: inline-flex;
+  flex: none;
+  gap: 4px;
+}
+
+.space-folder-item-actions button {
   padding-inline: 7px;
 }
 
@@ -1924,6 +1940,11 @@ td {
 
 .admin-table td {
   vertical-align: top;
+}
+
+.admin-table .admin-status-column {
+  min-width: 80px;
+  white-space: nowrap;
 }
 
 .admin-page-link {

@@ -93,7 +93,7 @@ function DeploymentTable({
             <th>上传者</th>
             <th>上传时间</th>
             {showExpiration && <th>到期时间</th>}
-            <th>状态</th>
+            <th className="admin-status-column">状态</th>
             <th>操作</th>
           </tr>
         </thead>
@@ -127,7 +127,7 @@ function DeploymentTable({
               <td>{deployment.ownerLabel}</td>
               <td>{formatDate(deployment.createdAt)}</td>
               {showExpiration && <td>{formatDate(deployment.expiresAt)}</td>}
-              <td>
+              <td className="admin-status-column">
                 <span className={`admin-status admin-status-${deployment.visibility}`}>
                   {deployment.visibility === "visible" ? "显示中" : "已隐藏"}
                 </span>
