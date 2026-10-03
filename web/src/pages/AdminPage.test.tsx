@@ -125,7 +125,12 @@ describe("AdminPage", () => {
     expect(screen.getByRole("button", { name: "个人上传" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "空间" })).toBeInTheDocument();
     expect(await screen.findByText("匿名作品")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "下载匿名作品 ZIP" })).toHaveTextContent("下载 ZIP");
+    for (const name of ["下载匿名作品 ZIP", "永久删除匿名作品"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button).toHaveClass("work-icon-action");
+      expect(button.querySelector("svg")).toBeInTheDocument();
+    }
+    expect(screen.getByRole("link", { name: "预览匿名作品" })).toHaveClass("work-icon-action");
     expect(screen.getByRole("link", { name: "匿名作品" })).toHaveAttribute(
       "href", "/p/anonymous-site/",
     );
@@ -144,6 +149,11 @@ describe("AdminPage", () => {
     expect(screen.getByRole("link", { name: "作品空间" })).toHaveAttribute(
       "href", "/s/portfolio",
     );
+    for (const name of ["查看作品空间详情", "编辑空间作品空间", "下载空间作品空间 ZIP", "永久删除空间作品空间"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button).toHaveClass("work-icon-action");
+      expect(button.querySelector("svg")).toBeInTheDocument();
+    }
     await user.click(await screen.findByRole("button", { name: "查看作品空间详情" }));
 
     expect(await screen.findByText("空间首页")).toBeInTheDocument();
@@ -211,7 +221,7 @@ describe("AdminPage", () => {
 
     renderPage();
     await user.click(screen.getByRole("button", { name: "空间" }));
-    await user.click(await screen.findByRole("button", { name: "编辑空间" }));
+    await user.click(await screen.findByRole("button", { name: "编辑空间作品空间" }));
     await user.clear(screen.getByRole("textbox", { name: "空间名称" }));
     await user.type(screen.getByRole("textbox", { name: "空间名称" }), "新空间");
     await user.clear(screen.getByRole("textbox", { name: "网址后缀（slug）" }));

@@ -133,21 +133,22 @@ function DeploymentTable({
                   {deployment.visibility === "visible" ? "显示中" : "已隐藏"}
                 </span>
               </td>
-              <td className={selection ? "admin-work-actions-cell" : undefined}>
-                <div className={selection ? "admin-actions admin-work-actions" : "admin-actions"}>
+              <td className="admin-work-actions-cell">
+                <div className="admin-actions admin-work-actions">
                   {!titleLinksToPreview && (
-                    <a className="admin-action-link" href={`/p/${deployment.publicSlug}`} target="_blank" rel="noreferrer">
-                      预览
+                    <a className="admin-action-link work-icon-action" href={`/p/${deployment.publicSlug}`}
+                      target="_blank" rel="noreferrer" aria-label={`预览${deployment.title}`} title="预览作品">
+                      <WorkActionIcon type="show" />
                     </a>
                   )}
                   <button
                     type="button"
-                    className={selection ? "work-icon-action" : undefined}
+                    className="work-icon-action"
                     aria-label={`下载${deployment.title} ZIP`}
                     title="下载 ZIP"
                     onClick={() => onDownload(deployment)}
                   >
-                    {selection ? <WorkActionIcon type="download" /> : "下载 ZIP"}
+                    <WorkActionIcon type="download" />
                   </button>
                   {onToggleVisibility && (
                     <button
@@ -169,12 +170,12 @@ function DeploymentTable({
                   )}
                   <button
                     type="button"
-                    className={selection ? "work-icon-action work-icon-action-danger" : "btn-danger"}
+                    className="work-icon-action work-icon-action-danger"
                     aria-label={`永久删除${deployment.title}`}
                     title="永久删除作品"
                     onClick={() => onDelete(deployment)}
                   >
-                    {selection ? <WorkActionIcon type="delete" /> : "永久删除"}
+                    <WorkActionIcon type="delete" />
                   </button>
                 </div>
               </td>
@@ -479,41 +480,50 @@ export function AdminPage() {
                       <td>{formatDate(space.createdAt)}</td>
                       <td>{formatDate(space.expiresAt)}</td>
                       <td>{space.deploymentCount}</td>
-                      <td>
-                        <div className="admin-actions">
+                      <td className="admin-work-actions-cell">
+                        <div className="admin-actions admin-work-actions">
                           <button
                             type="button"
+                            className="work-icon-action"
                             aria-label={`查看${space.name}详情`}
+                            title="进入管理"
                             onClick={() => {
                               setSelectedIds([]);
                               setTagFilter(null);
                               void loadSpaceDetail(space.id);
                             }}
                           >
-                            查看详情
+                            <WorkActionIcon type="manage" />
                           </button>
-                          <button type="button" onClick={() => openEditSpace(space)}>编辑空间</button>
+                          <button type="button" className="work-icon-action"
+                            aria-label={`编辑空间${space.name}`} title="编辑空间"
+                            onClick={() => openEditSpace(space)}>
+                            <WorkActionIcon type="edit" />
+                          </button>
                           <button
                             type="button"
+                            className="work-icon-action"
                             aria-label={`下载空间${space.name} ZIP`}
+                            title="下载空间 ZIP"
                             onClick={() => void download(
                               `/admin/spaces/${space.id}/download`,
                               `${space.name}.zip`,
                             )}
                           >
-                            下载 ZIP
+                            <WorkActionIcon type="download" />
                           </button>
                           <button
                             type="button"
-                            className="btn-danger"
+                            className="work-icon-action work-icon-action-danger"
                             aria-label={`永久删除空间${space.name}`}
+                            title="永久删除空间"
                             onClick={() => setDeleteTarget({
                               kind: "space",
                               id: space.id,
                               name: space.name,
                             })}
                           >
-                            永久删除空间
+                            <WorkActionIcon type="delete" />
                           </button>
                         </div>
                       </td>

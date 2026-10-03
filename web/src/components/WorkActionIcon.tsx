@@ -1,4 +1,4 @@
-export function WorkActionIcon({ type }: { type: "download" | "hide" | "show" | "delete" }) {
+export function WorkActionIcon({ type }: { type: "download" | "hide" | "show" | "delete" | "manage" | "edit" | "extend" }) {
   if (type === "download") {
     return <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M12 3v12m-4-4 4 4 4-4M4 17v3h16v-3" />
@@ -13,6 +13,22 @@ export function WorkActionIcon({ type }: { type: "download" | "hide" | "show" | 
     return <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
       <circle cx="12" cy="12" r="3" />
+    </svg>;
+  }
+  if (type === "manage") {
+    return <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M10 2h4l.5 2.2 1.7.7 1.9-1.2 2.8 2.8-1.2 1.9.7 1.7L22 10v4l-2.2.5-.7 1.7 1.2 1.9-2.8 2.8-1.9-1.2-1.7.7L14 22h-4l-.5-2.2-1.7-.7-1.9 1.2-2.8-2.8 1.2-1.9-.7-1.7L2 14v-4l2.2-.5.7-1.7-1.2-1.9 2.8-2.8 1.9 1.2 1.7-.7L10 2Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>;
+  }
+  if (type === "edit") {
+    return <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 20h4l11-11a2.1 2.1 0 00-4-4L4 16v4ZM13.5 6.5l4 4" />
+    </svg>;
+  }
+  if (type === "extend") {
+    return <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 6h16v14H4V6ZM8 3v6m8-6v6M4 10h16m-8 3v5m-2.5-2.5h5" />
     </svg>;
   }
   return <svg viewBox="0 0 24 24" aria-hidden="true">

@@ -9,6 +9,7 @@ import { EditSpaceModal } from "../components/EditSpaceModal";
 import { ProjectNameModal } from "../components/ProjectNameModal";
 import { MergeSpacesModal } from "../components/MergeSpacesModal";
 import { WorkPreviewCard } from "../components/WorkPreviewCard";
+import { WorkActionIcon } from "../components/WorkActionIcon";
 import type { PersonalDeployment, Space, SpaceUploadDeployment } from "../types";
 
 type DashboardPanel = "uploads" | "spaces";
@@ -318,27 +319,38 @@ export function DashboardPage() {
                             {status}
                           </span>
                         </td>
-                        <td>
+                        <td className="dashboard-space-actions-cell">
                           <div className="dashboard-space-actions">
-                            <button type="button" onClick={() => openEditSpace(space)}>修改名称</button>
+                            <button type="button" className="work-icon-action"
+                              aria-label={`修改${space.name}名称`} title="修改名称"
+                              onClick={() => openEditSpace(space)}>
+                              <WorkActionIcon type="edit" />
+                            </button>
                             {status === "有效" && (
                               <>
-                              <button type="button" onClick={() => navigate(`/spaces/${space.id}`)}>进入管理</button>
+                              <button type="button" className="work-icon-action"
+                                aria-label={`进入${space.name}管理`} title="进入管理"
+                                onClick={() => navigate(`/spaces/${space.id}`)}>
+                                <WorkActionIcon type="manage" />
+                              </button>
                               <button
                                 type="button"
+                                className="work-icon-action"
+                                aria-label={`为${space.name}延长一年`} title="延长一年"
                                 onClick={() => void extendSpace(space.id)}
                               >
-                                延长一年
+                                <WorkActionIcon type="extend" />
                               </button>
                               </>
                             )}
                             <button
                               type="button"
-                              className="dashboard-delete-space"
+                              className="work-icon-action work-icon-action-danger"
                               aria-label={`删除${space.name}`}
+                              title="删除空间"
                               onClick={() => void deleteSpace(space)}
                             >
-                              删除空间
+                              <WorkActionIcon type="delete" />
                             </button>
                           </div>
                         </td>

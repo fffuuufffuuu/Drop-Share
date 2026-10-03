@@ -1741,50 +1741,12 @@ td {
 .dashboard-space-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  gap: 9px;
+  flex-wrap: nowrap;
 }
 
-.dashboard-space-actions > a,
-.dashboard-space-actions > button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 34px;
-  box-sizing: border-box;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  padding: 5px 10px;
-  background: #f8fafc;
-  color: #27364e;
-  font: inherit;
-  font-size: 13px;
-  line-height: 1.2;
-  text-decoration: none;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.dashboard-space-actions > a:hover,
-.dashboard-space-actions > a:focus-visible,
-.dashboard-space-actions > button:not(.dashboard-delete-space):hover,
-.dashboard-space-actions > button:not(.dashboard-delete-space):focus-visible {
-  border-color: #8ea5d8;
-  background: #eaf0ff;
-  color: #193b86;
-}
-
-.dashboard-space-actions > .dashboard-delete-space {
-  border-color: #e6caca;
-  background: #fffafa;
-  color: #a12a2a;
-}
-
-.dashboard-space-actions > .dashboard-delete-space:hover,
-.dashboard-space-actions > .dashboard-delete-space:focus-visible {
-  border-color: #d98d8d;
-  background: #fff0f0;
-  color: #861d1d;
+.dashboard-space-actions-cell {
+  min-width: 180px;
 }
 
 .space-deployment-actions {
@@ -1995,7 +1957,7 @@ td {
   flex-wrap: wrap;
 }
 
-.admin-actions a {
+.admin-actions a:not(.work-icon-action) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2013,8 +1975,8 @@ td {
   white-space: nowrap;
 }
 
-.admin-actions a:hover,
-.admin-actions a:focus-visible {
+.admin-actions a:not(.work-icon-action):hover,
+.admin-actions a:not(.work-icon-action):focus-visible {
   border-color: #8ea5d8;
   background: #eaf0ff;
   color: #193b86;
@@ -2030,7 +1992,7 @@ td {
 }
 
 .admin-work-actions-cell {
-  min-width: 150px;
+  min-width: 180px;
 }
 
 .admin-actions .work-icon-action {

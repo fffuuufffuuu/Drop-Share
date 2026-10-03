@@ -158,16 +158,20 @@ describe("DashboardPage", () => {
     const expiredRow = screen.getByText("过期空间").closest("tr")!;
     expect(within(activeRow).getByText("4")).toBeInTheDocument();
     expect(within(activeRow).getByText("有效")).toBeInTheDocument();
-    expect(within(activeRow).getByRole("button", { name: "进入管理" })).toBeInTheDocument();
+    expect(within(activeRow).getByRole("button", { name: "进入作品空间管理" })).toBeInTheDocument();
     expect(within(activeRow).getByRole("link", { name: "作品空间" })).toHaveAttribute("href", "/s/portfolio");
     expect(within(activeRow).queryByRole("button", { name: "入口页面" })).not.toBeInTheDocument();
-    expect(within(activeRow).getByRole("button", { name: "延长一年" })).toBeInTheDocument();
+    for (const name of ["修改作品空间名称", "进入作品空间管理", "为作品空间延长一年", "删除作品空间"]) {
+      const button = within(activeRow).getByRole("button", { name });
+      expect(button).toHaveClass("work-icon-action");
+      expect(button.querySelector("svg")).toBeInTheDocument();
+    }
     expect(within(expiredRow).getByText("已过期")).toBeInTheDocument();
     expect(within(expiredRow).queryByRole("link")).not.toBeInTheDocument();
-    expect(within(expiredRow).queryByRole("button", { name: "延长一年" }))
+    expect(within(expiredRow).queryByRole("button", { name: "为过期空间延长一年" }))
       .not.toBeInTheDocument();
 
-    await user.click(within(activeRow).getByRole("button", { name: "延长一年" }));
+    await user.click(within(activeRow).getByRole("button", { name: "为作品空间延长一年" }));
     expect(api.post).toHaveBeenCalledWith("/spaces/s1/extend");
     expect(await screen.findByText(new Date("2100-07-30T01:00:00.000Z").toLocaleString()))
       .toBeInTheDocument();
@@ -190,7 +194,7 @@ describe("DashboardPage", () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(screen.getByRole("button", { name: "空间管理" }));
-    expect(await screen.findByRole("button", { name: "进入管理" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "进入作品空间管理" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "管理作品" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "作品空间的作品管理" })).not.toBeInTheDocument();
   });
