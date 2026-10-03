@@ -7,6 +7,7 @@ import { UploadDropzone } from "../components/UploadDropzone";
 import { ProjectNameModal } from "../components/ProjectNameModal";
 import { EditNameButton } from "../components/EditNameButton";
 import { WorkPreviewCard } from "../components/WorkPreviewCard";
+import { WorkActionIcon } from "../components/WorkActionIcon";
 import { TagChips, TagFilter } from "../components/SpaceTagControls";
 import type { SpaceTag } from "../types";
 import { suggestProjectName, type UploadEntry } from "../uploader";
@@ -243,7 +244,7 @@ export function SpaceEntryPage() {
                     {data.space.downloadsEnabled && <a className="work-icon-action"
                       aria-label={`下载${deployment.title} ZIP`} title="下载 ZIP"
                       href={`${String(api.defaults.baseURL ?? "/api").replace(/\/$/, "")}/spaces/entry/${encodeURIComponent(data.space.slug)}/deployments/${encodeURIComponent(deployment.id)}/download`}
-                    ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 17v3h16v-3" /></svg></a>}
+                    ><WorkActionIcon type="download" /></a>}
                     {currentUser?.role === "ADMIN" ? (<>
                       <button
                         type="button"
@@ -252,9 +253,7 @@ export function SpaceEntryPage() {
                         title="隐藏作品"
                         onClick={() => void hideAsAdmin(deployment.id)}
                       >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M3 3l18 18M10.6 10.6a2 2 0 002.8 2.8M9.9 4.2A10.9 10.9 0 0112 4c5.5 0 9 5.5 9 5.5a14.4 14.4 0 01-2.1 2.7M6.2 6.2C3.9 7.7 3 9.5 3 9.5S6.5 15 12 15c1 0 2-.2 2.8-.5" />
-                        </svg>
+                        <WorkActionIcon type="hide" />
                       </button>
                       <button
                         type="button"
@@ -263,9 +262,7 @@ export function SpaceEntryPage() {
                         title="永久删除作品"
                         onClick={() => void deleteAsAdmin(deployment.id)}
                       >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M4 7h16M9 7V4h6v3m-8 0l1 13h8l1-13M10 11v5m4-5v5" />
-                        </svg>
+                        <WorkActionIcon type="delete" />
                       </button>
                     </>) : currentUser && deployment.ownerUserId === currentUser.id ? (
                     <button

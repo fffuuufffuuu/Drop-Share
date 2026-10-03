@@ -1790,8 +1790,12 @@ td {
 .space-deployment-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: 9px;
+  flex-wrap: nowrap;
+}
+
+.space-work-actions-cell {
+  min-width: 138px;
 }
 
 .dashboard-panel-heading h2,
@@ -2019,6 +2023,18 @@ td {
 .admin-actions button {
   padding: 6px 9px;
   font-size: 12px;
+}
+
+.admin-work-actions {
+  flex-wrap: nowrap;
+}
+
+.admin-work-actions-cell {
+  min-width: 150px;
+}
+
+.admin-actions .work-icon-action {
+  padding: 0;
 }
 
 .admin-status {

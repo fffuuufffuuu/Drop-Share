@@ -169,8 +169,13 @@ describe("SpacePage", () => {
     expect(screen.getByText("匿名")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "匿名作品" })).not.toBeInTheDocument();
     const workRow = screen.getByText("作品一").closest("tr")!;
-    expect(within(workRow).getByRole("button", { name: "显示/隐藏" }).parentElement)
-      .toHaveClass("space-deployment-actions");
+    const actions = within(workRow).getByRole("button", { name: "隐藏作品一" }).parentElement;
+    expect(actions).toHaveClass("space-deployment-actions");
+    for (const name of ["下载作品一 ZIP", "隐藏作品一", "删除作品一"]) {
+      const button = within(workRow).getByRole("button", { name });
+      expect(button).toHaveClass("work-icon-action");
+      expect(button.querySelector("svg")).toBeInTheDocument();
+    }
     expect(screen.queryByRole("columnheader", { name: "到期" })).not.toBeInTheDocument();
   });
 

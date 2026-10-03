@@ -7,6 +7,7 @@ import { ProjectNameModal } from "../components/ProjectNameModal";
 import { EditNameButton } from "../components/EditNameButton";
 import { EditSpaceModal } from "../components/EditSpaceModal";
 import { SpaceDownloadSwitch } from "../components/SpaceDownloadSwitch";
+import { WorkActionIcon } from "../components/WorkActionIcon";
 import { SpaceTagControls, TagChips, TagFilter } from "../components/SpaceTagControls";
 import { downloadZip } from "../download";
 import { isDeadlineNear } from "../space-deadline";
@@ -258,11 +259,18 @@ export function SpacePage() {
                   <td><TagChips tags={detail.tags ?? []} tagIds={deployment.tagIds ?? []} /></td>
                   <td>{deployment.uploaderName}</td>
                   <td>{deployment.visibility === "visible" ? "显示" : "隐藏"}</td>
-                  <td>
+                  <td className="space-work-actions-cell">
                     <div className="space-deployment-actions">
-                      <button type="button" onClick={() => void downloadDeployment(deployment)}>下载 ZIP</button>
+                      <button type="button" className="work-icon-action"
+                        aria-label={`下载${deployment.title} ZIP`} title="下载 ZIP"
+                        onClick={() => void downloadDeployment(deployment)}>
+                        <WorkActionIcon type="download" />
+                      </button>
                       <button
                         type="button"
+                        className="work-icon-action"
+                        aria-label={`${deployment.visibility === "visible" ? "隐藏" : "显示"}${deployment.title}`}
+                        title={deployment.visibility === "visible" ? "隐藏作品" : "显示作品"}
                         onClick={() =>
                           toggleVisibility(
                             deployment.id,
@@ -270,10 +278,12 @@ export function SpacePage() {
                           )
                         }
                       >
-                        显示/隐藏
+                        <WorkActionIcon type={deployment.visibility === "visible" ? "hide" : "show"} />
                       </button>
-                      <button type="button" onClick={() => removeDeployment(deployment.id)}>
-                        删除
+                      <button type="button" className="work-icon-action work-icon-action-danger"
+                        aria-label={`删除${deployment.title}`} title="删除作品"
+                        onClick={() => removeDeployment(deployment.id)}>
+                        <WorkActionIcon type="delete" />
                       </button>
                     </div>
                   </td>

@@ -125,6 +125,7 @@ describe("AdminPage", () => {
     expect(screen.getByRole("button", { name: "个人上传" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "空间" })).toBeInTheDocument();
     expect(await screen.findByText("匿名作品")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "下载匿名作品 ZIP" })).toHaveTextContent("下载 ZIP");
     expect(screen.getByRole("link", { name: "匿名作品" })).toHaveAttribute(
       "href", "/p/anonymous-site/",
     );
@@ -156,6 +157,12 @@ describe("AdminPage", () => {
     );
     expect(screen.queryByRole("link", { name: "预览" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "隐藏空间首页" })).toBeInTheDocument();
+    const workRow = screen.getByRole("button", { name: "隐藏空间首页" }).closest("tr")!;
+    for (const name of ["下载空间首页 ZIP", "隐藏空间首页", "永久删除空间首页"]) {
+      const button = within(workRow).getByRole("button", { name });
+      expect(button).toHaveClass("work-icon-action");
+      expect(button.querySelector("svg")).toBeInTheDocument();
+    }
     expect(screen.getByText(
       `空间内作品统一于 ${new Date(spaceDetail.expiresAt).toLocaleString("zh-CN")} 到期`,
     )).toBeInTheDocument();

@@ -5,6 +5,7 @@ import { api, setAuthToken } from "../api";
 import { getCurrentUser, notifyAuthChanged } from "../auth";
 import { EditSpaceModal } from "../components/EditSpaceModal";
 import { SpaceDownloadSwitch } from "../components/SpaceDownloadSwitch";
+import { WorkActionIcon } from "../components/WorkActionIcon";
 import { MergeSpacesModal } from "../components/MergeSpacesModal";
 import { SpaceTagControls, TagChips, TagFilter } from "../components/SpaceTagControls";
 import type {
@@ -132,43 +133,48 @@ function DeploymentTable({
                   {deployment.visibility === "visible" ? "显示中" : "已隐藏"}
                 </span>
               </td>
-              <td>
-                <div className="admin-actions">
+              <td className={selection ? "admin-work-actions-cell" : undefined}>
+                <div className={selection ? "admin-actions admin-work-actions" : "admin-actions"}>
                   {!titleLinksToPreview && (
                     <a className="admin-action-link" href={`/p/${deployment.publicSlug}`} target="_blank" rel="noreferrer">
                       预览
                     </a>
                   )}
+                  <button
+                    type="button"
+                    className={selection ? "work-icon-action" : undefined}
+                    aria-label={`下载${deployment.title} ZIP`}
+                    title="下载 ZIP"
+                    onClick={() => onDownload(deployment)}
+                  >
+                    {selection ? <WorkActionIcon type="download" /> : "下载 ZIP"}
+                  </button>
                   {onToggleVisibility && (
                     <button
                       type="button"
+                      className="work-icon-action"
                       aria-label={
                         deployment.visibility === "visible"
                           ? `隐藏${deployment.title}`
                           : `显示${deployment.title}`
                       }
+                      title={deployment.visibility === "visible" ? "隐藏作品" : "显示作品"}
                       onClick={() => onToggleVisibility(
                         deployment,
                         deployment.visibility === "visible" ? "hidden" : "visible",
                       )}
                     >
-                      {deployment.visibility === "visible" ? "隐藏" : "显示"}
+                      <WorkActionIcon type={deployment.visibility === "visible" ? "hide" : "show"} />
                     </button>
                   )}
                   <button
                     type="button"
-                    aria-label={`下载${deployment.title} ZIP`}
-                    onClick={() => onDownload(deployment)}
-                  >
-                    下载 ZIP
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-danger"
+                    className={selection ? "work-icon-action work-icon-action-danger" : "btn-danger"}
                     aria-label={`永久删除${deployment.title}`}
+                    title="永久删除作品"
                     onClick={() => onDelete(deployment)}
                   >
-                    永久删除
+                    {selection ? <WorkActionIcon type="delete" /> : "永久删除"}
                   </button>
                 </div>
               </td>

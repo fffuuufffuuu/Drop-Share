@@ -60,6 +60,7 @@ it("lets the space owner create tags and tag multiple selected works", async () 
     selectedIds={["d1", "d2"]} activeTagId={null} onActiveTagChange={vi.fn()}
     onSelectionClear={vi.fn()} onRefresh={refresh} />);
   const user = userEvent.setup();
+  expect(screen.getByLabelText("标签管理")).toHaveAttribute("placeholder", "新标签名称");
   await user.type(screen.getByPlaceholderText("新标签名称"), "实验");
   await user.click(screen.getByRole("button", { name: "添加标签" }));
   expect(post).toHaveBeenCalledWith("/spaces/s1/tags", { name: "实验" });

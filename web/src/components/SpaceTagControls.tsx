@@ -122,7 +122,7 @@ export function SpaceTagControls({
     <section className="space-folder-controls" aria-label="空间标签与批量操作">
       {canManageTags && <>
         <div className="space-folder-create">
-          <label htmlFor="new-space-tag">作品标签</label>
+          <label htmlFor="new-space-tag">标签管理</label>
           <input id="new-space-tag" value={newName} maxLength={80}
             placeholder="新标签名称" onChange={(event) => setNewName(event.target.value)} />
           <button type="button" disabled={busy} onClick={() => void createTag()}>添加标签</button>
