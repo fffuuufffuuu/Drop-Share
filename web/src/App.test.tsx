@@ -64,14 +64,19 @@ describe("homepage and account navigation", () => {
     expect(navigation.queryByRole("link", { name: "登录/注册" })).not.toBeInTheDocument();
   });
 
-  it("shows the CashewLab author and GitHub profile in the footer", () => {
+  it("links the footer to CashewLab and this project's GitHub repository", () => {
     renderApp("/");
 
     const footer = within(screen.getByRole("contentinfo"));
     expect(footer.getByText(/作者：/)).toHaveTextContent("作者：CashewLab");
-    expect(footer.getByRole("link", { name: "GitHub 主页" })).toHaveAttribute(
+    expect(footer.getByRole("link", { name: "CashewLab" })).toHaveAttribute(
       "href",
-      "https://github.com/fffuuufffuuu",
+      "https://www.yaoguosir.com/",
+    );
+    expect(footer.getByText("沪ICP备2025130631号-1")).toBeInTheDocument();
+    expect(footer.getByRole("link", { name: "GitHub" })).toHaveAttribute(
+      "href",
+      "https://github.com/fffuuufffuuu/Drop-Share",
     );
   });
 });
@@ -139,7 +144,7 @@ describe("authentication destinations", () => {
 });
 
 describe("administrator navigation", () => {
-  it("shows the admin link in the footer instead of the top navigation", () => {
+  it("does not show the admin link in the footer or top navigation", () => {
     localStorage.setItem("user", JSON.stringify({
       id: "u1",
       username: "fffuuu",
@@ -150,8 +155,8 @@ describe("administrator navigation", () => {
 
     expect(within(screen.getByRole("navigation")).queryByRole("link", { name: "管理后台" }))
       .not.toBeInTheDocument();
-    expect(within(screen.getByRole("contentinfo")).getByRole("link", { name: "管理后台" }))
-      .toHaveAttribute("href", "/admin");
+    expect(within(screen.getByRole("contentinfo")).queryByRole("link", { name: "管理后台" }))
+      .not.toBeInTheDocument();
   });
 
   it("does not show the admin link to an ordinary user", () => {
@@ -188,9 +193,12 @@ describe("administrator navigation", () => {
     const loginButtons = screen.getAllByRole("button", { name: "登录" });
     await user.click(loginButtons[loginButtons.length - 1]);
 
+    await user.click(await within(screen.getByRole("navigation")).findByRole("link", { name: "我的作品" }));
     await waitFor(() => {
-      expect(within(screen.getByRole("contentinfo")).getByRole("link", { name: "管理后台" }))
+      expect(within(screen.getByRole("main")).getByRole("link", { name: "管理后台" }))
         .toHaveAttribute("href", "/admin");
     });
+    expect(within(screen.getByRole("contentinfo")).queryByRole("link", { name: "管理后台" }))
+      .not.toBeInTheDocument();
   });
 });

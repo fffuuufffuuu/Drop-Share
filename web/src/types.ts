@@ -36,10 +36,19 @@ export type SpaceUploadDeployment = PersonalDeployment & {
 
 export type SpaceDeployment = Deployment & {
   uploaderName: string;
+  tagIds: string[];
 };
 
 export type AdminDeployment = Deployment & {
   ownerLabel: string;
+  tagIds?: string[];
+};
+
+export type SpaceTag = {
+  id: string;
+  spaceId: string;
+  name: string;
+  createdAt: string;
 };
 
 export type Space = {
@@ -48,14 +57,17 @@ export type Space = {
   slug: string;
   createdAt: string;
   expiresAt: string;
+  downloadsEnabled: boolean;
   deploymentCount: number;
 };
 
 export type AdminSpace = Space & {
+  ownerUserId: string;
   ownerUsername: string;
   deploymentCount: number;
 };
 
 export type AdminSpaceDetail = Omit<AdminSpace, "deploymentCount"> & {
   deployments: AdminDeployment[];
+  tags: SpaceTag[];
 };

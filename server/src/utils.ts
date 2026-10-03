@@ -9,6 +9,10 @@ export function randomSlug(length = 10): string {
     .toLowerCase();
 }
 
+export function uploaderAgentForStorage(userAgent: string | undefined): string | null {
+  return userAgent?.slice(0, 191) ?? null;
+}
+
 export function sanitizeRelativePath(inputPath: string): string {
   const normalized = inputPath.replace(/\\/g, "/").replace(/^\/+/, "");
   const safe = path.posix.normalize(normalized);

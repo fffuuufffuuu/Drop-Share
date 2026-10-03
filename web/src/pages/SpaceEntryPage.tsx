@@ -1,11 +1,16 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 
 import { api, setAuthToken } from "../api";
 import { getCurrentUser } from "../auth";
 import { UploadDropzone } from "../components/UploadDropzone";
+import { ProjectNameModal } from "../components/ProjectNameModal";
+import { EditNameButton } from "../components/EditNameButton";
 import { WorkPreviewCard } from "../components/WorkPreviewCard";
-import type { UploadEntry } from "../uploader";
+import { TagChips, TagFilter } from "../components/SpaceTagControls";
+import type { SpaceTag } from "../types";
+import { suggestProjectName, type UploadEntry } from "../uploader";
+import { isDeadlineNear } from "../space-deadline";
 
 type DeploymentItem = {
   id: string;
@@ -13,11 +18,13 @@ type DeploymentItem = {
   publicSlug: string;
   ownerUserId: string | null;
   uploaderName: string;
+  tagIds: string[];
 };
 
 type SpaceEntryData = {
-  space: { id: string; name: string; slug: string; expiresAt: string };
+  space: { id: string; name: string; slug: string; ownerUserId: string; expiresAt: string; downloadsEnabled: boolean };
   deployments: DeploymentItem[];
+  tags: SpaceTag[];
 };
 
 export function SpaceEntryPage() {
@@ -28,8 +35,15 @@ export function SpaceEntryPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [modalError, setModalError] = useState("");
+  const [renameTarget, setRenameTarget] = useState<DeploymentItem | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [renameError, setRenameError] = useState("");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const visibleDeployments = data?.deployments.filter((deployment) =>
+    selectedTags.every((tagId) => (deployment.tagIds ?? []).includes(tagId))) ?? [];
 
   const currentUser = getCurrentUser();
+  const canManageSpace = !!data && !!currentUser && (currentUser.role === "ADMIN" || currentUser.id === data.space.ownerUserId);
   useEffect(() => {
     setAuthToken(localStorage.getItem("token") ?? undefined);
   }, []);
@@ -49,7 +63,7 @@ export function SpaceEntryPage() {
   }, [spaceSlug]);
 
   function openUploadModal() {
-    setProjectName("");
+    setProjectName(suggestProjectName(entries));
     setModalError("");
     setModalOpen(true);
   }
@@ -96,6 +110,32 @@ export function SpaceEntryPage() {
     }
   }
 
+  function openRename(deployment: DeploymentItem) {
+    setRenameTarget(deployment);
+    setRenameValue(deployment.title);
+    setRenameError("");
+  }
+
+  async function renameDeployment() {
+    if (!renameTarget) return;
+    const title = renameValue.trim();
+    if (!title || title.length > 80) {
+      setRenameError("作品名称须为 1 至 80 个字");
+      return;
+    }
+    try {
+      await api.patch(`/deployments/${renameTarget.id}`, { title });
+      setData((current) => current ? {
+        ...current,
+        deployments: current.deployments.map((item) => item.id === renameTarget.id ? { ...item, title } : item),
+      } : current);
+      setRenameTarget(null);
+      setMessage("作品名称已更新");
+    } catch (error: any) {
+      setRenameError(error.response?.data?.message || "重命名失败");
+    }
+  }
+
   async function hideAsAdmin(deploymentId: string) {
     try {
       await api.patch(`/admin/deployments/${deploymentId}`, { visibility: "hidden" });
@@ -132,9 +172,15 @@ export function SpaceEntryPage() {
       <header className="space-entry-hero">
         <span className="space-entry-eyebrow">作品空间</span>
         <h1 className="space-entry-title">{data.space.name}</h1>
-        <p className="space-entry-expiration">
-          空间内作品统一于 {new Date(data.space.expiresAt).toLocaleString()} 到期
-        </p>
+        <div className="space-entry-deadline-row">
+          <p className={`space-entry-expiration${isDeadlineNear(data.space.expiresAt) ? " deadline-near" : ""}`}>
+            空间内作品统一于 {new Date(data.space.expiresAt).toLocaleString()} 到期
+          </p>
+          {canManageSpace && <Link className="space-entry-manage-link"
+            to={currentUser?.role === "ADMIN" ? `/admin?spaceId=${encodeURIComponent(data.space.id)}` : `/spaces/${data.space.id}`}>
+            管理页面
+          </Link>}
+        </div>
       </header>
       <p className="hint">
         将要发布的静态站点上传到这里，系统会自动为该空间生成一个临时访问链接。
@@ -149,51 +195,56 @@ export function SpaceEntryPage() {
         上传到该空间
       </button>
 
-      {modalOpen && (
-        <div className="modal-overlay" onClick={() => setModalOpen(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <h3>为此项目起一个名称</h3>
-            <p className="hint">名称在该空间内不可与其他项目重复，仅用于显示。</p>
-            <label>
-              项目名称
-              <input
-                type="text"
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-                placeholder="例如：我的作品集"
-                maxLength={80}
-                autoFocus
-              />
-            </label>
-            {modalError && <p className="message">{modalError}</p>}
-            <div className="row">
-              <button type="button" onClick={() => setModalOpen(false)}>
-                取消
-              </button>
-              <button type="button" onClick={submitUploadWithName}>
-                确认上传
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ProjectNameModal
+        open={modalOpen}
+        value={projectName}
+        error={modalError}
+        hint="名称在该空间内不可与其他项目重复，仅用于显示。"
+        confirmLabel="确认上传"
+        onChange={setProjectName}
+        onClose={() => setModalOpen(false)}
+        onConfirm={() => void submitUploadWithName()}
+      />
+
+      <ProjectNameModal
+        open={renameTarget !== null}
+        title="重命名作品"
+        value={renameValue}
+        error={renameError}
+        hint="名称在该空间内不可与其他作品重复。"
+        confirmLabel="保存名称"
+        onChange={setRenameValue}
+        onClose={() => setRenameTarget(null)}
+        onConfirm={() => void renameDeployment()}
+      />
 
       <p className="message">{message}</p>
       <section className="space-work-section" aria-labelledby="space-work-title">
         <h2 id="space-work-title">空间内作品</h2>
-        {data.deployments.length === 0 ? (
-          <p className="empty-state">这个空间还没有作品</p>
-        ) : (
-          <div className="work-card-grid">
-            {data.deployments.map((deployment) => (
+        {(data.tags ?? []).length > 0 && <TagFilter tags={data.tags} selectedIds={selectedTags}
+          onChange={setSelectedTags} />}
+        {visibleDeployments.length === 0 ? (
+          <p className="empty-state">{data.deployments.length ? "没有符合所选标签的作品" : "这个空间还没有作品"}</p>
+        ) : <div className="work-card-grid">
+            {visibleDeployments.map((deployment) => (
               <WorkPreviewCard
                 key={deployment.id}
                 title={deployment.title}
                 publicSlug={deployment.publicSlug}
-                meta={`上传者：${deployment.uploaderName}`}
-                actions={
-                  currentUser?.role === "ADMIN" ? (
-                    <div className="work-admin-actions">
+                cardLink
+                titleAction={currentUser && (
+                  currentUser.id === data.space.ownerUserId || currentUser.id === deployment.ownerUserId
+                ) ? <EditNameButton label={`重命名${deployment.title}`} onClick={() => openRename(deployment)} /> : undefined}
+                meta={<div className="space-work-card-meta">
+                  <div className="space-work-card-byline">
+                    <span className="space-work-card-uploader">上传者：{deployment.uploaderName}</span>
+                    {(data.space.downloadsEnabled || currentUser?.role === "ADMIN"
+                      || (currentUser && deployment.ownerUserId === currentUser.id)) && <div className="work-admin-actions">
+                    {data.space.downloadsEnabled && <a className="work-icon-action"
+                      aria-label={`下载${deployment.title} ZIP`} title="下载 ZIP"
+                      href={`${String(api.defaults.baseURL ?? "/api").replace(/\/$/, "")}/spaces/entry/${encodeURIComponent(data.space.slug)}/deployments/${encodeURIComponent(deployment.id)}/download`}
+                    ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 17v3h16v-3" /></svg></a>}
+                    {currentUser?.role === "ADMIN" ? (<>
                       <button
                         type="button"
                         className="work-icon-action"
@@ -216,8 +267,7 @@ export function SpaceEntryPage() {
                           <path d="M4 7h16M9 7V4h6v3m-8 0l1 13h8l1-13M10 11v5m4-5v5" />
                         </svg>
                       </button>
-                    </div>
-                  ) : currentUser && deployment.ownerUserId === currentUser.id ? (
+                    </>) : currentUser && deployment.ownerUserId === currentUser.id ? (
                     <button
                       type="button"
                       className="btn-close"
@@ -225,12 +275,15 @@ export function SpaceEntryPage() {
                     >
                       关闭
                     </button>
-                  ) : undefined
-                }
+                  ) : null}
+                    </div>}
+                  </div>
+                  {(data.tags ?? []).some((tag) => (deployment.tagIds ?? []).includes(tag.id)) &&
+                    <TagChips tags={data.tags ?? []} tagIds={deployment.tagIds ?? []} />}
+                </div>}
               />
             ))}
-          </div>
-        )}
+          </div>}
       </section>
     </section>
   );

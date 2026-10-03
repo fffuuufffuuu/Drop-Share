@@ -13,6 +13,7 @@ vi.mock("../api", () => ({
   api: {
     get: vi.fn(),
     delete: vi.fn(),
+    patch: vi.fn(),
   },
   setAuthToken: vi.fn(),
 }));
@@ -62,13 +63,21 @@ function setAdmin() {
   }));
 }
 
-function renderPage() {
+function renderPage(initialEntry = "/admin") {
   render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <AdminPage />
     </MemoryRouter>,
   );
 }
+
+it("opens a requested space from its public entry page", async () => {
+  setAdmin();
+  mockInventory();
+  renderPage("/admin?spaceId=s1");
+  await waitFor(() => expect(api.get).toHaveBeenCalledWith("/admin/spaces/s1"));
+  expect(api.get).not.toHaveBeenCalledWith("/admin/deployments/personal");
+});
 
 function mockInventory() {
   vi.mocked(api.get).mockImplementation(async (url) => {
@@ -116,6 +125,9 @@ describe("AdminPage", () => {
     expect(screen.getByRole("button", { name: "个人上传" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "空间" })).toBeInTheDocument();
     expect(await screen.findByText("匿名作品")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "匿名作品" })).toHaveAttribute(
+      "href", "/p/anonymous-site/",
+    );
     expect(screen.getByText("匿名")).toBeInTheDocument();
   });
 
@@ -128,14 +140,76 @@ describe("AdminPage", () => {
     await user.click(screen.getByRole("button", { name: "空间" }));
     expect(await screen.findByRole("columnheader", { name: "空间到期时间" }))
       .toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "作品空间" })).toHaveAttribute(
+      "href", "/s/portfolio",
+    );
     await user.click(await screen.findByRole("button", { name: "查看作品空间详情" }));
 
     expect(await screen.findByText("空间首页")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "空间首页" })).toHaveAttribute(
+      "href",
+      "/p/anonymous-site/",
+    );
+    expect(screen.getByRole("link", { name: "空间首页" })).toHaveClass("admin-work-title-link");
+    expect(screen.getByRole("link", { name: "作品空间" })).toHaveAttribute(
+      "href", "/s/portfolio",
+    );
+    expect(screen.queryByRole("link", { name: "预览" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "隐藏空间首页" })).toBeInTheDocument();
     expect(screen.getByText(
       `空间内作品统一于 ${new Date(spaceDetail.expiresAt).toLocaleString("zh-CN")} 到期`,
     )).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "到期时间" })).not.toBeInTheDocument();
     expect(api.get).toHaveBeenCalledWith("/admin/spaces/s1");
+  });
+
+  it("uses a switch for visitor downloads in the admin space detail", async () => {
+    setAdmin();
+    mockInventory();
+    vi.mocked(api.patch).mockResolvedValue({ data: { downloadsEnabled: true } });
+    renderPage("/admin?spaceId=s1");
+    const toggle = await screen.findByRole("switch", { name: "允许访客下载空间内的作品" });
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    await userEvent.click(toggle);
+    expect(api.patch).toHaveBeenCalledWith("/admin/spaces/s1/downloads", { downloadsEnabled: true });
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByText("访客下载已开放")).not.toBeInTheDocument();
+  });
+
+  it("toggles space work visibility from the detail table", async () => {
+    setAdmin();
+    mockInventory();
+    vi.mocked(api.patch).mockResolvedValue({ data: { id: "sd1", visibility: "hidden" } });
+    const user = userEvent.setup();
+
+    renderPage();
+    await user.click(screen.getByRole("button", { name: "空间" }));
+    await user.click(await screen.findByRole("button", { name: "查看作品空间详情" }));
+    await user.click(await screen.findByRole("button", { name: "隐藏空间首页" }));
+
+    expect(api.patch).toHaveBeenCalledWith("/admin/deployments/sd1", { visibility: "hidden" });
+    expect(await screen.findByText("作品已隐藏。")).toBeInTheDocument();
+    expect(screen.getByText("已隐藏")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "显示空间首页" })).toBeInTheDocument();
+  });
+
+  it("edits a space name and slug from the administrator list", async () => {
+    setAdmin();
+    mockInventory();
+    vi.mocked(api.patch).mockResolvedValue({ data: { id: "s1", name: "新空间", slug: "new-space" } });
+    const user = userEvent.setup();
+
+    renderPage();
+    await user.click(screen.getByRole("button", { name: "空间" }));
+    await user.click(await screen.findByRole("button", { name: "编辑空间" }));
+    await user.clear(screen.getByRole("textbox", { name: "空间名称" }));
+    await user.type(screen.getByRole("textbox", { name: "空间名称" }), "新空间");
+    await user.clear(screen.getByRole("textbox", { name: "网址后缀（slug）" }));
+    await user.type(screen.getByRole("textbox", { name: "网址后缀（slug）" }), "new-space");
+    await user.click(screen.getByRole("button", { name: "保存" }));
+
+    expect(api.patch).toHaveBeenCalledWith("/admin/spaces/s1", { name: "新空间", slug: "new-space" });
+    expect(await screen.findByText("新空间")).toBeInTheDocument();
   });
 
   it("downloads a deployment Blob through the browser", async () => {

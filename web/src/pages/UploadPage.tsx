@@ -4,9 +4,10 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, setAuthToken } from "../api";
 import { getCurrentUser } from "../auth";
 import { CreateSpaceModal } from "../components/CreateSpaceModal";
+import { ProjectNameModal } from "../components/ProjectNameModal";
 import { UploadDropzone } from "../components/UploadDropzone";
-import type { Space } from "../types";
-import type { UploadEntry } from "../uploader";
+import type { PersonalDeployment, Space, SpaceUploadDeployment } from "../types";
+import { suggestProjectName, type UploadEntry } from "../uploader";
 
 export function UploadPage() {
   const navigate = useNavigate();
@@ -16,9 +17,27 @@ export function UploadPage() {
   const [durationDays, setDurationDays] = useState(1);
   const [spaceId, setSpaceId] = useState("");
   const [spaces, setSpaces] = useState<Space[]>([]);
+  const [submittedCount, setSubmittedCount] = useState<number | null>(null);
+  const [overviewError, setOverviewError] = useState("");
   const [createSpaceOpen, setCreateSpaceOpen] = useState(false);
+  const [projectNameOpen, setProjectNameOpen] = useState(false);
+  const [projectName, setProjectName] = useState("");
+  const [projectNameError, setProjectNameError] = useState("");
   const isLoggedIn = getCurrentUser() !== null;
   const selectedSpace = spaces.find((space) => space.id === spaceId);
+
+  async function loadSubmissionCount() {
+    try {
+      const [{ data: personal }, { data: spaceUploads }] = await Promise.all([
+        api.get<PersonalDeployment[]>("/deployments"),
+        api.get<SpaceUploadDeployment[]>("/deployments/space-uploads"),
+      ]);
+      setSubmittedCount(personal.length + spaceUploads.length);
+      setOverviewError("");
+    } catch {
+      setOverviewError("作品数量加载失败");
+    }
+  }
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -31,6 +50,7 @@ export function UploadPage() {
       .catch((error: any) => {
         setMessage(error.response?.data?.message || "空间列表加载失败");
       });
+    void loadSubmissionCount();
     if (searchParams.get("createSpace") === "1") {
       setCreateSpaceOpen(true);
     }
@@ -43,7 +63,7 @@ export function UploadPage() {
     [entries],
   );
 
-  async function upload() {
+  function openProjectNameModal() {
     if (!entries.length) {
       setMessage("请先选择文件。");
       return;
@@ -52,7 +72,20 @@ export function UploadPage() {
       setMessage("文件夹上传必须包含 index.html。");
       return;
     }
+    setProjectName(suggestProjectName(entries));
+    setProjectNameError("");
+    setProjectNameOpen(true);
+  }
+
+  async function upload() {
+    const title = projectName.trim();
+    if (!title) {
+      setProjectNameError("请输入项目名称");
+      return;
+    }
+
     const formData = new FormData();
+    formData.append("title", title);
     entries.forEach((entry) => {
       formData.append("files", entry.file);
       formData.append("paths", entry.path);
@@ -66,9 +99,11 @@ export function UploadPage() {
     try {
       const url = isLoggedIn ? "/deployments" : "/deployments/anonymous";
       const { data } = await api.post(url, formData);
+      setProjectNameOpen(false);
       setMessage(`部署成功：${data.url}（到期：${new Date(data.expiresAt).toLocaleString()}）`);
+      if (isLoggedIn) void loadSubmissionCount();
     } catch (error: any) {
-      setMessage(error.response?.data?.message || "部署失败");
+      setProjectNameError(error.response?.data?.message || "部署失败");
     }
   }
 
@@ -149,12 +184,12 @@ export function UploadPage() {
 
       <div className="row">
         {isLoggedIn ? (
-          <button type="button" onClick={() => void upload()}>
+          <button type="button" onClick={openProjectNameModal}>
             部署
           </button>
         ) : (
           <>
-            <button type="button" onClick={() => void upload()}>
+            <button type="button" onClick={openProjectNameModal}>
               匿名部署
             </button>
             <Link className="button-link" to="/login">登录/注册</Link>
@@ -163,6 +198,57 @@ export function UploadPage() {
       </div>
 
       {message && <pre className="message">{message}</pre>}
+      {isLoggedIn && (
+        <section className="upload-overview" aria-labelledby="upload-overview-title">
+          <div className="upload-overview-summary">
+            <div>
+              <h3 id="upload-overview-title">我的上传概览</h3>
+              <p>累计提交作品 <strong>{submittedCount ?? "—"}</strong> 件</p>
+              {overviewError && <p className="message">{overviewError}</p>}
+            </div>
+            <Link className="button-link" to="/dashboard">我的作品</Link>
+          </div>
+          <h4>我创建的空间</h4>
+          {spaces.length === 0 ? (
+            <p className="hint">还没有创建空间。</p>
+          ) : (
+            <ul className="upload-space-list">
+              {spaces.map((space) => {
+                const active = new Date(space.expiresAt) > new Date();
+                return (
+                  <li key={space.id}>
+                    {active ? (
+                      <Link to={`/s/${space.slug}`}>{space.name}</Link>
+                    ) : (
+                      <span>{space.name}</span>
+                    )}
+                    <span className="upload-space-controls">
+                      <span className="upload-space-status">{active ? "有效" : "已过期"}</span>
+                      {active ? (
+                        <Link className="upload-space-manage" to={`/spaces/${space.id}`}>进入管理</Link>
+                      ) : (
+                        <span className="upload-space-manage-disabled" aria-disabled="true">进入管理</span>
+                      )}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
+      <ProjectNameModal
+        open={projectNameOpen}
+        value={projectName}
+        error={projectNameError}
+        hint={selectedSpace
+          ? "名称在该空间内不可与其他项目重复，仅用于显示。"
+          : "名称用于在“我的作品”中识别这个上传作品。"}
+        confirmLabel="确认部署"
+        onChange={setProjectName}
+        onClose={() => setProjectNameOpen(false)}
+        onConfirm={() => void upload()}
+      />
       <CreateSpaceModal
         open={createSpaceOpen}
         onClose={() => setCreateSpaceOpen(false)}

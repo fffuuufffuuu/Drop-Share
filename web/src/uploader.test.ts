@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { collectDroppedEntries, collectUploadEntries } from "./uploader";
+import { collectDroppedEntries, collectUploadEntries, suggestProjectName } from "./uploader";
 
 function asFileList(files: File[]): FileList {
   return {
@@ -43,13 +43,29 @@ function directoryEntry(name: string, children: FileSystemEntry[]): FileSystemDi
 }
 
 describe("upload entry collection", () => {
-  it("uses webkitRelativePath when a folder was selected", () => {
+  it("removes the selected folder name while preserving nested paths", () => {
     const file = new File(["html"], "index.html", { type: "text/html" });
+    const cssFile = new File(["css"], "app.css", { type: "text/css" });
     Object.defineProperty(file, "webkitRelativePath", { value: "site/index.html" });
+    Object.defineProperty(cssFile, "webkitRelativePath", { value: "site/assets/app.css" });
 
-    expect(collectUploadEntries(asFileList([file]))).toEqual([
-      { file, path: "site/index.html" },
+    expect(collectUploadEntries(asFileList([file, cssFile]))).toEqual([
+      { file, path: "index.html", sourceFolderName: "site" },
+      { file: cssFile, path: "assets/app.css", sourceFolderName: "site" },
     ]);
+  });
+
+  it("suggests a non-index HTML filename and leaves index.html unnamed", () => {
+    const html = new File(["html"], "Vector-Lab-Sophie.html", { type: "text/html" });
+    const index = new File(["html"], "index.html", { type: "text/html" });
+    expect(suggestProjectName([{ file: html, path: html.name }])).toBe("Vector-Lab-Sophie");
+    expect(suggestProjectName([{ file: index, path: index.name }])).toBe("");
+  });
+
+  it("suggests the selected folder instead of index.html", () => {
+    const file = new File(["html"], "index.html", { type: "text/html" });
+    Object.defineProperty(file, "webkitRelativePath", { value: "Physics Lab/index.html" });
+    expect(suggestProjectName(collectUploadEntries(asFileList([file])))).toBe("Physics Lab");
   });
 
   it("recursively reads a dropped directory and preserves its paths", async () => {
@@ -68,8 +84,8 @@ describe("upload entry collection", () => {
     } as unknown as DataTransfer;
 
     await expect(collectDroppedEntries(dataTransfer)).resolves.toEqual([
-      { file: cssFile, path: "site/assets/app.css" },
-      { file: indexFile, path: "site/index.html" },
+      { file: cssFile, path: "assets/app.css", sourceFolderName: "site" },
+      { file: indexFile, path: "index.html", sourceFolderName: "site" },
     ]);
   });
 

@@ -1,4 +1,4 @@
-import { Visibility } from "@prisma/client";
+import { Prisma, Visibility } from "@prisma/client";
 import archiver from "archiver";
 import { Router } from "express";
 import { z } from "zod";
@@ -15,10 +15,16 @@ import {
 } from "./admin-deletion";
 import { prisma } from "./db";
 import { requireAdmin, requireAuth } from "./middleware";
+import { registerSpaceTagRoutes } from "./space-tags";
+import { registerSpaceDownloadRoutes } from "./space-downloads";
+import { mergeSpacesHandler } from "./space-merge";
 
 export const adminRouter = Router();
 
 adminRouter.use(requireAuth, requireAdmin);
+registerSpaceTagRoutes(adminRouter, "/spaces/:id", true);
+registerSpaceDownloadRoutes(adminRouter, "/spaces/:id", true);
+adminRouter.post("/spaces/merge", mergeSpacesHandler(true));
 
 adminRouter.get("/deployments/personal", async (_req, res) => {
   const deployments = await prisma.deployment.findMany({
@@ -125,10 +131,12 @@ adminRouter.get("/spaces", async (_req, res) => {
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
+      ownerUserId: true,
       name: true,
       slug: true,
       createdAt: true,
       expiresAt: true,
+      downloadsEnabled: true,
       owner: {
         select: { username: true },
       },
@@ -144,13 +152,51 @@ adminRouter.get("/spaces", async (_req, res) => {
 
   res.json(spaces.map((space) => ({
     id: space.id,
+    ownerUserId: space.ownerUserId,
     name: space.name,
     slug: space.slug,
     createdAt: space.createdAt,
     expiresAt: space.expiresAt,
+    downloadsEnabled: space.downloadsEnabled,
     ownerUsername: space.owner.username,
     deploymentCount: space._count.deployments,
   })));
+});
+
+adminRouter.patch("/spaces/:id", async (req, res, next) => {
+  const parsed = z.object({
+    name: z.string().trim().min(1).max(80),
+    slug: z.string().regex(/^[a-z0-9-]{2,40}$/),
+  }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ message: "空间名称或 slug 格式无效" });
+    return;
+  }
+  const space = await prisma.space.findUnique({ where: { id: String(req.params.id) } });
+  if (!space) {
+    res.status(404).json({ message: "空间不存在或已被删除" });
+    return;
+  }
+  if (parsed.data.slug !== space.slug) {
+    const duplicate = await prisma.space.findUnique({ where: { slug: parsed.data.slug } });
+    if (duplicate) {
+      res.status(409).json({ message: "slug 已被其他空间使用" });
+      return;
+    }
+  }
+  try {
+    const updated = await prisma.space.update({
+      where: { id: space.id },
+      data: parsed.data,
+    });
+    res.json(updated);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      res.status(409).json({ message: "slug 已被其他空间使用" });
+      return;
+    }
+    next(error);
+  }
 });
 
 adminRouter.get("/spaces/:id/download", async (req, res, next) => {
@@ -213,10 +259,12 @@ adminRouter.get("/spaces/:id", async (req, res) => {
     where: { id: String(req.params.id) },
     select: {
       id: true,
+      ownerUserId: true,
       name: true,
       slug: true,
       createdAt: true,
       expiresAt: true,
+      downloadsEnabled: true,
       owner: {
         select: { username: true },
       },
@@ -227,6 +275,7 @@ adminRouter.get("/spaces/:id", async (req, res) => {
           id: true,
           title: true,
           publicSlug: true,
+          tags: { select: { tagId: true } },
           visibility: true,
           createdAt: true,
           expiresAt: true,
@@ -234,6 +283,10 @@ adminRouter.get("/spaces/:id", async (req, res) => {
             select: { username: true },
           },
         },
+      },
+      tags: {
+        orderBy: { createdAt: "asc" },
+        select: { id: true, name: true, spaceId: true, createdAt: true },
       },
     },
   });
@@ -245,15 +298,19 @@ adminRouter.get("/spaces/:id", async (req, res) => {
 
   res.json({
     id: space.id,
+    ownerUserId: space.ownerUserId,
     name: space.name,
     slug: space.slug,
     createdAt: space.createdAt,
     expiresAt: space.expiresAt,
+    downloadsEnabled: space.downloadsEnabled,
     ownerUsername: space.owner.username,
+    tags: space.tags,
     deployments: space.deployments.map((deployment) => ({
       id: deployment.id,
       title: deployment.title,
       publicSlug: deployment.publicSlug,
+      tagIds: deployment.tags.map(({ tagId }) => tagId),
       visibility: deployment.visibility,
       createdAt: deployment.createdAt,
       expiresAt: deployment.expiresAt,

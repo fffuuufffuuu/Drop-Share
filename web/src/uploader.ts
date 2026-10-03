@@ -1,16 +1,38 @@
 export type UploadEntry = {
   file: File;
   path: string;
+  sourceFolderName?: string;
 };
+
+export function suggestProjectName(entries: UploadEntry[]): string {
+  const folderName = entries[0]?.sourceFolderName;
+  if (folderName && entries.every((entry) => entry.sourceFolderName === folderName)) {
+    return folderName.slice(0, 80);
+  }
+  if (entries.length !== 1) return "";
+  const filename = entries[0].file.name;
+  if (!/\.html?$/i.test(filename)) return "";
+  const name = filename.replace(/\.html?$/i, "");
+  return name.toLowerCase() === "index" ? "" : name.slice(0, 80);
+}
 
 export function collectUploadEntries(files: FileList | null): UploadEntry[] {
   if (!files) {
     return [];
   }
-  return Array.from(files).map((file) => ({
+  const entries = Array.from(files).map((file) => ({
     file,
     path: (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name,
   }));
+  const root = entries[0]?.path.split("/")[0];
+  if (root && entries.every((entry) => entry.path.startsWith(`${root}/`))) {
+    return entries.map((entry) => ({
+      ...entry,
+      path: entry.path.slice(root.length + 1),
+      sourceFolderName: root,
+    }));
+  }
+  return entries;
 }
 
 function readFileEntry(entry: FileSystemFileEntry): Promise<File> {
@@ -65,5 +87,14 @@ export async function collectDroppedEntries(dataTransfer: DataTransfer): Promise
   }
 
   const entries = (await Promise.all(roots.map((entry) => collectEntry(entry)))).flat();
+  if (roots.length === 1 && roots[0].isDirectory) {
+    const prefix = `${roots[0].name}/`;
+    return entries.map((entry) => ({
+      ...entry,
+      path: entry.path.slice(prefix.length),
+      sourceFolderName: roots[0].name,
+    }))
+      .sort((a, b) => a.path.localeCompare(b.path));
+  }
   return entries.sort((a, b) => a.path.localeCompare(b.path));
 }

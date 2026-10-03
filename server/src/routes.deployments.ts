@@ -14,11 +14,11 @@ import {
   MAX_PERSONAL_DAYS,
 } from "./retention";
 import { removeDeploymentFolder, saveDeploymentFiles } from "./storage";
-import { randomSlug } from "./utils";
+import { randomSlug, uploaderAgentForStorage } from "./utils";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 const createSchema = z.object({
-  title: z.string().min(1).max(80).optional(),
+  title: z.string().trim().min(1).max(80).optional(),
   durationDays: z.coerce.number().int().min(1).max(MAX_PERSONAL_DAYS).optional(),
   spaceId: z.string().optional(),
 });
@@ -105,7 +105,7 @@ deploymentRouter.post("/anonymous", upload.array("files", 1000), async (req, res
       rootPath,
       expiresAt,
       uploaderIp: req.ip,
-      uploaderAgent: req.headers["user-agent"] ?? null,
+      uploaderAgent: uploaderAgentForStorage(req.headers["user-agent"]),
     },
   });
 
@@ -142,6 +142,20 @@ deploymentRouter.post("/", requireAuth, upload.array("files", 1000), async (req,
       res.status(410).json({ message: "Space has expired" });
       return;
     }
+    if (payload.data.title) {
+      const duplicate = await prisma.deployment.findFirst({
+        where: {
+          spaceId: payload.data.spaceId,
+          deletedAt: null,
+          title: payload.data.title,
+        },
+        select: { id: true },
+      });
+      if (duplicate) {
+        res.status(400).json({ message: "该空间中已存在同名项目，请换一个名称" });
+        return;
+      }
+    }
     expiresAt = space.expiresAt;
   } else {
     if (payload.data.durationDays === undefined) {
@@ -167,7 +181,7 @@ deploymentRouter.post("/", requireAuth, upload.array("files", 1000), async (req,
       rootPath,
       expiresAt,
       uploaderIp: req.ip,
-      uploaderAgent: req.headers["user-agent"] ?? null,
+      uploaderAgent: uploaderAgentForStorage(req.headers["user-agent"]),
     },
   });
 
@@ -181,12 +195,14 @@ deploymentRouter.post("/", requireAuth, upload.array("files", 1000), async (req,
 deploymentRouter.patch("/:id", requireAuth, async (req, res) => {
   const parsed = z
     .object({
-      visibility: z.enum([Visibility.visible, Visibility.hidden]),
+      visibility: z.enum([Visibility.visible, Visibility.hidden]).optional(),
+      title: z.string().trim().min(1).max(80).optional(),
     })
+    .refine((value) => value.visibility !== undefined || value.title !== undefined)
     .safeParse(req.body);
 
   if (!parsed.success) {
-    res.status(400).json({ message: "Invalid visibility value" });
+    res.status(400).json({ message: "Invalid deployment update" });
     return;
   }
 
@@ -208,9 +224,28 @@ deploymentRouter.patch("/:id", requireAuth, async (req, res) => {
     return;
   }
 
+  if (parsed.data.title !== undefined && deployment.spaceId) {
+    const duplicate = await prisma.deployment.findFirst({
+      where: {
+        id: { not: deployment.id },
+        spaceId: deployment.spaceId,
+        deletedAt: null,
+        title: parsed.data.title,
+      },
+      select: { id: true },
+    });
+    if (duplicate) {
+      res.status(400).json({ message: "该空间中已存在同名项目，请换一个名称" });
+      return;
+    }
+  }
+
   const updated = await prisma.deployment.update({
     where: { id: deployment.id },
-    data: { visibility: parsed.data.visibility },
+    data: {
+      ...(parsed.data.visibility !== undefined ? { visibility: parsed.data.visibility } : {}),
+      ...(parsed.data.title !== undefined ? { title: parsed.data.title } : {}),
+    },
   });
   res.json(updated);
 });

@@ -1,12 +1,17 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { api, setAuthToken } from "../api";
 import { getCurrentUser, notifyAuthChanged } from "../auth";
+import { EditSpaceModal } from "../components/EditSpaceModal";
+import { SpaceDownloadSwitch } from "../components/SpaceDownloadSwitch";
+import { MergeSpacesModal } from "../components/MergeSpacesModal";
+import { SpaceTagControls, TagChips } from "../components/SpaceTagControls";
 import type {
   AdminDeployment,
   AdminSpace,
   AdminSpaceDetail,
+  SpaceTag,
 } from "../types";
 
 type Panel = "personal" | "spaces";
@@ -53,12 +58,21 @@ function DeploymentTable({
   deployments,
   onDownload,
   onDelete,
+  onToggleVisibility,
   showExpiration = true,
+  titleLinksToPreview = false,
+  selection,
 }: {
   deployments: AdminDeployment[];
   onDownload: (deployment: AdminDeployment) => void;
   onDelete: (deployment: AdminDeployment) => void;
+  onToggleVisibility?: (
+    deployment: AdminDeployment,
+    visibility: "visible" | "hidden",
+  ) => void;
   showExpiration?: boolean;
+  titleLinksToPreview?: boolean;
+  selection?: { ids: string[]; onChange: (ids: string[]) => void; tags: SpaceTag[] };
 }) {
   if (!deployments.length) {
     return <p className="admin-empty">当前没有可管理的网页。</p>;
@@ -69,7 +83,13 @@ function DeploymentTable({
       <table className="admin-table">
         <thead>
           <tr>
+            {selection && <th><input type="checkbox" aria-label="选择当前分类全部作品"
+              checked={deployments.length > 0 && deployments.every((item) => selection.ids.includes(item.id))}
+              onChange={(event) => selection.onChange(event.target.checked
+                ? Array.from(new Set([...selection.ids, ...deployments.map((item) => item.id)])).slice(0, 200)
+                : selection.ids.filter((id) => !deployments.some((item) => item.id === id)))} /></th>}
             <th>网页</th>
+            {selection && <th>标签</th>}
             <th>上传者</th>
             <th>上传时间</th>
             {showExpiration && <th>到期时间</th>}
@@ -80,8 +100,20 @@ function DeploymentTable({
         <tbody>
           {deployments.map((deployment) => (
             <tr key={deployment.id}>
+              {selection && <td><input type="checkbox" aria-label={`选择${deployment.title}`}
+                checked={selection.ids.includes(deployment.id)}
+                onChange={() => selection.onChange(selection.ids.includes(deployment.id)
+                  ? selection.ids.filter((id) => id !== deployment.id)
+                  : selection.ids.length < 200 ? [...selection.ids, deployment.id] : selection.ids)} /></td>}
               <td>
-                <strong>{deployment.title}</strong>
+                <a
+                  className="admin-work-title-link"
+                  href={`/p/${deployment.publicSlug}/`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <strong>{deployment.title}</strong>
+                </a>
                 <a
                   className="admin-page-link"
                   href={`/p/${deployment.publicSlug}`}
@@ -91,6 +123,7 @@ function DeploymentTable({
                   /p/{deployment.publicSlug}
                 </a>
               </td>
+              {selection && <td><TagChips tags={selection.tags} tagIds={deployment.tagIds ?? []} /></td>}
               <td>{deployment.ownerLabel}</td>
               <td>{formatDate(deployment.createdAt)}</td>
               {showExpiration && <td>{formatDate(deployment.expiresAt)}</td>}
@@ -101,9 +134,27 @@ function DeploymentTable({
               </td>
               <td>
                 <div className="admin-actions">
-                  <a href={`/p/${deployment.publicSlug}`} target="_blank" rel="noreferrer">
-                    预览
-                  </a>
+                  {!titleLinksToPreview && (
+                    <a className="admin-action-link" href={`/p/${deployment.publicSlug}`} target="_blank" rel="noreferrer">
+                      预览
+                    </a>
+                  )}
+                  {onToggleVisibility && (
+                    <button
+                      type="button"
+                      aria-label={
+                        deployment.visibility === "visible"
+                          ? `隐藏${deployment.title}`
+                          : `显示${deployment.title}`
+                      }
+                      onClick={() => onToggleVisibility(
+                        deployment,
+                        deployment.visibility === "visible" ? "hidden" : "visible",
+                      )}
+                    >
+                      {deployment.visibility === "visible" ? "隐藏" : "显示"}
+                    </button>
+                  )}
                   <button
                     type="button"
                     aria-label={`下载${deployment.title} ZIP`}
@@ -132,6 +183,8 @@ function DeploymentTable({
 export function AdminPage() {
   const currentUser = getCurrentUser();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedSpaceId = searchParams.get("spaceId");
   const [panel, setPanel] = useState<Panel>("personal");
   const [personal, setPersonal] = useState<AdminDeployment[]>([]);
   const [spaces, setSpaces] = useState<AdminSpace[]>([]);
@@ -140,6 +193,15 @@ export function AdminPage() {
   const [message, setMessage] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [editingSpace, setEditingSpace] = useState<AdminSpace | AdminSpaceDetail | null>(null);
+  const [mergeSpaceOpen, setMergeSpaceOpen] = useState(false);
+  const [spaceName, setSpaceName] = useState("");
+  const [spaceSlug, setSpaceSlug] = useState("");
+  const [spaceEditError, setSpaceEditError] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
+  const filteredSpaceDeployments = detail?.deployments.filter((deployment) =>
+    tagFilter.every((tagId) => (deployment.tagIds ?? []).includes(tagId))) ?? [];
 
   async function loadPersonal() {
     setLoading(true);
@@ -183,12 +245,19 @@ export function AdminPage() {
   useEffect(() => {
     if (currentUser?.role !== "ADMIN") return;
     setAuthToken(localStorage.getItem("token") ?? undefined);
-    void loadPersonal();
-  }, []);
+    if (requestedSpaceId) {
+      setPanel("spaces");
+      void Promise.all([loadSpaces(), loadSpaceDetail(requestedSpaceId)]);
+    } else {
+      void loadPersonal();
+    }
+  }, [requestedSpaceId]);
 
   async function selectPanel(nextPanel: Panel) {
     setPanel(nextPanel);
     setDetail(null);
+    setSelectedIds([]);
+    setTagFilter([]);
     if (nextPanel === "personal") {
       await loadPersonal();
     } else {
@@ -217,6 +286,28 @@ export function AdminPage() {
     }
   }
 
+  async function toggleDeploymentVisibility(
+    deployment: AdminDeployment,
+    visibility: "visible" | "hidden",
+  ) {
+    setMessage("");
+    try {
+      await api.patch(`/admin/deployments/${deployment.id}`, { visibility });
+      setDetail((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          deployments: current.deployments.map((item) => (
+            item.id === deployment.id ? { ...item, visibility } : item
+          )),
+        };
+      });
+      setMessage(visibility === "visible" ? "作品已显示。" : "作品已隐藏。");
+    } catch (error) {
+      setMessage(errorMessage(error, "更新显示状态失败，请重试。"));
+    }
+  }
+
   async function confirmDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -240,6 +331,45 @@ export function AdminPage() {
       setMessage(errorMessage(error, "永久删除失败，请重试。"));
     } finally {
       setDeleting(false);
+    }
+  }
+
+  function openEditSpace(space: AdminSpace | AdminSpaceDetail) {
+    setEditingSpace(space);
+    setSpaceName(space.name);
+    setSpaceSlug(space.slug);
+    setSpaceEditError("");
+  }
+
+  async function saveSpace() {
+    if (!editingSpace) return;
+    const name = spaceName.trim();
+    const slug = spaceSlug.trim();
+    if (!name || name.length > 80 || !/^[a-z0-9-]{2,40}$/.test(slug)) {
+      setSpaceEditError("空间名称须为 1 至 80 个字；slug 须为 2 至 40 位小写字母、数字或连字符");
+      return;
+    }
+    try {
+      await api.patch(`/admin/spaces/${editingSpace.id}`, { name, slug });
+      setSpaces((current) => current.map((space) => space.id === editingSpace.id ? { ...space, name, slug } : space));
+      setDetail((current) => current?.id === editingSpace.id ? { ...current, name, slug } : current);
+      setEditingSpace(null);
+      setMessage("空间信息已更新。修改 slug 后请使用新入口链接。");
+    } catch (error) {
+      setSpaceEditError(errorMessage(error, "修改空间失败，请重试。"));
+    }
+  }
+
+  async function toggleSpaceDownloads(enabled: boolean) {
+    if (!detail) return;
+    try {
+      await api.patch(`/admin/spaces/${detail.id}/downloads`, { downloadsEnabled: enabled });
+      setDetail({ ...detail, downloadsEnabled: enabled });
+      setSpaces((current) => current.map((space) => space.id === detail.id
+        ? { ...space, downloadsEnabled: enabled } : space));
+      setMessage("");
+    } catch (error) {
+      setMessage(errorMessage(error, "修改下载权限失败"));
     }
   }
 
@@ -312,7 +442,14 @@ export function AdminPage() {
 
       {!loading && panel === "spaces" && !detail && (
         <div className="admin-panel">
-          <h3>空间</h3>
+          <div className="admin-space-heading">
+            <h3>空间</h3>
+            <button type="button" onClick={() => setMergeSpaceOpen(true)}
+              disabled={!spaces.some((space) => new Date(space.expiresAt) > new Date()
+                && spaces.some((other) => other.id !== space.id
+                  && other.ownerUserId === space.ownerUserId
+                  && new Date(other.expiresAt) > new Date()))}>合并空间</button>
+          </div>
           {!spaces.length ? (
             <p className="admin-empty">当前没有空间。</p>
           ) : (
@@ -331,7 +468,7 @@ export function AdminPage() {
                 <tbody>
                   {spaces.map((space) => (
                     <tr key={space.id}>
-                      <td><strong>{space.name}</strong><span className="admin-page-link">/{space.slug}</span></td>
+                      <td><a className="admin-work-title-link" href={`/s/${space.slug}`} target="_blank" rel="noreferrer"><strong>{space.name}</strong></a><span className="admin-page-link">/{space.slug}</span></td>
                       <td>{space.ownerUsername}</td>
                       <td>{formatDate(space.createdAt)}</td>
                       <td>{formatDate(space.expiresAt)}</td>
@@ -341,10 +478,15 @@ export function AdminPage() {
                           <button
                             type="button"
                             aria-label={`查看${space.name}详情`}
-                            onClick={() => void loadSpaceDetail(space.id)}
+                            onClick={() => {
+                              setSelectedIds([]);
+                              setTagFilter([]);
+                              void loadSpaceDetail(space.id);
+                            }}
                           >
                             查看详情
                           </button>
+                          <button type="button" onClick={() => openEditSpace(space)}>编辑空间</button>
                           <button
                             type="button"
                             aria-label={`下载空间${space.name} ZIP`}
@@ -385,11 +527,12 @@ export function AdminPage() {
               <button type="button" className="admin-back" onClick={() => setDetail(null)}>
                 返回空间列表
               </button>
-              <h3>{detail.name}</h3>
+              <h3><a className="admin-work-title-link" href={`/s/${detail.slug}`} target="_blank" rel="noreferrer">{detail.name}</a></h3>
               <p>/{detail.slug} · 创建者 {detail.ownerUsername}</p>
               <p>空间内作品统一于 {formatDate(detail.expiresAt)} 到期</p>
             </div>
             <div className="admin-actions">
+              <button type="button" onClick={() => openEditSpace(detail)}>编辑空间</button>
               <button
                 type="button"
                 onClick={() => void download(
@@ -412,9 +555,21 @@ export function AdminPage() {
               </button>
             </div>
           </div>
+          <SpaceDownloadSwitch enabled={detail.downloadsEnabled ?? false}
+            onToggle={(enabled) => void toggleSpaceDownloads(enabled)} />
+          <SpaceTagControls
+            admin spaceId={detail.id} tags={detail.tags ?? []} selectedIds={selectedIds}
+            filter={tagFilter} onFilterChange={setTagFilter}
+            onSelectionClear={() => setSelectedIds([])} onRefresh={() => loadSpaceDetail(detail.id)}
+          />
           <DeploymentTable
-            deployments={detail.deployments}
+            deployments={filteredSpaceDeployments}
             showExpiration={false}
+            titleLinksToPreview
+            selection={{ ids: selectedIds, onChange: setSelectedIds, tags: detail.tags ?? [] }}
+            onToggleVisibility={(deployment, visibility) => {
+              void toggleDeploymentVisibility(deployment, visibility);
+            }}
             onDownload={(deployment) => void download(
               `/admin/deployments/${deployment.id}/download`,
               `${deployment.title}.zip`,
@@ -458,6 +613,27 @@ export function AdminPage() {
           </div>
         </div>
       )}
+      <EditSpaceModal
+        open={editingSpace !== null}
+        name={spaceName}
+        slug={spaceSlug}
+        allowSlug
+        error={spaceEditError}
+        onNameChange={setSpaceName}
+        onSlugChange={setSpaceSlug}
+        onClose={() => setEditingSpace(null)}
+        onConfirm={() => void saveSpace()}
+      />
+      <MergeSpacesModal
+        open={mergeSpaceOpen} spaces={spaces} admin
+        onClose={() => setMergeSpaceOpen(false)}
+        onMerged={(slug) => {
+          setMergeSpaceOpen(false);
+          setDetail(null);
+          void loadSpaces();
+          setMessage(`空间合并成功，新入口：/s/${slug}`);
+        }}
+      />
     </section>
   );
 }

@@ -61,18 +61,20 @@ export function LoginPage() {
   return (
     <section className="card">
       <h2>{mode === "login" ? "账号密码登录" : "账号注册"}</h2>
-      <div className="row">
+      <div className="auth-mode-switch" role="group" aria-label="登录或注册">
         <button
           type="button"
+          className={mode === "login" ? "auth-mode-active" : undefined}
+          aria-pressed={mode === "login"}
           onClick={() => setMode("login")}
-          style={{ opacity: mode === "login" ? 1 : 0.6 }}
         >
           登录
         </button>
         <button
           type="button"
+          className={mode === "register" ? "auth-mode-active" : undefined}
+          aria-pressed={mode === "register"}
           onClick={() => setMode("register")}
-          style={{ opacity: mode === "register" ? 1 : 0.6 }}
         >
           注册
         </button>
@@ -104,11 +106,11 @@ export function LoginPage() {
       )}
       <div className="row">
         {mode === "login" ? (
-          <button onClick={handleLogin} type="button">
+          <button className="auth-submit" onClick={handleLogin} type="button">
             登录
           </button>
         ) : (
-          <button onClick={handleRegister} type="button">
+          <button className="auth-submit" onClick={handleRegister} type="button">
             注册并登录
           </button>
         )}

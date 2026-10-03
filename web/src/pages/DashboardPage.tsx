@@ -4,6 +4,10 @@ import { Link, useNavigate } from "react-router-dom";
 import { api, setAuthToken } from "../api";
 import { getCurrentUser, notifyAuthChanged } from "../auth";
 import { CreateSpaceModal } from "../components/CreateSpaceModal";
+import { EditNameButton } from "../components/EditNameButton";
+import { EditSpaceModal } from "../components/EditSpaceModal";
+import { ProjectNameModal } from "../components/ProjectNameModal";
+import { MergeSpacesModal } from "../components/MergeSpacesModal";
 import { WorkPreviewCard } from "../components/WorkPreviewCard";
 import type { PersonalDeployment, Space, SpaceUploadDeployment } from "../types";
 
@@ -19,6 +23,13 @@ export function DashboardPage() {
   const [spaceWorks, setSpaceWorks] = useState<SpaceUploadDeployment[]>([]);
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [createSpaceOpen, setCreateSpaceOpen] = useState(false);
+  const [mergeSpaceOpen, setMergeSpaceOpen] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<PersonalDeployment | SpaceUploadDeployment | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [renameError, setRenameError] = useState("");
+  const [editSpace, setEditSpace] = useState<Space | null>(null);
+  const [spaceName, setSpaceName] = useState("");
+  const [spaceError, setSpaceError] = useState("");
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
 
@@ -79,6 +90,57 @@ export function DashboardPage() {
     navigate("/login");
   }
 
+  function openRename(deployment: PersonalDeployment | SpaceUploadDeployment) {
+    setRenameTarget(deployment);
+    setRenameValue(deployment.title);
+    setRenameError("");
+  }
+
+  async function renameDeployment() {
+    if (!renameTarget) return;
+    const title = renameValue.trim();
+    if (!title) {
+      setRenameError("请输入项目名称");
+      return;
+    }
+    try {
+      await api.patch(`/deployments/${renameTarget.id}`, { title });
+      setPersonalWorks((current) => current.map((item) => (
+        item.id === renameTarget.id ? { ...item, title } : item
+      )));
+      setSpaceWorks((current) => current.map((item) => (
+        item.id === renameTarget.id ? { ...item, title } : item
+      )));
+      setRenameTarget(null);
+      setMessage("作品名称已更新");
+    } catch (error: any) {
+      setRenameError(error.response?.data?.message || "重命名失败");
+    }
+  }
+
+  function openEditSpace(space: Space) {
+    setEditSpace(space);
+    setSpaceName(space.name);
+    setSpaceError("");
+  }
+
+  async function saveSpaceName() {
+    if (!editSpace) return;
+    const name = spaceName.trim();
+    if (!name || name.length > 80) {
+      setSpaceError("空间名称须为 1 至 80 个字");
+      return;
+    }
+    try {
+      await api.patch(`/spaces/${editSpace.id}`, { name });
+      setSpaces((current) => current.map((space) => space.id === editSpace.id ? { ...space, name } : space));
+      setEditSpace(null);
+      setMessage("空间名称已更新");
+    } catch (error: any) {
+      setSpaceError(error.response?.data?.message || "修改空间名称失败");
+    }
+  }
+
   async function extendSpace(spaceId: string) {
     try {
       const { data } = await api.post<Space>(`/spaces/${spaceId}/extend`);
@@ -113,7 +175,12 @@ export function DashboardPage() {
           <p className="dashboard-eyebrow">个人控制台</p>
           <h2>{getCurrentUser()?.username ?? "当前用户"}</h2>
         </div>
-        <button type="button" onClick={logout}>退出登录</button>
+        <div className="dashboard-header-actions">
+          {getCurrentUser()?.role === "ADMIN" && (
+            <Link to="/admin">管理后台</Link>
+          )}
+          <button type="button" onClick={logout}>退出登录</button>
+        </div>
       </header>
 
       <div className="dashboard-tabs" role="tablist" aria-label="控制台板块">
@@ -156,7 +223,9 @@ export function DashboardPage() {
                       key={deployment.id}
                       title={deployment.title}
                       publicSlug={deployment.publicSlug}
+                      cardLink
                       meta={`到期时间：${new Date(deployment.expiresAt).toLocaleString()}`}
+                      titleAction={<EditNameButton label={`重命名${deployment.title}`} onClick={() => openRename(deployment)} />}
                     />
                   ))}
                 </div>
@@ -176,15 +245,14 @@ export function DashboardPage() {
                       key={deployment.id}
                       title={deployment.title}
                       publicSlug={deployment.publicSlug}
+                      cardLink
+                      titleAction={<EditNameButton label={`重命名${deployment.title}`} onClick={() => openRename(deployment)} />}
                       meta={(
                         <div className="space-work-meta">
                           <span>到期时间：{new Date(deployment.expiresAt).toLocaleString()}</span>
-                          <span>
-                            所在空间：
-                            <Link to={`/s/${deployment.space.slug}`}>
-                              {deployment.space.name}
-                            </Link>
-                          </span>
+                          <Link to={`/s/${deployment.space.slug}`}>
+                            {deployment.space.name}
+                          </Link>
                         </div>
                       )}
                     />
@@ -201,11 +269,13 @@ export function DashboardPage() {
           <div className="dashboard-panel-heading">
             <div>
               <h2>空间管理</h2>
-              <p className="hint">在一个空间里分享所有人的作品</p>
+              <p className="hint dashboard-space-intro">在一个空间里分享所有人的作品</p>
             </div>
-            <button type="button" onClick={() => setCreateSpaceOpen(true)}>
-              新建空间
-            </button>
+            <div className="dashboard-space-header-actions">
+              <button type="button" onClick={() => setCreateSpaceOpen(true)}>新建空间</button>
+              <button type="button" onClick={() => setMergeSpaceOpen(true)}
+                disabled={spaces.filter((space) => getSpaceStatus(space) === "有效").length < 2}>合并空间</button>
+            </div>
           </div>
           {spaces.length === 0 ? (
             <p className="hint">还没有空间，点击“新建空间”开始创建。</p>
@@ -214,7 +284,7 @@ export function DashboardPage() {
               <table className="admin-table">
                 <thead>
                   <tr>
-                    <th>空间名称</th>
+                    <th>空间</th>
                     <th>网址后缀</th>
                     <th>作品数量</th>
                     <th>到期时间</th>
@@ -227,7 +297,15 @@ export function DashboardPage() {
                     const status = getSpaceStatus(space);
                     return (
                       <tr key={space.id}>
-                        <td><strong>{space.name}</strong></td>
+                        <td>
+                          {status === "有效" ? (
+                            <Link className="dashboard-space-name-link" to={`/s/${space.slug}`}>
+                              {space.name}
+                            </Link>
+                          ) : (
+                            <strong>{space.name}</strong>
+                          )}
+                        </td>
                         <td>/{space.slug}</td>
                         <td>{space.deploymentCount}</td>
                         <td>{new Date(space.expiresAt).toLocaleString()}</td>
@@ -242,10 +320,10 @@ export function DashboardPage() {
                         </td>
                         <td>
                           <div className="dashboard-space-actions">
+                            <button type="button" onClick={() => openEditSpace(space)}>修改名称</button>
                             {status === "有效" && (
                               <>
-                              <Link to={`/spaces/${space.id}`}>进入管理</Link>
-                              <Link to={`/s/${space.slug}`}>入口页面</Link>
+                              <button type="button" onClick={() => navigate(`/spaces/${space.id}`)}>进入管理</button>
                               <button
                                 type="button"
                                 onClick={() => void extendSpace(space.id)}
@@ -282,6 +360,39 @@ export function DashboardPage() {
           setCreateSpaceOpen(false);
           setMessage("空间创建成功");
         }}
+      />
+      <MergeSpacesModal
+        open={mergeSpaceOpen} spaces={spaces}
+        onClose={() => setMergeSpaceOpen(false)}
+        onMerged={(slug) => {
+          setMergeSpaceOpen(false);
+          void loadSpaces();
+          setMessage(`空间合并成功，新入口：/s/${slug}`);
+        }}
+      />
+      <ProjectNameModal
+        open={renameTarget !== null}
+        title="重命名作品"
+        value={renameValue}
+        error={renameError}
+        hint={renameTarget && "space" in renameTarget
+          ? "名称在该空间内不可与其他项目重复。"
+          : "名称用于在“我的作品”中识别这个作品。"}
+        confirmLabel="保存名称"
+        onChange={setRenameValue}
+        onClose={() => setRenameTarget(null)}
+        onConfirm={() => void renameDeployment()}
+      />
+      <EditSpaceModal
+        open={editSpace !== null}
+        name={spaceName}
+        slug={editSpace?.slug ?? ""}
+        allowSlug={false}
+        error={spaceError}
+        onNameChange={setSpaceName}
+        onSlugChange={() => undefined}
+        onClose={() => setEditSpace(null)}
+        onConfirm={() => void saveSpaceName()}
       />
     </section>
   );

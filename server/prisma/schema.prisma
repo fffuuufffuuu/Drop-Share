@@ -36,9 +36,33 @@ model Space {
   slug        String       @unique
   createdAt   DateTime     @default(now())
   expiresAt   DateTime
+  downloadsEnabled Boolean @default(false)
   deployments Deployment[]
+  tags        SpaceTag[]
 
   @@index([expiresAt])
+}
+
+model SpaceTag {
+  id          String       @id @default(cuid())
+  spaceId     String
+  space       Space        @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  name        String
+  createdAt   DateTime     @default(now())
+  deployments DeploymentTag[]
+
+  @@unique([spaceId, name])
+  @@index([spaceId])
+}
+
+model DeploymentTag {
+  deploymentId String
+  tagId        String
+  deployment   Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  tag          SpaceTag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([deploymentId, tagId])
+  @@index([tagId])
 }
 
 model Deployment {
@@ -49,6 +73,7 @@ model Deployment {
   owner          User?       @relation("OwnerDeployments", fields: [ownerUserId], references: [id], onDelete: SetNull)
   spaceId        String?
   space          Space?      @relation(fields: [spaceId], references: [id], onDelete: SetNull)
+  tags           DeploymentTag[]
   rootPath       String
   expiresAt      DateTime
   visibility     Visibility  @default(visible)

@@ -1,4 +1,5 @@
 import express from "express";
+import { Prisma } from "@prisma/client";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -23,6 +24,7 @@ vi.mock("./db", () => ({
     space: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
+      update: vi.fn(),
     },
   },
 }));
@@ -136,6 +138,48 @@ describe("admin inventory routes", () => {
     }));
   });
 
+  it("updates a space name and unique slug", async () => {
+    vi.mocked(prisma.space.findUnique)
+      .mockResolvedValueOnce({ id: "s1", name: "旧名称", slug: "old-slug" } as never)
+      .mockResolvedValueOnce(null);
+    vi.mocked(prisma.space.update).mockResolvedValue({ id: "s1", name: "新名称", slug: "new-slug" } as never);
+
+    const response = await request(createApp()).patch("/api/admin/spaces/s1")
+      .send({ name: " 新名称 ", slug: "new-slug" });
+
+    expect(response.status).toBe(200);
+    expect(prisma.space.update).toHaveBeenCalledWith({
+      where: { id: "s1" }, data: { name: "新名称", slug: "new-slug" },
+    });
+  });
+
+  it("rejects an existing slug before updating a space", async () => {
+    vi.mocked(prisma.space.findUnique)
+      .mockResolvedValueOnce({ id: "s1", slug: "old-slug" } as never)
+      .mockResolvedValueOnce({ id: "s2", slug: "taken" } as never);
+
+    const response = await request(createApp()).patch("/api/admin/spaces/s1")
+      .send({ name: "新名称", slug: "taken" });
+
+    expect(response.status).toBe(409);
+    expect(prisma.space.update).not.toHaveBeenCalled();
+  });
+
+  it("reports a slug collision if it happens during the database update", async () => {
+    vi.mocked(prisma.space.findUnique)
+      .mockResolvedValueOnce({ id: "s1", slug: "old-slug" } as never)
+      .mockResolvedValueOnce(null);
+    vi.mocked(prisma.space.update).mockRejectedValue(new Prisma.PrismaClientKnownRequestError(
+      "Unique constraint failed", { code: "P2002", clientVersion: "test" },
+    ));
+
+    const response = await request(createApp()).patch("/api/admin/spaces/s1")
+      .send({ name: "新名称", slug: "new-slug" });
+
+    expect(response.status).toBe(409);
+    expect(response.body.message).toContain("slug");
+  });
+
   it("returns 404 for an unknown space", async () => {
     vi.mocked(prisma.space.findUnique).mockResolvedValue(null);
 
@@ -153,6 +197,7 @@ describe("admin inventory routes", () => {
       createdAt: new Date("2026-07-29T01:00:00.000Z"),
       expiresAt: new Date("2027-07-30T01:00:00.000Z"),
       owner: { username: "owner" },
+      tags: [],
       deployments: [
         {
           id: "d1",
@@ -162,6 +207,7 @@ describe("admin inventory routes", () => {
           createdAt: new Date("2026-07-29T02:00:00.000Z"),
           expiresAt: new Date("2027-07-29T02:00:00.000Z"),
           owner: { username: "owner" },
+          tags: [],
         },
       ],
     } as never);

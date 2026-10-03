@@ -15,7 +15,8 @@ function NavBar({ currentUser }: { currentUser: CurrentUser | null }) {
   return (
     <header className="navbar">
       <Link className="navbar-brand" to="/">
-        Drop <span>&amp;</span> Share
+        <img className="navbar-logo" src="/logo.svg" alt="" aria-hidden="true" />
+        <span className="navbar-brand-text">Drop <span>&amp;</span> Share</span>
       </Link>
       <nav>
         <Link to="/upload">{currentUser ? "上传" : "免费使用"}</Link>
@@ -29,18 +30,16 @@ function NavBar({ currentUser }: { currentUser: CurrentUser | null }) {
   );
 }
 
-function SiteFooter({ currentUser }: { currentUser: CurrentUser | null }) {
+function SiteFooter() {
   return (
     <footer className="site-footer">
       <div className="site-footer-inner">
-        <p>作者：<strong>CashewLab</strong></p>
+        <p>作者：<a className="site-footer-author" href="https://www.yaoguosir.com/" target="_blank" rel="noreferrer">CashewLab</a></p>
+        <p className="site-footer-record">沪ICP备2025130631号-1</p>
         <div className="site-footer-links">
-          <a href="https://github.com/fffuuufffuuu" target="_blank" rel="noreferrer">
-            GitHub 主页
+          <a href="https://github.com/fffuuufffuuu/Drop-Share" target="_blank" rel="noreferrer">
+            GitHub
           </a>
-          {currentUser?.role === "ADMIN" && (
-            <Link className="site-footer-admin" to="/admin">管理后台</Link>
-          )}
         </div>
       </div>
     </footer>
@@ -75,7 +74,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
-      <SiteFooter currentUser={currentUser} />
+      <SiteFooter />
     </div>
   );
 }
