@@ -1,11 +1,9 @@
 import type { NextFunction, Request, Response } from "express";
 import { UserRole } from "@prisma/client";
-import jwt from "jsonwebtoken";
-import { z } from "zod";
-
-import { config } from "./config";
 import { prisma } from "./db";
 import type { AuthUser } from "./types";
+import { resolveAuthUser } from "./auth-identity";
+import { AuthError } from "./cloudbase";
 
 declare global {
   namespace Express {
@@ -15,12 +13,7 @@ declare global {
   }
 }
 
-const authPayloadSchema = z.object({
-  userId: z.string(),
-  username: z.string(),
-});
-
-export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     res.status(401).json({ message: "Missing token" });
@@ -29,11 +22,10 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 
   const token = authHeader.replace("Bearer ", "").trim();
   try {
-    const decoded = jwt.verify(token, config.jwtSecret);
-    const parsed = authPayloadSchema.parse(decoded);
-    req.authUser = parsed;
+    req.authUser = await resolveAuthUser(token);
     next();
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthError && [429,503].includes(error.status)) {res.status(error.status).json({message:error.message});return;}
     res.status(401).json({ message: "Invalid token" });
   }
 }

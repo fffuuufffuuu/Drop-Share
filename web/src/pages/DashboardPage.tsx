@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { WorkViewCount } from "../components/WorkViewCount";
-import { api, setAuthToken } from "../api";
-import { getCurrentUser, notifyAuthChanged } from "../auth";
+import { api, setAuthToken, logoutSession } from "../api";
+import { getCurrentUser } from "../auth";
 import { CreateSpaceModal } from "../components/CreateSpaceModal";
 import { EditNameButton } from "../components/EditNameButton";
 import { EditSpaceModal } from "../components/EditSpaceModal";
@@ -85,10 +85,7 @@ export function DashboardPage() {
   }, [activePanel]);
 
   function logout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    setAuthToken();
-    notifyAuthChanged();
+    void logoutSession();
     navigate("/login");
   }
 

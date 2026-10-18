@@ -26,6 +26,8 @@ function getAllowedOrigin(): string | string[] | true {
 }
 
 async function bootstrap(): Promise<void> {
+  if(!["legacy","cloudbase"].includes(config.authProvider)) throw new Error("Invalid AUTH_PROVIDER");
+  if(config.authProvider==="cloudbase" && !["sms","email"].includes(config.cloudbaseLoginMethod)) throw new Error("Invalid CLOUDBASE_LOGIN_METHOD");
   await ensureStorageRoot();
   startCleanupJob();
 

@@ -1,59 +1,72 @@
-# CloudBase 账号迁移准备记录
+# CloudBase 账号迁移记录
 
-日期：2026-10-18。状态：环境开通准备中，尚未实现或启用新认证。
+日期：2026-10-18。状态：接入代码已实现，尚未部署；真实短信验收待用户操作。
 
-## 已确认的范围
+## 当前决策
 
-- 已上线的访问统计及卡片改动已提交到 GitHub `main`，提交 `db2c5401934fc6e42ff50fe2a649b6dd424bf664`。这是账号迁移前的回退基线。
-- 迁移工作使用 `codex/cloudbase-auth` 分支。
-- 用户选择邮箱验证码注册和登录。此前的手机验证码选择已撤回，不申请短信签名、不购买短信套餐。
-- CloudBase 管理登录身份；作品、空间、上传文件、访问次数及其管理功能继续使用现有服务器和 MySQL。
-- 不将 CloudBase 控制台视为现有作品管理后台的自动替代品。控制台管理身份，本站仍需执行业务角色和所有权判断。
+- 迁移前已上线版本已同步 GitHub main：db2c5401934fc6e42ff50fe2a649b6dd424bf664。
+- 迁移分支：codex/cloudbase-auth。
+- 已创建环境：drop-share-auth-d1f1aub240d4676c，上海、免费体验版、PostgreSQL。控制台显示到期时间 2027-04-18 23:59:59。
+- 用户在控制台启用了短信验证码，描述为默认通道、单号码每天 30 条上限。以短信为默认登录方式，邮箱作为可配置备选。
+- 更正之前判断：企事业单位资质要求针对自行接入腾讯云短信的通道，不能用于否定 CloudBase 默认短信包。30 条/日是单号码限频，不是赠送额度。
+- 当前价目：短信 50 资源点/条，免费版每月 3000 点与其他服务共用。尚未购买个人版、短信包或开启额外计费。
+- CloudBase 仅接管身份认证。作品、空间、上传文件、访问统计及业务权限继续使用现有服务器和 MySQL。
+- 官方说明自 2026-08-11 后新建环境不再支持云后台。购买个人版不能自动替换现有作品管理后台。
 
-## 控制台实测
+## 接入合同
 
-当前账号没有 CloudBase 环境。新版控制台的“新建环境”进入
-<https://buy.cloud.tencent.com/CloudBase?buyType=tcb>。
+使用 CloudBase 官方 HTTP API，不新增 SDK 依赖，不需要腾讯云管理员密钥。
 
-已填环境名称 `drop-share-auth`，地域上海，免费体验版，页面显示 6 个月、总金额 ¥0、资源点 3000，不支持开启按量付费。页面默认选择 PostgreSQL 数据库；环境创建后不能切换数据库类型。这不涉及转换或迁移本站 MySQL。
+- 发送验证码：POST /auth/v1/verification；默认 ANY，手机号规范化为 +86 前缀。
+- 验证：POST /auth/v1/verification/verify；按服务器签名的请求上下文选择 signin 或 signup，不能由浏览器替换已验证的手机号或邮箱。
+- 当前身份：GET /auth/v1/user/me。验证 ACTIVE 状态、不可变 sub，以及登录时的号码/邮箱一致性；不使用客户端角色或同名用户名领取旧数据。
+- 刷新：POST /auth/v1/token，grant_type=refresh_token；保存轮换令牌。多个本页请求合并刷新，支持浏览器 Web Locks 跨标签页协调，旧请求不得覆盖或清除新会话。
+- 退出：POST /auth/v1/user/signout。首先清除本地会话，再尽力撤销 CloudBase 会话；网络故障不阻止本地退出。
+- 人机验证：服务要求时使用 /captcha/data、/captcha/data/verify，由用户识别图片，再通过 x-captcha-token 请求头重试发送。
+- 429 和认证服务故障作为可重试状态处理，不误判为登录失效。
 
-免费开通必须填写公众号兑换码。用户需要扫描官网二维码，向公众号发送“领取兑换码”。尚未取得兑换码、提交订单或创建环境。不得因免费入口受阻而改选付费版。
+后端配置：AUTH_PROVIDER=cloudbase，CLOUDBASE_ENV_ID=上述环境 ID，CLOUDBASE_LOGIN_METHOD=sms（或 email）。默认 AUTH_PROVIDER=legacy，未配置不会切换线上认证。
 
-创建成功后仍须确认：环境 ID、真实认证端点、邮箱认证是否支持内置邮件代发、当前额度及费用、生产域名配置。不能把旧版 SDK 示例直接用于 PostgreSQL 环境；应按环境控制台提供的接入代码选择对应 API。
+## 旧账号和权限
 
-## 现有代码约束
+旧用户首次选择“关联旧账号”，同时提供原账号密码及经 CloudBase 验证的新身份。成功后保留原 User.id、用户名、role、作品与空间关联。
 
-- `server/src/routes.auth.ts` 当前维护用户名、bcrypt 密码和本站 JWT；未要求绑定邮箱。
-- `server/prisma/schema.prisma` 的 `User.id` 被作品和空间所有权引用，`role` 决定管理员权限。迁移须保留这些用户 ID 和关系。
-- `server/src/middleware.ts` 校验本站 JWT；`server/src/routes.spaces.ts` 的空间上传还单独校验可选 JWT。这两处必须统一迁移，否则上传者身份会丢失。
-- `web/src/pages/LoginPage.tsx`、`web/src/api.ts`、`web/src/auth.ts` 和退出登录流程必须同时处理新登录态、自动续期和失效。
+身份映射使用 (cloudbaseEnvId, cloudbaseSubject) 唯一索引，列使用 utf8mb4_bin，且代码再次核对精确身份。条件更新防止并发覆盖已有绑定。新用户默认普通 USER，不维护本地密码，不继承 CloudBase 角色为本地管理员。
 
-## 拟采用的绑定方式（待用户确认旧账号过渡要求）
+原密码哈希保留供旧账号一次性证明和回退使用。CloudBase 启用后，旧注册/密码登录接口关闭，旧 JWT 不再用于业务鉴权。切换会使旧登录态失效，已有作品的用户需要重新验证并关联旧账号。
 
-新 CloudBase 身份以环境 ID 和服务端验证后的不可变用户 ID 映射到本地用户。不得仅凭同名用户名、客户端提交的邮箱或角色自动领取旧账号。
+## 生产数据库变更（尚未获批、未执行）
 
-旧用户先证明持有原账号，再完成邮箱验证码认证，才能绑定该 CloudBase 身份。绑定应原子执行，阻止一个 CloudBase 身份绑定多个旧用户或覆盖已有绑定。绑定后沿用原 `User.id`、作品、空间、用户名和管理员角色。新注册账号默认普通用户，不能从客户端或身份昵称推导管理员权限。
+迁移文件：server/prisma/migrations/20261018000000_add_cloudbase_identity/migration.sql。
 
-过渡期间是否保留原密码登录尚未收到用户答复。需要据此确定旧登录入口的关闭时间。验证码登录本身不要求用户另设新密码，也不应上传旧密码哈希。
+1. User.passwordHash 改为可空。
+2. 新增可空 cloudbaseEnvId、cloudbaseSubject。
+3. 新增组合唯一索引；保留现有 ID、密码、角色和所有权关系。
 
-## 实施与发布验收
+项目规则要求生产数据库迁移明确批准。批准前只能本地生成客户端、测试和构建，不能执行生产迁移。
 
-1. 开通免费环境并验证邮箱服务的可用性和费用，再确定实际 SDK/API 合同。
-2. 增加最小的身份映射数据库变更；本地验证迁移，生产执行前单独取得明确批准。
-3. 先验证服务端身份再处理业务请求。无效、其他环境、已禁用身份及认证服务不可用时，不得放行或退回用户名匹配。
-4. 接入邮箱验证码、重发限制、验证码错误反馈、会话续期和完整退出；更改邮箱后必须丢弃旧验证上下文。
-5. 验证旧用户绑定保留作品和空间；验证新用户、匿名上传、普通用户、管理员的权限边界及角色变更生效。
-6. 后端执行 `npm.cmd test`、`npm.cmd run build`；前端执行 `npm.cmd test`、`npm.cmd run typecheck`、`npm.cmd run build`。
-7. 用真实邮箱完成收码、登录、续期和退出；模拟测试通过不能替代真实环境验收。
-8. 生产切换前备份数据库、上传文件和当前版本，保留 `server/.env`、`server/storage`，配置明确的回退入口。仅当真实认证和管理员访问通过后关闭旧注册。
+## 验收和切换
+
+自动测试覆盖伪造/禁用身份、旧 JWT 拒绝、身份大小写、同名领取防护、原子绑定、角色保留、号码请求上下文、短信与邮箱不可混用、限流、刷新竞态、退出竞态、legacy 回退及人机验证交互。本次后端 130 项、前端 99 项测试通过，后端 build、前端 typecheck/build 通过；独立代码复审的问题已修复并复核。这些结果不替代真实服务验收。
+
+真实提供方验收命令（先在 server 目录 npm.cmd run build）：
+
+    node scripts/verify-cloudbase-auth.cjs drop-share-auth-d1f1aub240d4676c
+
+打开 http://127.0.0.1:4051。用户亲自输入手机号和验证码；工具检查发送、登录/注册、刷新、同一身份、退出和令牌撤销。不读取网站数据库，不记录手机号、验证码或令牌，只输出验收阶段。一次验收会在 CloudBase 留下该测试身份，供后续正常绑定；不创建本地网站用户。
+
+生产切换前：真实验收成功、批准上述数据库变更，备份数据库/上传文件/当前版本，保留 server/.env 和 server/storage。新建身份不得使用来历不明的同名用户名自动关联旧账号。部署后用现有管理员完成关联并验收作品权限、空间上传归属、统计及退出，再确认迁移完成。
+
+回退：保留数据库新增列，将 AUTH_PROVIDER 切回 legacy 并恢复旧前端/后端版本；不通过删除身份列回退。旧用户原密码仍有效；新 CloudBase-only 用户不能通过旧密码入口登录。
 
 ## 官方依据
 
-- [邮箱验证码与内置邮件代发](https://docs.cloudbase.net/authentication-v2/method/email-login)
-- [CloudBase HTTP 身份认证](https://docs.cloudbase.net/http-api/auth/user-me)
-- [SDK v3 认证](https://docs.cloudbase.net/api-reference/webv3/authentication)
-- [短信认证地域和配置要求](https://docs.cloudbase.net/authentication-v2/method/sms-login)
-- [国内短信实名资质](https://cloud.tencent.com/document/product/382/108274)
-- [CloudBase 计费说明](https://cloud.tencent.com/document/product/876/127357)
+- https://cloud.tencent.com/document/product/876/127357
+- https://cloud.tencent.com/document/api/876/34822
+- https://docs.cloudbase.net/http-api/auth/auth-send-verification
+- https://docs.cloudbase.net/http-api/auth/auth-verify-verification
+- https://docs.cloudbase.net/http-api/auth/user-me
+- https://docs.cloudbase.net/http-api/auth/auth-grant-token
+- https://docs.cloudbase.net/http-api/auth/auth-sign-out
 
-价格、免费条件及身份认证合同以实际环境和当时控制台为准；本记录不是已开通或已部署的证明。
+文档描述实现和验收要求，不代表已完成真实收码、生产迁移或上线。

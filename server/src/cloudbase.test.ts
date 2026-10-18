@@ -1,0 +1,34 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { config } from "./config";
+import { cloudbaseRequest, getCloudbaseUser } from "./cloudbase";
+
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+
+describe("CloudBase authentication boundary", () => {
+  it("validates the token at the configured environment, ignoring client claims", async () => {
+    config.cloudbaseEnvId = "test-env";
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ sub: "provider-id", email: "teacher@example.com", status: "ACTIVE", groups: ["ADMIN"] })));
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await getCloudbaseUser("provider-token")).toMatchObject({ sub: "provider-id" });
+    expect(fetchMock.mock.calls[0][0]).toBe("https://test-env.api.tcloudbasegateway.com/auth/v1/user/me");
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe("Bearer provider-token");
+  });
+
+  it.each([{ sub: "service_account", status: "ACTIVE" }, { sub: "user", status: "DISABLED" }, { email: "a@b.com", status: "ACTIVE" }])("rejects unusable provider profiles %j", async profile => {
+    config.cloudbaseEnvId = "test-env";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(profile))));
+    await expect(getCloudbaseUser("token")).rejects.toThrow();
+  });
+
+  it("fails closed on provider outages without leaking upstream details", async () => {
+    config.cloudbaseEnvId = "test-env";
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("internal credential detail")));
+    await expect(cloudbaseRequest("/user/me", undefined, "token")).rejects.toMatchObject({ status: 503, message: "认证服务暂不可用，请稍后重试" });
+  });
+
+  it("keeps provider rate limiting retryable instead of invalidating a session", async () => {
+    config.cloudbaseEnvId = "test-env";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "resource_exhausted" }), { status: 429 })));
+    await expect(getCloudbaseUser("valid-token")).rejects.toMatchObject({ status: 429 });
+  });
+});

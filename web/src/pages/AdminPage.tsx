@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
-import { api, setAuthToken } from "../api";
-import { getCurrentUser, notifyAuthChanged } from "../auth";
+import { api, setAuthToken, logoutSession } from "../api";
+import { getCurrentUser } from "../auth";
 import { EditSpaceModal } from "../components/EditSpaceModal";
 import { SpaceDownloadSwitch } from "../components/SpaceDownloadSwitch";
 import { WorkViewCount } from "../components/WorkViewCount";
@@ -387,10 +387,7 @@ export function AdminPage() {
   }
 
   function logout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    setAuthToken();
-    notifyAuthChanged();
+    void logoutSession();
     navigate("/login");
   }
 

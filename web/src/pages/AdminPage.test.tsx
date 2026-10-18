@@ -9,7 +9,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, setAuthToken } from "../api";
 import { AdminPage } from "./AdminPage";
 
-vi.mock("../api", () => ({
+vi.mock("../api", async (original) => ({
+  ...await original<any>(),
   api: {
     get: vi.fn(),
     delete: vi.fn(),

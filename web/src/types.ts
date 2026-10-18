@@ -8,6 +8,8 @@ export type CurrentUser = {
 
 export type AuthResponse = {
   token: string;
+  refreshToken?: string;
+  expiresIn?: number;
   user: CurrentUser & {
     createdAt: string;
   };

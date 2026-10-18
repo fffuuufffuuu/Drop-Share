@@ -20,12 +20,16 @@ enum Visibility {
 model User {
   id          String       @id @default(cuid())
   username    String       @unique
-  passwordHash String
+  passwordHash String?
+  cloudbaseEnvId String?
+  cloudbaseSubject String?
   phone       String?      @unique
   role        UserRole     @default(USER)
   createdAt   DateTime     @default(now())
   spaces      Space[]
   deployments Deployment[] @relation("OwnerDeployments")
+
+  @@unique([cloudbaseEnvId, cloudbaseSubject])
 }
 
 model Space {

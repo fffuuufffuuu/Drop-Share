@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { EmailLoginPage } from "./EmailLoginPage";
+import { clearCloudbaseSession } from "../cloudbase-session";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { api, setAuthToken } from "../api";
@@ -8,6 +10,25 @@ import type { AuthResponse } from "../types";
 type Mode = "login" | "register";
 
 export function LoginPage() {
+  const [provider,setProvider]=useState<"legacy"|"cloudbase"|null>(null);
+  const [loginMethod,setLoginMethod]=useState<"sms"|"email">("sms");
+  const [failed,setFailed]=useState(false);
+  useEffect(()=>{
+    let active=true;
+    api.get("/auth/config").then(({data})=>{
+      if(!active)return;
+      if(data?.provider!=="legacy"&&data?.provider!=="cloudbase")throw new Error("Invalid auth config");
+      setProvider(data.provider);
+      setLoginMethod(data.loginMethod==="email"?"email":"sms");
+    }).catch(()=>{if(active)setFailed(true);});
+    return()=>{active=false;};
+  },[]);
+  if(provider==="cloudbase")return <EmailLoginPage method={loginMethod}/>;
+  if(provider==="legacy")return <LegacyLoginPage/>;
+  return <section className="card"><p role="status">{failed?"无法获取登录配置，请刷新页面重试":"正在加载登录方式…"}</p></section>;
+}
+
+function LegacyLoginPage() {
   const [searchParams] = useSearchParams();
   const [mode, setMode] = useState<Mode>(
     searchParams.get("mode") === "register" ? "register" : "login",
@@ -25,6 +46,7 @@ export function LoginPage() {
   async function handleLogin() {
     try {
       const { data } = await api.post<AuthResponse>("/auth/login", { username, password });
+      clearCloudbaseSession();
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       setAuthToken(data.token);
@@ -47,6 +69,7 @@ export function LoginPage() {
     }
     try {
       const { data } = await api.post<AuthResponse>("/auth/register", { username, password });
+      clearCloudbaseSession();
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       setAuthToken(data.token);
