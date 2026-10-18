@@ -44,24 +44,36 @@ export function EmailLoginPage({ method = "email" }: { method?: "sms" | "email" 
     } catch (error: any) { setMessage(error.response?.data?.message ?? "登录失败，请重新获取验证码后重试"); }
     finally { setBusy(false); }
   }
-  return <section className="card">
-    <h2>{label}验证码登录</h2>
+  return <section className="auth-page">
+    <aside className="auth-intro">
+      <div className="auth-brand"><img src="/logo.svg" alt=""/><span>Drop & Share</span></div>
+      <h1>让作品，<br/>有一个去处。</h1>
+      <p>把想法做成作品，把作品分享出去。<br/>管理你的作品与空间，从这里继续。</p>
+      <div className="auth-illustration" aria-hidden="true">
+        <div className="auth-preview-back"><span/><span/><span/></div>
+        <div className="auth-preview-front"><div className="auth-preview-bar"><i/><i/><i/></div><div className="auth-preview-art"><svg viewBox="0 0 100 70"><path d="m16 49 22-28 18 18 15-22 17 32"/><circle cx="75" cy="16" r="5"/></svg></div><div className="auth-preview-caption"><span>我的作品</span><svg viewBox="0 0 24 24"><path d="M7 17 17 7M7 7h10v10"/></svg></div></div>
+        <span className="auth-share-note">创作 · 分享 · 连接</span>
+      </div>
+    </aside>
+    <div className="auth-card">
+    <header className="auth-card-heading"><h2>{label}验证码登录</h2><p>欢迎回来，继续你的创作。</p></header>
     <div className="auth-mode-switch" role="group" aria-label="登录或关联旧账号">
       <button type="button" aria-pressed={mode === "login"} onClick={() => setMode("login")}>登录 / 注册</button>
       <button type="button" aria-pressed={mode === "link"} onClick={() => setMode("link")}>关联旧账号</button>
     </div>
-    <p className="hint">{mode === "link" ? "验证原账号并绑定新登录身份，保留原有作品、空间和权限。" : "新用户完成验证后自动注册；已有作品的用户首次使用请选择关联旧账号。"}</p>
-    <form onSubmit={submit}>
+    <p className="auth-mode-note">{mode === "link" ? "验证原账号并绑定新登录身份，保留原有作品、空间和权限。" : "新用户验证后自动注册。已有作品？首次登录请选择“关联旧账号”。"}</p>
+    <form className="auth-form" onSubmit={submit}>
       <label>{label}<input type={sms ? "tel" : "email"} autoComplete={sms ? "tel" : "email"} placeholder={sms ? "中国大陆手机号" : undefined} required value={email} disabled={busy} onChange={e => changeEmail(e.target.value)} /></label>
-      {captcha&&<div><img src={captcha.data} alt="请识别图中的验证码"/><label>图形验证码<input autoComplete="off" maxLength={32} value={captchaAnswer} onChange={e=>setCaptchaAnswer(e.target.value)}/></label></div>}
-      <button type="button" disabled={busy || remaining > 0 || !email || !!captcha&&!captchaAnswer} onClick={() => void sendCode()}>{remaining > 0 ? `${remaining} 秒后重发` : "获取验证码"}</button>
-      <label>验证码<input inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={code} onChange={e => setCode(e.target.value)} /></label>
+      {captcha&&<div className="auth-captcha"><img src={captcha.data} alt="请识别图中的验证码"/><label>图形验证码<input autoComplete="off" maxLength={32} value={captchaAnswer} onChange={e=>setCaptchaAnswer(e.target.value)}/></label></div>}
+      <div className="auth-code-field"><label>验证码<input placeholder="输入 6 位验证码" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={code} onChange={e => setCode(e.target.value)} /></label>
+      <button className="auth-send-code" type="button" disabled={busy || remaining > 0 || !email || !!captcha&&!captchaAnswer} onClick={() => void sendCode()}>{remaining > 0 ? `${remaining} 秒后重发` : "获取验证码"}</button></div>
       {mode === "link" ? <>
         <label>原用户名<input autoComplete="username" required value={legacyUsername} onChange={e => setLegacyUsername(e.target.value)} /></label>
         <label>原密码<input type="password" autoComplete="current-password" required value={legacyPassword} onChange={e => setLegacyPassword(e.target.value)} /></label>
       </> : <label>新用户昵称（选填）<input autoComplete="nickname" minLength={3} maxLength={32} pattern="[a-zA-Z0-9_]+" placeholder="字母、数字或下划线，已有用户无需填写" value={username} onChange={e => setUsername(e.target.value)} /></label>}
-      <button className="auth-submit" type="submit" disabled={!challenge || busy}>验证并登录</button>
+      <button className="auth-submit" type="submit" disabled={!challenge || busy}>{busy ? "请稍候…" : "验证并登录"}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></button>
     </form>
     <p className="message" role="status">{message}</p>
+    </div>
   </section>;
 }

@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "./db";
 import { deploymentRouter } from "./routes.deployments";
 import { saveDeploymentFiles } from "./storage";
+import { sendZip } from "./space-downloads";
+vi.mock("./space-downloads", () => ({ sendZip: vi.fn(async (_deployment, res) => { res.type("application/zip").send("test-zip"); }) }));
 
 vi.mock("./db", () => ({
   prisma: {
@@ -46,6 +48,24 @@ function createApp() {
 }
 
 describe("personal deployment history", () => {
+  it("requires authentication to download an owned work", async () => {
+    const response = await request(createApp()).get("/api/deployments/d1/download");
+    expect(response.status).toBe(401);
+    expect(sendZip).not.toHaveBeenCalled();
+  });
+  it("downloads owned hidden or space uploads without requiring public downloads to be enabled", async () => {
+    vi.mocked(prisma.deployment.findFirst).mockResolvedValue({title:"My work",rootPath:"owned-folder"} as never);
+    const response = await request(createApp()).get("/api/deployments/d1/download").set("Authorization","Bearer user-token");
+    expect(response.status).toBe(200);
+    expect(prisma.deployment.findFirst).toHaveBeenCalledWith({where:{id:"d1",ownerUserId:"user-1",deletedAt:null},select:{title:true,rootPath:true}});
+    expect(sendZip).toHaveBeenCalledWith({title:"My work",rootPath:"owned-folder"},expect.anything(),expect.anything());
+  });
+  it("never streams a missing, deleted or another user's work", async () => {
+    vi.mocked(prisma.deployment.findFirst).mockResolvedValue(null);
+    const response = await request(createApp()).get("/api/deployments/other/download").set("Authorization","Bearer user-token");
+    expect(response.status).toBe(404);expect(sendZip).not.toHaveBeenCalled();
+    expect(prisma.deployment.findFirst).toHaveBeenCalledWith(expect.objectContaining({where:{id:"other",ownerUserId:"user-1",deletedAt:null}}));
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(saveDeploymentFiles).mockResolvedValue("storage/test");

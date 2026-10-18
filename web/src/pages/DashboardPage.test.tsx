@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../api";
 import { DashboardPage } from "./DashboardPage";
+import { downloadZip } from "../download";
+vi.mock("../download", () => ({ downloadZip: vi.fn() }));
 
 vi.mock("../api", async (original) => ({
   ...await original<any>(),
@@ -67,6 +69,40 @@ afterEach(() => {
 });
 
 describe("DashboardPage", () => {
+  it("keeps hidden uploads manageable and lets their owner show them again", async () => {
+    vi.mocked(api.get).mockImplementation(async url => ({ data: url === "/deployments" ? [{ ...activeDeployment, visibility: "hidden" }] : [] }));
+    vi.mocked(api.patch).mockResolvedValue({ data: {} });
+    const user = userEvent.setup(); renderPage();
+    expect(await screen.findByRole("heading", {name:"个人首页"})).toBeInTheDocument();
+    expect(screen.getByText("已隐藏")).toBeInTheDocument();
+    expect(screen.queryByTitle("个人首页预览")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", {name:"个人首页的更多操作"}));
+    await user.click(screen.getByRole("button", {name:"显示个人首页"}));
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith("/deployments/d1", {visibility:"visible"}));
+    expect(await screen.findByTitle("个人首页预览")).toBeInTheDocument();
+  });
+  it("downloads, hides and deletes owned personal and space uploads through the owner routes", async () => {
+    vi.mocked(api.get).mockImplementation(async url => ({ data: url === "/deployments" ? [activeDeployment] : [activeSpaceDeployment] }));
+    vi.mocked(api.patch).mockResolvedValue({data:{}}); vi.mocked(api.delete).mockResolvedValue({data:{}});
+    vi.mocked(downloadZip).mockResolvedValue(); vi.spyOn(window,"confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+    const user=userEvent.setup(); renderPage();
+    await screen.findByRole("heading",{name:"个人首页"});
+    await user.click(screen.getByRole("button",{name:"个人首页的更多操作"}));
+    await user.click(screen.getByRole("button",{name:"下载个人首页"}));
+    expect(downloadZip).toHaveBeenCalledWith("/deployments/d1/download","个人首页.zip");
+    await user.click(screen.getByRole("button",{name:"隐藏个人首页"}));
+    expect(api.patch).toHaveBeenCalledWith("/deployments/d1",{visibility:"hidden"});
+    expect(await screen.findByText("已隐藏")).toBeInTheDocument();
+    await user.click(screen.getByRole("button",{name:"删除个人首页"}));
+    expect(api.delete).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button",{name:"删除个人首页"}));
+    expect(api.delete).toHaveBeenCalledWith("/deployments/d1");
+    await waitFor(()=>expect(screen.queryByRole("heading",{name:"个人首页"})).not.toBeInTheDocument());
+    await user.click(screen.getByRole("button",{name:"空间作品的更多操作"}));
+    expect(screen.getByRole("button",{name:"下载空间作品"})).toBeInTheDocument();
+    expect(screen.getByRole("button",{name:"隐藏空间作品"})).toBeInTheDocument();
+    expect(screen.getByRole("button",{name:"删除空间作品"})).toBeInTheDocument();
+  });
   it("splits accessible personal and space uploads into two work sections", async () => {
     vi.mocked(api.get).mockImplementation(async (url) => {
       if (url === "/deployments") {
