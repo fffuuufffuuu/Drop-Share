@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import { permanentlyDeleteSpace } from "./admin-deletion";
 import { prisma } from "./db";
+import { getSpaceViewCounts, sumWorkViews } from "./space-views";
 import { requireAuth } from "./middleware";
 import {
   addDays,
@@ -140,6 +141,7 @@ spaceRouter.post("/", requireAuth, async (req, res) => {
   res.status(201).json({
     ...space,
     deploymentCount: 0,
+    viewCount: 0,
     entryUrl: `${config.baseUrl}/s/${space.slug}`,
   });
 });
@@ -164,6 +166,7 @@ spaceRouter.get("/", requireAuth, async (req, res) => {
       },
     },
   });
+  const viewCounts = await getSpaceViewCounts(spaces.map((space) => space.id));
   res.json(spaces.map((space) => ({
     id: space.id,
     name: space.name,
@@ -172,6 +175,7 @@ spaceRouter.get("/", requireAuth, async (req, res) => {
     expiresAt: space.expiresAt,
     downloadsEnabled: space.downloadsEnabled,
     deploymentCount: space._count.deployments,
+    viewCount: viewCounts.get(space.id) ?? 0,
   })));
 });
 
@@ -202,6 +206,7 @@ spaceRouter.get("/:id", requireAuth, async (req, res) => {
   });
   res.json({
     ...space,
+    viewCount: sumWorkViews(deployments),
     tags,
     deployments: deployments.map(({ owner, tags: assignments, ...deployment }) => ({
       ...deployment,
@@ -455,12 +460,14 @@ spaceRouter.get("/entry/:slug", async (req, res) => {
       ownerUserId: space.ownerUserId,
       expiresAt: space.expiresAt,
       downloadsEnabled: space.downloadsEnabled,
+      viewCount: sumWorkViews(deployments),
     },
     tags,
     deployments: visible.map((deployment) => ({
       id: deployment.id,
       title: deployment.title,
       publicSlug: deployment.publicSlug,
+      viewCount: deployment.viewCount,
       tagIds: deployment.tags.map(({ tagId }) => tagId),
       ownerUserId: deployment.ownerUserId,
       uploaderName: deployment.owner?.username ?? "匿名",

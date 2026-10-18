@@ -11,6 +11,7 @@ import { removeDeploymentFolder, saveDeploymentFiles } from "./storage";
 vi.mock("./db", () => ({
   prisma: {
     deployment: {
+      groupBy: vi.fn().mockResolvedValue([]),
       create: vi.fn(),
       findFirst: vi.fn(),
       findMany: vi.fn(),

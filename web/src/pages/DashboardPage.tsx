@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+import { WorkViewCount } from "../components/WorkViewCount";
 import { api, setAuthToken } from "../api";
 import { getCurrentUser, notifyAuthChanged } from "../auth";
 import { CreateSpaceModal } from "../components/CreateSpaceModal";
@@ -224,6 +225,7 @@ export function DashboardPage() {
                       key={deployment.id}
                       title={deployment.title}
                       publicSlug={deployment.publicSlug}
+                      viewCount={deployment.viewCount}
                       cardLink
                       meta={`到期时间：${new Date(deployment.expiresAt).toLocaleString()}`}
                       titleAction={<EditNameButton label={`重命名${deployment.title}`} onClick={() => openRename(deployment)} />}
@@ -246,6 +248,7 @@ export function DashboardPage() {
                       key={deployment.id}
                       title={deployment.title}
                       publicSlug={deployment.publicSlug}
+                      viewCount={deployment.viewCount}
                       cardLink
                       titleAction={<EditNameButton label={`重命名${deployment.title}`} onClick={() => openRename(deployment)} />}
                       meta={(
@@ -288,6 +291,7 @@ export function DashboardPage() {
                     <th>空间</th>
                     <th>网址后缀</th>
                     <th>作品数量</th>
+                    <th>访问次数</th>
                     <th>到期时间</th>
                     <th>状态</th>
                     <th>操作</th>
@@ -309,6 +313,7 @@ export function DashboardPage() {
                         </td>
                         <td>/{space.slug}</td>
                         <td>{space.deploymentCount}</td>
+                        <td><WorkViewCount count={space.viewCount} /></td>
                         <td>{new Date(space.expiresAt).toLocaleString()}</td>
                         <td>
                           <span

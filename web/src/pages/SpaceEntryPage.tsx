@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
+import { WorkViewCount } from "../components/WorkViewCount";
 import { api, setAuthToken } from "../api";
 import { getCurrentUser } from "../auth";
 import { UploadDropzone } from "../components/UploadDropzone";
@@ -17,13 +18,14 @@ type DeploymentItem = {
   id: string;
   title: string;
   publicSlug: string;
+  viewCount: number;
   ownerUserId: string | null;
   uploaderName: string;
   tagIds: string[];
 };
 
 type SpaceEntryData = {
-  space: { id: string; name: string; slug: string; ownerUserId: string; expiresAt: string; downloadsEnabled: boolean };
+  space: { id: string; name: string; slug: string; ownerUserId: string; expiresAt: string; downloadsEnabled: boolean; viewCount: number };
   deployments: DeploymentItem[];
   tags: SpaceTag[];
 };
@@ -156,6 +158,8 @@ export function SpaceEntryPage() {
       await api.delete(`/admin/deployments/${deploymentId}`);
       setData((current) => current ? {
         ...current,
+        space: { ...current.space, viewCount: Math.max(0, (current.space.viewCount ?? 0)
+          - (current.deployments.find((item) => item.id === deploymentId)?.viewCount ?? 0)) },
         deployments: current.deployments.filter((item) => item.id !== deploymentId),
       } : current);
       setMessage("作品已永久删除");
@@ -173,6 +177,7 @@ export function SpaceEntryPage() {
       <header className="space-entry-hero">
         <span className="space-entry-eyebrow">作品空间</span>
         <h1 className="space-entry-title">{data.space.name}</h1>
+        <div className="space-view-summary"><span>空间访问次数</span><WorkViewCount count={data.space.viewCount} /></div>
         <div className="space-entry-deadline-row">
           <p className={`space-entry-expiration${isDeadlineNear(data.space.expiresAt) ? " deadline-near" : ""}`}>
             空间内作品统一于 {new Date(data.space.expiresAt).toLocaleString()} 到期
@@ -232,14 +237,15 @@ export function SpaceEntryPage() {
                 key={deployment.id}
                 title={deployment.title}
                 publicSlug={deployment.publicSlug}
+                viewCount={deployment.viewCount}
                 cardLink
                 titleAction={currentUser && (
                   currentUser.id === data.space.ownerUserId || currentUser.id === deployment.ownerUserId
                 ) ? <EditNameButton label={`重命名${deployment.title}`} onClick={() => openRename(deployment)} /> : undefined}
-                meta={<div className="space-work-card-meta">
-                  <div className="space-work-card-byline">
-                    <span className="space-work-card-uploader">上传者：{deployment.uploaderName}</span>
-                    {(data.space.downloadsEnabled || currentUser?.role === "ADMIN"
+                tags={(data.tags ?? []).some((tag) => (deployment.tagIds ?? []).includes(tag.id))
+                  ? <TagChips tags={data.tags ?? []} tagIds={deployment.tagIds ?? []} /> : undefined}
+                meta={<span className="space-work-card-uploader">上传者：{deployment.uploaderName}</span>}
+                actions={(data.space.downloadsEnabled || currentUser?.role === "ADMIN"
                       || (currentUser && deployment.ownerUserId === currentUser.id)) && <div className="work-admin-actions">
                     {data.space.downloadsEnabled && <a className="work-icon-action"
                       aria-label={`下载${deployment.title} ZIP`} title="下载 ZIP"
@@ -267,17 +273,15 @@ export function SpaceEntryPage() {
                     </>) : currentUser && deployment.ownerUserId === currentUser.id ? (
                     <button
                       type="button"
-                      className="btn-close"
+                      className="work-icon-action work-icon-action-danger"
+                      aria-label={`删除${deployment.title}`}
+                      title="删除作品"
                       onClick={() => closeDeployment(deployment.id)}
                     >
-                      关闭
+                      <WorkActionIcon type="delete" />
                     </button>
                   ) : null}
                     </div>}
-                  </div>
-                  {(data.tags ?? []).some((tag) => (deployment.tagIds ?? []).includes(tag.id)) &&
-                    <TagChips tags={data.tags ?? []} tagIds={deployment.tagIds ?? []} />}
-                </div>}
               />
             ))}
           </div>}

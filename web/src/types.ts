@@ -17,6 +17,7 @@ export type Deployment = {
   id: string;
   title: string;
   publicSlug: string;
+  viewCount: number;
   expiresAt: string;
   visibility: "visible" | "hidden";
   createdAt: string;
@@ -59,6 +60,7 @@ export type Space = {
   expiresAt: string;
   downloadsEnabled: boolean;
   deploymentCount: number;
+  viewCount: number;
 };
 
 export type AdminSpace = Space & {

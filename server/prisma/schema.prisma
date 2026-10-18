@@ -69,6 +69,7 @@ model Deployment {
   id             String      @id @default(cuid())
   title          String
   publicSlug     String      @unique
+  viewCount      Int         @default(0)
   ownerUserId    String?
   owner          User?       @relation("OwnerDeployments", fields: [ownerUserId], references: [id], onDelete: SetNull)
   spaceId        String?

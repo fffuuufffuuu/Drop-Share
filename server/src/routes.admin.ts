@@ -14,6 +14,7 @@ import {
   permanentlyDeleteSpace,
 } from "./admin-deletion";
 import { prisma } from "./db";
+import { getSpaceViewCounts, sumWorkViews } from "./space-views";
 import { requireAdmin, requireAuth } from "./middleware";
 import { registerSpaceTagRoutes } from "./space-tags";
 import { registerSpaceDownloadRoutes } from "./space-downloads";
@@ -34,6 +35,7 @@ adminRouter.get("/deployments/personal", async (_req, res) => {
       id: true,
       title: true,
       publicSlug: true,
+      viewCount: true,
       visibility: true,
       createdAt: true,
       expiresAt: true,
@@ -47,6 +49,7 @@ adminRouter.get("/deployments/personal", async (_req, res) => {
     id: deployment.id,
     title: deployment.title,
     publicSlug: deployment.publicSlug,
+    viewCount: deployment.viewCount,
     visibility: deployment.visibility,
     createdAt: deployment.createdAt,
     expiresAt: deployment.expiresAt,
@@ -150,6 +153,7 @@ adminRouter.get("/spaces", async (_req, res) => {
     },
   });
 
+  const viewCounts = await getSpaceViewCounts(spaces.map((space) => space.id));
   res.json(spaces.map((space) => ({
     id: space.id,
     ownerUserId: space.ownerUserId,
@@ -160,6 +164,7 @@ adminRouter.get("/spaces", async (_req, res) => {
     downloadsEnabled: space.downloadsEnabled,
     ownerUsername: space.owner.username,
     deploymentCount: space._count.deployments,
+    viewCount: viewCounts.get(space.id) ?? 0,
   })));
 });
 
@@ -275,6 +280,7 @@ adminRouter.get("/spaces/:id", async (req, res) => {
           id: true,
           title: true,
           publicSlug: true,
+          viewCount: true,
           tags: { select: { tagId: true } },
           visibility: true,
           createdAt: true,
@@ -306,10 +312,12 @@ adminRouter.get("/spaces/:id", async (req, res) => {
     downloadsEnabled: space.downloadsEnabled,
     ownerUsername: space.owner.username,
     tags: space.tags,
+    viewCount: sumWorkViews(space.deployments),
     deployments: space.deployments.map((deployment) => ({
       id: deployment.id,
       title: deployment.title,
       publicSlug: deployment.publicSlug,
+      viewCount: deployment.viewCount,
       tagIds: deployment.tags.map(({ tagId }) => tagId),
       visibility: deployment.visibility,
       createdAt: deployment.createdAt,

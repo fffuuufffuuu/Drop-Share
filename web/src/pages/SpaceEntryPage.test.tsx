@@ -80,6 +80,7 @@ describe("SpaceEntryPage upload selection", () => {
     cleanup();
     get.mockResolvedValue({ data: { ...payload, space: { ...payload.space, downloadsEnabled: true } } });
     renderSpaceEntry();
+    await userEvent.hover((await screen.findByRole("heading", { name: "轨道演示" })).closest("article")!);
     const download = await screen.findByRole("link", { name: "下载轨道演示 ZIP" });
     expect(download).toHaveClass("work-icon-action");
     expect(download)
@@ -195,6 +196,7 @@ describe("SpaceEntryPage upload selection", () => {
     expect(screen.getByRole("link", { name: "打开我的作品" }))
       .toHaveClass("work-preview-open-overlay");
     expect(screen.queryByText("打开作品")).not.toBeInTheDocument();
+    await userEvent.hover(screen.getByRole("heading", { name: "我的作品" }).closest("article")!);
     expect(screen.queryByRole("button", { name: "隐藏我的作品" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "删除我的作品" })).not.toBeInTheDocument();
   });
@@ -228,13 +230,14 @@ describe("SpaceEntryPage upload selection", () => {
 
     const card = (await screen.findByRole("heading", { name: "我的作品" }))
       .closest("article")!;
+    await userEvent.hover(card);
     expect(within(card).getByRole("link", { name: "打开我的作品" }))
       .toHaveClass("work-preview-open-overlay");
     expect(within(card).getByRole("button", { name: "隐藏我的作品" })).toBeInTheDocument();
     expect(within(card).getByRole("button", { name: "删除我的作品" })).toBeInTheDocument();
-    const byline = within(card).getByText("上传者：fffuuu").parentElement;
-    expect(byline).toContainElement(within(card).getByRole("button", { name: "隐藏我的作品" }));
-    expect(byline).toContainElement(within(card).getByRole("button", { name: "删除我的作品" }));
+    const footer = within(card).getByRole("group", { name: "我的作品的作品操作" });
+    expect(footer).toContainElement(within(card).getByRole("button", { name: "隐藏我的作品" }));
+    expect(footer).toContainElement(within(card).getByRole("button", { name: "删除我的作品" }));
     expect(within(card).queryByText("无标签")).not.toBeInTheDocument();
     expect(within(card).queryByRole("button", { name: "关闭" })).not.toBeInTheDocument();
   });
@@ -250,6 +253,7 @@ describe("SpaceEntryPage upload selection", () => {
     const user = userEvent.setup();
     renderSpaceEntry();
 
+    await userEvent.hover((await screen.findByRole("heading", { name: "旧作品" })).closest("article")!);
     await user.click(await screen.findByRole("button", { name: "重命名旧作品" }));
     await user.clear(screen.getByRole("textbox", { name: "项目名称" }));
     await user.type(screen.getByRole("textbox", { name: "项目名称" }), "新作品");
@@ -272,6 +276,7 @@ describe("SpaceEntryPage upload selection", () => {
     localStorage.setItem("token", "creator-token");
     localStorage.setItem("user", JSON.stringify({ id: "creator", username: "creator", role: "USER" }));
     renderSpaceEntry();
+    await userEvent.hover((await screen.findByRole("heading", { name: "学生作品" })).closest("article")!);
     expect(await screen.findByRole("button", { name: "重命名学生作品" })).toBeInTheDocument();
   });
 
@@ -303,6 +308,7 @@ describe("SpaceEntryPage upload selection", () => {
     const user = userEvent.setup();
 
     renderSpaceEntry();
+    await userEvent.hover((await screen.findByRole("heading", { name: "待隐藏作品" })).closest("article")!);
     await user.click(await screen.findByRole("button", { name: "隐藏待隐藏作品" }));
 
     expect(api.patch).toHaveBeenCalledWith(
@@ -341,6 +347,7 @@ describe("SpaceEntryPage upload selection", () => {
     const user = userEvent.setup();
 
     renderSpaceEntry();
+    await userEvent.hover((await screen.findByRole("heading", { name: "待删除作品" })).closest("article")!);
     await user.click(await screen.findByRole("button", { name: "删除待删除作品" }));
 
     expect(window.confirm).toHaveBeenCalledWith(

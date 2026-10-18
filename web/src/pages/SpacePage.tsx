@@ -7,6 +7,7 @@ import { ProjectNameModal } from "../components/ProjectNameModal";
 import { EditNameButton } from "../components/EditNameButton";
 import { EditSpaceModal } from "../components/EditSpaceModal";
 import { SpaceDownloadSwitch } from "../components/SpaceDownloadSwitch";
+import { WorkViewCount } from "../components/WorkViewCount";
 import { WorkActionIcon } from "../components/WorkActionIcon";
 import { SpaceTagControls, TagChips, TagFilter } from "../components/SpaceTagControls";
 import { downloadZip } from "../download";
@@ -21,6 +22,7 @@ type SpaceDetail = {
   slug: string;
   expiresAt: string;
   downloadsEnabled: boolean;
+  viewCount: number;
   deployments: SpaceDeployment[];
   tags: SpaceTag[];
 };
@@ -184,6 +186,7 @@ export function SpacePage() {
             <div>
               <h1><Link to={`/s/${detail.slug}`}>{detail.name}</Link></h1>
               <p>/{detail.slug}</p>
+              <div className="space-view-summary"><span>空间访问次数</span><WorkViewCount count={detail.viewCount} /></div>
             </div>
             <button type="button" className="space-name-edit" onClick={() => {
               setSpaceName(detail.name);
@@ -242,6 +245,7 @@ export function SpacePage() {
                 <th>项目</th>
                 <th>标签</th>
                 <th>上传者</th>
+                <th>访问次数</th>
                 <th>可见性</th>
                 <th>操作</th>
               </tr>
@@ -258,6 +262,7 @@ export function SpacePage() {
                   </span></td>
                   <td><TagChips tags={detail.tags ?? []} tagIds={deployment.tagIds ?? []} /></td>
                   <td>{deployment.uploaderName}</td>
+                  <td><WorkViewCount count={deployment.viewCount} /></td>
                   <td>{deployment.visibility === "visible" ? "显示" : "隐藏"}</td>
                   <td className="space-work-actions-cell">
                     <div className="space-deployment-actions">

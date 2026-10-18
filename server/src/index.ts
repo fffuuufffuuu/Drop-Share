@@ -3,20 +3,16 @@ import express from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import morgan from "morgan";
-import fs from "node:fs/promises";
-import path from "node:path";
 
 import { startCleanupJob } from "./cleanup";
 import { config } from "./config";
-import { prisma } from "./db";
-import { isDeploymentAvailable } from "./deployment-access";
 import { errorHandler } from "./middleware";
 import { authRouter } from "./routes.auth";
 import { adminRouter } from "./routes.admin";
 import { deploymentRouter } from "./routes.deployments";
+import { previewRouter } from "./routes.preview";
 import { spaceRouter } from "./routes.spaces";
 import { ensureStorageRoot } from "./storage";
-import { sanitizeRelativePath } from "./utils";
 
 function getAllowedOrigin(): string | string[] | true {
   try {
@@ -70,42 +66,7 @@ async function bootstrap(): Promise<void> {
   app.use("/api/deployments", deploymentRouter);
   app.use("/api/spaces", spaceRouter);
 
-  app.get(/^\/p\/([^/]+)(?:\/(.*))?$/, async (req, res) => {
-    const slug = req.params[0];
-    const asset = req.params[1] ? sanitizeRelativePath(req.params[1]) : "index.html";
-
-    const deployment = await prisma.deployment.findUnique({
-      where: { publicSlug: slug },
-      include: {
-        space: {
-          select: { expiresAt: true },
-        },
-      },
-    });
-
-    if (!deployment || !isDeploymentAvailable(deployment)) {
-      res.status(404).send("Site not available.");
-      return;
-    }
-
-    const targetPath = path.join(deployment.rootPath, asset);
-    const targetNormalized = path.normalize(targetPath);
-    if (!targetNormalized.startsWith(path.normalize(deployment.rootPath))) {
-      res.status(403).send("Forbidden");
-      return;
-    }
-
-    try {
-      await fs.access(targetPath);
-      res.sendFile(targetPath);
-    } catch {
-      if (asset !== "index.html") {
-        res.sendFile(path.join(deployment.rootPath, "index.html"));
-        return;
-      }
-      res.status(404).send("File not found.");
-    }
-  });
+  app.use(previewRouter);
 
   app.use(errorHandler);
 

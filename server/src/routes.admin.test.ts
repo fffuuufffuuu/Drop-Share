@@ -16,6 +16,7 @@ import { adminRouter } from "./routes.admin";
 vi.mock("./db", () => ({
   prisma: {
     deployment: {
+      groupBy: vi.fn().mockResolvedValue([]),
       findMany: vi.fn(),
       findFirst: vi.fn(),
       findUnique: vi.fn(),

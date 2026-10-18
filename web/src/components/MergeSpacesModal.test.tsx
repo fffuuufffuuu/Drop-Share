@@ -12,11 +12,11 @@ vi.mock("../api", () => ({ api: { post: vi.fn() } }));
 
 const spaces = [
   { id: "s1", name: "物理", slug: "physics", ownerUserId: "owner-1", ownerUsername: "甲",
-    createdAt: "2026-01-01", expiresAt: "2099-01-01", deploymentCount: 1, downloadsEnabled: false },
+    createdAt: "2026-01-01", expiresAt: "2099-01-01", viewCount: 0, deploymentCount: 1, downloadsEnabled: false },
   { id: "s2", name: "化学", slug: "chemistry", ownerUserId: "owner-1", ownerUsername: "甲",
-    createdAt: "2026-01-01", expiresAt: "2099-01-01", deploymentCount: 2, downloadsEnabled: false },
+    createdAt: "2026-01-01", expiresAt: "2099-01-01", viewCount: 0, deploymentCount: 2, downloadsEnabled: false },
   { id: "s3", name: "历史", slug: "history", ownerUserId: "owner-2", ownerUsername: "乙",
-    createdAt: "2026-01-01", expiresAt: "2099-01-01", deploymentCount: 3, downloadsEnabled: false },
+    createdAt: "2026-01-01", expiresAt: "2099-01-01", viewCount: 0, deploymentCount: 3, downloadsEnabled: false },
 ];
 
 afterEach(() => {

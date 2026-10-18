@@ -5,6 +5,7 @@ import { api, setAuthToken } from "../api";
 import { getCurrentUser, notifyAuthChanged } from "../auth";
 import { EditSpaceModal } from "../components/EditSpaceModal";
 import { SpaceDownloadSwitch } from "../components/SpaceDownloadSwitch";
+import { WorkViewCount } from "../components/WorkViewCount";
 import { WorkActionIcon } from "../components/WorkActionIcon";
 import { MergeSpacesModal } from "../components/MergeSpacesModal";
 import { SpaceTagControls, TagChips, TagFilter } from "../components/SpaceTagControls";
@@ -92,6 +93,7 @@ function DeploymentTable({
             <th>网页</th>
             {selection && <th>标签</th>}
             <th>上传者</th>
+            <th>访问次数</th>
             <th>上传时间</th>
             {showExpiration && <th>到期时间</th>}
             <th className="admin-status-column">状态</th>
@@ -126,6 +128,7 @@ function DeploymentTable({
               </td>
               {selection && <td><TagChips tags={selection.tags} tagIds={deployment.tagIds ?? []} /></td>}
               <td>{deployment.ownerLabel}</td>
+              <td><WorkViewCount count={deployment.viewCount} /></td>
               <td>{formatDate(deployment.createdAt)}</td>
               {showExpiration && <td>{formatDate(deployment.expiresAt)}</td>}
               <td className="admin-status-column">
@@ -242,6 +245,9 @@ export function AdminPage() {
     try {
       const { data } = await api.get<AdminSpaceDetail>(`/admin/spaces/${spaceId}`);
       setDetail(data);
+      setSpaces((current) => current.map((space) => space.id === data.id
+        ? { ...space, viewCount: data.viewCount, deploymentCount: data.deployments.length }
+        : space));
     } catch (error) {
       setMessage(errorMessage(error, "空间详情加载失败，请重试。"));
     } finally {
@@ -469,6 +475,7 @@ export function AdminPage() {
                     <th>创建时间</th>
                     <th>空间到期时间</th>
                     <th>网页数</th>
+                    <th>访问次数</th>
                     <th>操作</th>
                   </tr>
                 </thead>
@@ -480,6 +487,7 @@ export function AdminPage() {
                       <td>{formatDate(space.createdAt)}</td>
                       <td>{formatDate(space.expiresAt)}</td>
                       <td>{space.deploymentCount}</td>
+                      <td><WorkViewCount count={space.viewCount} /></td>
                       <td className="admin-work-actions-cell">
                         <div className="admin-actions admin-work-actions">
                           <button
@@ -545,6 +553,7 @@ export function AdminPage() {
               </button>
               <h3><a className="admin-work-title-link" href={`/s/${detail.slug}`} target="_blank" rel="noreferrer">{detail.name}</a></h3>
               <p>/{detail.slug} · 创建者 {detail.ownerUsername}</p>
+              <div className="space-view-summary"><span>空间访问次数</span><WorkViewCount count={detail.viewCount} /></div>
               <p>空间内作品统一于 {formatDate(detail.expiresAt)} 到期</p>
             </div>
             <div className="admin-actions">

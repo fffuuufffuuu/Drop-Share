@@ -294,6 +294,7 @@ describe("DashboardPage", () => {
     const user = userEvent.setup();
     renderPage();
 
+    await user.hover((await screen.findByRole("heading", { name: "个人首页" })).closest("article")!);
     await user.click(await screen.findByRole("button", { name: "重命名个人首页" }));
     expect(screen.getByRole("dialog", { name: "重命名作品" })).toBeInTheDocument();
     await user.clear(screen.getByRole("textbox", { name: "项目名称" }));
@@ -305,6 +306,7 @@ describe("DashboardPage", () => {
     ));
     expect(await screen.findByRole("heading", { name: "新的个人首页" })).toBeInTheDocument();
 
+    await user.hover(screen.getByRole("heading", { name: "空间作品" }).closest("article")!);
     await user.click(screen.getByRole("button", { name: "重命名空间作品" }));
     await user.clear(screen.getByRole("textbox", { name: "项目名称" }));
     await user.type(screen.getByRole("textbox", { name: "项目名称" }), "新的空间作品");
