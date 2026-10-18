@@ -6,6 +6,7 @@ import { config } from "./config";
 import { prisma } from "./db";
 import { AuthError, cloudbaseEnabled, cloudbasePhone, cloudbaseRequest, cloudbaseSessionSchema, getCloudbaseUser } from "./cloudbase";
 import { resolveCloudbaseAccount } from "./cloudbase-accounts";
+import { cloudbaseAccountRouter } from "./routes.auth.account";
 
 export const cloudbaseAuthRouter = Router();
 const limits = rateLimit({ windowMs: 60000, limit: 30, standardHeaders: "draft-7", legacyHeaders: false, message: { message: "操作过于频繁，请稍后重试" } });
@@ -21,11 +22,25 @@ function replyError(res: import("express").Response, error: unknown) {
 function sessionReply(res: import("express").Response, session: z.infer<typeof cloudbaseSessionSchema>, user: { id: string; username: string; role: string; createdAt: Date }) {
   res.json({ token: session.access_token, refreshToken: session.refresh_token, expiresIn: session.expires_in, user: { id: user.id, username: user.username, role: user.role, createdAt: user.createdAt } });
 }
-cloudbaseAuthRouter.use(["/email/code", "/email/verify", "/sms/code", "/sms/verify", "/captcha", "/captcha/verify", "/refresh", "/logout"], (_req, res, next) => {
+cloudbaseAuthRouter.use(["/email/code", "/email/verify", "/sms/code", "/sms/verify", "/captcha", "/captcha/verify", "/refresh", "/logout", "/password/login", "/account"], (_req, res, next) => {
   res.set("Cache-Control", "no-store");
   if (!cloudbaseEnabled()) { res.status(404).json({ message: "验证码认证未启用" }); return; }
   next();
 }, limits);
+cloudbaseAuthRouter.use("/account", cloudbaseAccountRouter);
+
+cloudbaseAuthRouter.post("/password/login", async (req, res) => {
+  try {
+    const input = z.object({ username: z.string().trim().min(2).max(254), password: z.string().min(1).max(100), captchaToken: z.string().min(1).max(8192).optional() }).parse(req.body);
+    const phone = phoneSchema.safeParse(input.username);
+    const username = phone.success ? cloudbasePhone(phone.data) : emailSchema.safeParse(input.username).success ? input.username.toLowerCase() : input.username;
+    const session = cloudbaseSessionSchema.parse(await cloudbaseRequest("/signin", { username, password: input.password }, undefined, input.captchaToken));
+    const profile = await getCloudbaseUser(session.access_token);
+    if (profile.sub !== session.sub) throw new AuthError("认证身份不匹配，请重新登录", 401);
+    const user = await resolveCloudbaseAccount(profile);
+    sessionReply(res, session, user);
+  } catch (error) { replyError(res, error); }
+});
 
 cloudbaseAuthRouter.post("/captcha",async(_req,res)=>{
   try {

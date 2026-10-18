@@ -10,8 +10,26 @@ vi.mock("./cloudbase", async original => ({ ...await original<any>(), cloudbaseR
 vi.mock("./cloudbase-accounts", () => ({ resolveCloudbaseAccount: vi.fn() }));
 vi.mock("./db", () => ({ prisma: { user: { findUnique: vi.fn() } } }));
 const app = express(); app.use(express.json()); app.use(cloudbaseAuthRouter);
-beforeEach(() => { vi.clearAllMocks(); config.authProvider = "cloudbase"; config.cloudbaseEnvId = "test-env"; });
+beforeEach(() => { vi.resetAllMocks(); config.authProvider = "cloudbase"; config.cloudbaseEnvId = "test-env"; });
 describe("CloudBase email routes", () => {
+  it("authenticates passwords with CloudBase and preserves the mapped local account", async () => {
+    vi.mocked(cloudbaseRequest).mockResolvedValue({ access_token: "access", refresh_token: "refresh", expires_in: 7200, sub: "subject" });
+    vi.mocked(getCloudbaseUser).mockResolvedValue({ sub: "subject" });
+    vi.mocked(resolveCloudbaseAccount).mockResolvedValue({ id: "original", username: "teacher", role: "ADMIN", createdAt: new Date() } as any);
+    const response = await request(app).post("/password/login").send({ username: "teacher", password: "Secret!123" });
+    expect(response.status).toBe(200);
+    expect(cloudbaseRequest).toHaveBeenCalledWith("/signin", { username: "teacher", password: "Secret!123" }, undefined, undefined);
+    expect(response.body.user).toMatchObject({ id: "original", role: "ADMIN" });
+  });
+  it("never resolves a local account when password authentication fails or the subject differs", async () => {
+    vi.mocked(cloudbaseRequest).mockRejectedValueOnce(new AuthError("用户名或密码错误"));
+    expect((await request(app).post("/password/login").send({ username: "teacher", password: "wrong" })).status).toBe(400);
+    expect(resolveCloudbaseAccount).not.toHaveBeenCalled();
+    vi.mocked(cloudbaseRequest).mockResolvedValue({ access_token: "access", refresh_token: "refresh", expires_in: 7200, sub: "subject" });
+    vi.mocked(getCloudbaseUser).mockResolvedValue({ sub: "other" });
+    expect((await request(app).post("/password/login").send({ username: "teacher", password: "wrong" })).status).toBe(401);
+    expect(resolveCloudbaseAccount).not.toHaveBeenCalled();
+  });
   it("reports a provider CAPTCHA challenge so the human can complete it",async()=>{
     vi.mocked(cloudbaseRequest).mockRejectedValue(new AuthError("需要图形验证",400,"captcha_required"));
     const response=await request(app).post("/sms/code").send({phone:"13800138000"});

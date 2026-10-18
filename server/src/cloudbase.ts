@@ -11,7 +11,7 @@ export function cloudbasePhone(phone: string): string { return phone.replace(/^\
 export function cloudbaseEnabled(): boolean { return config.authProvider === "cloudbase"; }
 
 // User APIs only. Never accept an endpoint or administrator credential from a request.
-export async function cloudbaseRequest(path: string, body?: object, token?: string, captchaToken?:string): Promise<any> {
+export async function cloudbaseRequest(path: string, body?: object, token?: string, captchaToken?:string, method?: "PATCH"): Promise<any> {
   if (!/^[a-z][a-z0-9-]{2,99}$/.test(config.cloudbaseEnvId)) {
     throw new AuthError("CloudBase 环境尚未配置", 503);
   }
@@ -19,7 +19,7 @@ export async function cloudbaseRequest(path: string, body?: object, token?: stri
   let data: any;
   try {
     response = await fetch(`https://${config.cloudbaseEnvId}.api.tcloudbasegateway.com/auth/v1${path}`, {
-      method: body === undefined ? "GET" : "POST",
+      method: method ?? (body === undefined ? "GET" : "POST"),
       headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(captchaToken?{"x-captcha-token":captchaToken}:{}) },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(10000),
@@ -36,6 +36,13 @@ export async function cloudbaseRequest(path: string, body?: object, token?: stri
       captcha_required: "请完成图形验证后重新获取验证码",
       unimplemented: "该认证方式尚未配置完成，请联系管理员",
       invalid_grant: "登录已过期，请重新登录",
+      invalid_username_or_password: "账号或密码错误",
+      password_not_set: "尚未设置密码，请先用验证码登录，在账号设置中设置密码",
+      invalid_password: "密码错误",
+      weak_password: "密码强度不足，请使用 8–64 位大小写字母、数字和特殊字符的组合",
+      username_already_exists: "登录用户名已被占用，请更换",
+      email_already_exists: "该邮箱已关联其他账号，请使用原账号登录",
+      phone_number_already_exists: "该手机号已关联其他账号，请使用原账号登录",
     };
     const limited = response.status === 429 || ["resource_exhausted", "rate_limit_exceeded"].includes(data.error);
     const code = typeof data.error === "string" && /^[a-z_]{1,80}$/.test(data.error) ? data.error : undefined;
@@ -51,6 +58,7 @@ const profileSchema = z.object({
   sub: z.string().min(1).max(128).refine(v => v !== "service_account"),
   email: z.preprocess(value => value === "" ? undefined : value, z.string().email().optional()),
   phone_number: z.string().optional(),
+  username: z.string().optional(),
   // Official SDK profiles and PG responses can omit this field. Never invent ACTIVE.
   status: z.literal("ACTIVE").optional(),
 });

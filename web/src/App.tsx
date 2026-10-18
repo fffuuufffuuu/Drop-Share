@@ -3,6 +3,7 @@ import { Link, Navigate, Route, Routes } from "react-router-dom";
 
 import { authChangedEvent, getCurrentUser } from "./auth";
 import { AdminPage } from "./pages/AdminPage";
+import { AccountPage } from "./pages/AccountPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
@@ -68,6 +69,7 @@ export default function App() {
           <Route path="/upload" element={<UploadPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/account" element={<AccountPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/spaces/:spaceId" element={<SpacePage />} />
           <Route path="/s/:spaceSlug" element={<SpaceEntryPage />} />

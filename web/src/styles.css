@@ -638,6 +638,19 @@ button:disabled {
 .auth-form .auth-submit:enabled:hover { background: #244b7b; }
 .auth-card .message { margin: 16px 0 0; font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
 .auth-card .message:empty { display: none; }
+.auth-method-switch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 0 0 20px; border-bottom: 1px solid #e4eaf2; }
+.auth-method-switch button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: #73839a; font-size: 13px; padding: 12px 2px; }
+.auth-method-switch button[aria-pressed="true"] { color: #17365e; border-bottom-color: #17365e; font-weight: 600; }
+.account-page { max-width: 1000px; margin: 0 auto; }
+.account-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.account-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin: 24px 0; padding: 20px; border-radius: 14px; background: #f5f7fa; font-size: 13px; color: #73839a; }
+.account-summary strong { display: block; color: #17365e; font-weight: 500; margin-top: 8px; overflow-wrap: anywhere; }
+.account-section { padding: 24px 0; border-top: 1px solid #e4eaf2; min-width: 0; }
+.account-section h3 { margin: 0 0 20px; font-size: 16px; }
+.account-section .auth-form { max-width: 430px; }
+.account-settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px; }
+.account-verified { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; color: #257556; font-size: 13px; }
+@media (max-width: 680px) { .account-settings-grid { grid-template-columns: 1fr; gap: 0; } .account-heading { align-items: flex-start; } }
 .auth-captcha { display: flex; gap: 12px; align-items: end; }
 .auth-captcha img { max-width: 140px; height: 46px; object-fit: contain; border-radius: 8px; }
 .auth-captcha label { flex: 1; }
