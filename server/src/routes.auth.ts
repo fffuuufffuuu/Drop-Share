@@ -4,6 +4,8 @@ import { z } from "zod";
 
 import { config } from "./config";
 import { prisma } from "./db";
+import { cloudbaseEnabled } from "./cloudbase";
+import { cloudbaseAuthRouter } from "./routes.auth.cloudbase";
 
 const registerSchema = z.object({
   username: z
@@ -20,6 +22,12 @@ const loginSchema = z.object({
 });
 
 export const authRouter = Router();
+authRouter.get("/config", (_req,res) => { res.set("Cache-Control","no-store").json({provider:cloudbaseEnabled()?"cloudbase":"legacy",loginMethod:config.cloudbaseLoginMethod}); });
+authRouter.use(cloudbaseAuthRouter);
+authRouter.use((_req,res,next)=>{
+  if (cloudbaseEnabled()) { res.status(410).json({message:"请使用验证码登录；原账号请选择关联旧账号"}); return; }
+  next();
+});
 
 authRouter.post("/register", async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
@@ -83,7 +91,7 @@ authRouter.post("/login", async (req, res) => {
   }
 
   const bcrypt = await import("bcryptjs");
-  const ok = await bcrypt.compare(parsed.data.password, user.passwordHash);
+  const ok = user.passwordHash ? await bcrypt.compare(parsed.data.password, user.passwordHash) : false;
   if (!ok) {
     res.status(400).json({ message: "用户名或密码错误" });
     return;

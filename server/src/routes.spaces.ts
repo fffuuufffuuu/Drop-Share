@@ -1,5 +1,6 @@
 import { Router } from "express";
-import jwt from "jsonwebtoken";
+import { resolveAuthUser } from "./auth-identity";
+import { AuthError } from "./cloudbase";
 import multer from "multer";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -307,13 +308,15 @@ spaceRouter.post("/:id/deployments", upload.array("files", 1000), async (req, re
 
   const requesterToken = req.headers.authorization?.replace("Bearer ", "").trim() || "";
   let ownerUserId: string | null = null;
-  if (requesterToken.length > 10) {
+  if (req.headers.authorization) {
     try {
-      const payload = jwt.verify(requesterToken, config.jwtSecret) as { userId?: string };
+      const payload = await resolveAuthUser(requesterToken);
       const auth = await prisma.user.findUnique({ where: { id: payload.userId } });
       if (auth) ownerUserId = auth.id;
-    } catch {
-      ownerUserId = null;
+    } catch (error) {
+      const retryable=error instanceof AuthError && [429,503].includes(error.status);
+      res.status(retryable ? error.status : 401).json({message:retryable ? error.message : "Invalid token"});
+      return;
     }
   }
 

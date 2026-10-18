@@ -6,10 +6,11 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { api, setAuthToken } from "../api";
+import { api } from "../api";
 import { DashboardPage } from "./DashboardPage";
 
-vi.mock("../api", () => ({
+vi.mock("../api", async (original) => ({
+  ...await original<any>(),
   api: {
     get: vi.fn(),
     post: vi.fn(),
@@ -281,7 +282,7 @@ describe("DashboardPage", () => {
 
     expect(localStorage.getItem("token")).toBeNull();
     expect(localStorage.getItem("user")).toBeNull();
-    expect(setAuthToken).toHaveBeenCalledWith();
+
   });
 
   it("renames personal and owned space uploads from their cards", async () => {

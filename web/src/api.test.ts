@@ -42,4 +42,10 @@ describe("handleResponseError", () => {
     expect(localStorage.getItem("token")).toBe("valid-token");
     expect(error.response.data.message).toBe("用户名或密码错误");
   });
+  it("旧请求的失效响应不会清除后来建立的新会话",async()=>{
+    localStorage.setItem("token","new-session");
+    const error={config:{headers:{Authorization:"Bearer old-session"}},response:{status:401,data:{message:"Invalid token"}}};
+    await expect(handleResponseError(error)).rejects.toBe(error);
+    expect(localStorage.getItem("token")).toBe("new-session");
+  });
 });
