@@ -12,8 +12,16 @@ describe("CloudBase authentication boundary", () => {
   });
   it("identifies incompatible profile fields without recording identity values", async () => {
     config.cloudbaseEnvId = "test-env";
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ sub: "private-subject", email: "", phone_number: "+86 13800138000", status: "ACTIVE" }))));
-    await expect(getCloudbaseUser("private-token")).rejects.toMatchObject({ code: "invalid_profile", diagnostic: { profileIssues: [{ field: "email", code: "invalid_format", valueKind: "empty" }] } });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ sub: "private-subject", email: "invalid-email", phone_number: "+86 13800138000", status: "ACTIVE" }))));
+    await expect(getCloudbaseUser("private-token")).rejects.toMatchObject({ code: "invalid_profile", diagnostic: { profileIssues: [{ field: "email", code: "invalid_format", valueKind: "string" }] } });
+  });
+  it.each([{}, {email:""}, {status:"ACTIVE"}])("accepts provider-authenticated profiles without undocumented required fields: %j", async optional => {
+    config.cloudbaseEnvId = "test-env";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({sub:"provider-subject",phone_number:"+86 13800138000",...optional}))));
+    const profile = await getCloudbaseUser("provider-token");
+    expect(profile.sub).toBe("provider-subject");
+    expect(profile.email).toBeUndefined();
+    expect(profile.status).toBe(optional.status);
   });
   it("validates the token at the configured environment, ignoring client claims", async () => {
     config.cloudbaseEnvId = "test-env";

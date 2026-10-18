@@ -49,9 +49,10 @@ export async function cloudbaseRequest(path: string, body?: object, token?: stri
 
 const profileSchema = z.object({
   sub: z.string().min(1).max(128).refine(v => v !== "service_account"),
-  email: z.string().email().optional(),
+  email: z.preprocess(value => value === "" ? undefined : value, z.string().email().optional()),
   phone_number: z.string().optional(),
-  status: z.literal("ACTIVE"),
+  // Official SDK profiles and PG responses can omit this field. Never invent ACTIVE.
+  status: z.literal("ACTIVE").optional(),
 });
 
 export async function getCloudbaseUser(token: string) {
