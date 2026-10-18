@@ -9,6 +9,22 @@ vi.mock("../api", () => ({ api: { post: vi.fn() }, setAuthToken: vi.fn() }));
 beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); });
 afterEach(cleanup);
 describe("email authentication", () => {
+  it("switches between SMS, email and CloudBase password login without reusing OTP challenges", async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: { challenge: "sms-proof" } });
+    render(<MemoryRouter><EmailLoginPage method="sms" /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText("手机号"), { target: { value: "13800138000" } });
+    fireEvent.click(screen.getByRole("button", { name: "获取验证码" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "验证并登录" })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole("button", { name: "邮箱验证码" }));
+    expect(screen.getByLabelText("邮箱")).toHaveValue("");
+    expect(screen.getByRole("button", { name: "验证并登录" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "账号密码" }));
+    fireEvent.change(screen.getByLabelText("登录账号"), { target: { value: "teacher" } });
+    fireEvent.change(screen.getByLabelText("登录密码"), { target: { value: "Secret!123" } });
+    vi.mocked(api.post).mockRejectedValue({ response: { data: { message: "用户名或密码错误" } } });
+    fireEvent.click(screen.getByRole("button", { name: "登录" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/auth/password/login", { username: "teacher", password: "Secret!123" }));
+  });
   it("shows a CAPTCHA to the user when the provider requires one",async()=>{
     vi.mocked(api.post).mockRejectedValueOnce({response:{data:{message:"请完成图形验证",captchaRequired:true}}}).mockResolvedValueOnce({data:{data:"data:image/gif;base64,R0lGODlh",token:"human-challenge"}});
     render(<MemoryRouter><EmailLoginPage method="sms"/></MemoryRouter>);

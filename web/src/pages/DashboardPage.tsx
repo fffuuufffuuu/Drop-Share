@@ -210,6 +210,7 @@ export function DashboardPage() {
           <h2>{getCurrentUser()?.username ?? "当前用户"}</h2>
         </div>
         <div className="dashboard-header-actions">
+          <Link to="/account">账号设置</Link>
           {getCurrentUser()?.role === "ADMIN" && (
             <Link to="/admin">管理后台</Link>
           )}

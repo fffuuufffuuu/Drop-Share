@@ -22,7 +22,7 @@ const loginSchema = z.object({
 });
 
 export const authRouter = Router();
-authRouter.get("/config", (_req,res) => { res.set("Cache-Control","no-store").json({provider:cloudbaseEnabled()?"cloudbase":"legacy",loginMethod:config.cloudbaseLoginMethod}); });
+authRouter.get("/config", (_req,res) => { res.set("Cache-Control","no-store").json({provider:cloudbaseEnabled()?"cloudbase":"legacy",loginMethod:config.cloudbaseLoginMethod,loginMethods:cloudbaseEnabled()?["sms","email","password"]:["password"]}); });
 authRouter.use(cloudbaseAuthRouter);
 authRouter.use((_req,res,next)=>{
   if (cloudbaseEnabled()) { res.status(410).json({message:"请使用验证码登录；原账号请选择关联旧账号"}); return; }

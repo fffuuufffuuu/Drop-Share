@@ -18,7 +18,7 @@ export const api = axios.create({
 
 const sessionApi = axios.create({baseURL:getApiBaseURL(),timeout:15000});
 api.interceptors.request.use(async request=>{
-  if (request.url?.startsWith("/auth/")) {delete request.headers.Authorization;return request;}
+  if (request.url?.startsWith("/auth/") && !/^\/auth\/account(?:\/|$)/.test(request.url)) {delete request.headers.Authorization;return request;}
   if (needsCloudbaseRefresh()) {
     try {
       const token=await refreshCloudbaseSession(async refreshToken=>(await sessionApi.post<AuthResponse>("/auth/refresh",{refreshToken})).data,

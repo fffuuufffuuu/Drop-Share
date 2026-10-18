@@ -6,6 +6,19 @@ import { api, handleResponseError, setAuthToken } from "./api";
 import { authChangedEvent } from "./auth";
 
 describe("handleResponseError", () => {
+  it("sends the current bearer only to authenticated account settings, never to public auth", async () => {
+    localStorage.setItem("token", "current-session");
+    const seen: Record<string, unknown>[] = [];
+    const adapter = async (request: any) => { seen.push({ url: request.url, authorization: request.headers.Authorization }); return { data: {}, status: 200, statusText: "OK", headers: {}, config: request }; };
+    await api.get("/auth/account", { adapter });
+    await api.post("/auth/account/proof/code", { method: "sms" }, { adapter });
+    await api.post("/auth/password/login", {}, { adapter });
+    expect(seen).toEqual([
+      { url: "/auth/account", authorization: "Bearer current-session" },
+      { url: "/auth/account/proof/code", authorization: "Bearer current-session" },
+      { url: "/auth/password/login", authorization: undefined },
+    ]);
+  });
   beforeEach(() => {
     localStorage.clear();
     setAuthToken();
