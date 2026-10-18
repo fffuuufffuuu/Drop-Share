@@ -1,6 +1,6 @@
 # CloudBase 账号迁移记录
 
-日期：2026-10-18。状态：接入代码已实现，尚未部署；真实短信验收待用户操作。
+日期：2026-10-18。状态：真实短信全流程验收已通过，生产备份、数据库迁移和短信登录切换已完成；用户确认正式站原账号关联及管理员入口可正常使用。
 
 ## 当前决策
 
@@ -35,7 +35,7 @@
 
 原密码哈希保留供旧账号一次性证明和回退使用。CloudBase 启用后，旧注册/密码登录接口关闭，旧 JWT 不再用于业务鉴权。切换会使旧登录态失效，已有作品的用户需要重新验证并关联旧账号。
 
-## 生产数据库变更（已条件批准、未执行）
+## 生产数据库变更（已批准并执行）
 
 迁移文件：server/prisma/migrations/20261018000000_add_cloudbase_identity/migration.sql。
 
@@ -44,6 +44,8 @@
 3. 新增组合唯一索引；保留现有 ID、密码、角色和所有权关系。
 
 项目规则要求生产数据库迁移明确批准。用户已于 2026-10-18 批准：真实短信验收通过并完整备份后，执行上述生产数据库迁移和登录切换。验收完成前不执行生产迁移。
+
+2026-10-18 14:43（Asia/Singapore）已执行 `20261018000000_add_cloudbase_identity`。迁移前后对原有行数据和归属做哈希比对，一致：User 5、Space 9、Deployment 137、SpaceTag 4、DeploymentTag 7。未升级依赖。
 
 ## 验收和切换
 
@@ -74,4 +76,6 @@
 - https://docs.cloudbase.net/http-api/auth/auth-grant-token
 - https://docs.cloudbase.net/http-api/auth/auth-sign-out
 
-文档描述实现和验收要求，不代表已完成真实收码、生产迁移或上线。
+真实验收记录：`profileValidated=true`、`refreshRotated=true`、`accessRevoked=true`、`refreshRevoked=true`。生产全备目录 `/www/backup/drop-deploy/20261018-cloudbase-auth-a3d3bb2`，含数据库、上传文件、旧版本、原环境配置及 Prisma 客户端；压缩包完整性和 SHA-256 均通过。备份不进入 Git。
+
+生产 `/api/auth/config` 已返回 `cloudbase / sms`；健康检查通过，旧密码入口返回 410；线上前端 JS/CSS 与本地构建 SHA-256 一致；公开空间、访问量接口正常。正式站浏览器已确认手机号登录和旧账号关联界面。用户已完成原账号关联，并确认原作品及管理员入口正常。

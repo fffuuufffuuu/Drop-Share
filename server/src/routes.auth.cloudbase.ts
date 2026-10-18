@@ -23,7 +23,7 @@ function sessionReply(res: import("express").Response, session: z.infer<typeof c
 }
 cloudbaseAuthRouter.use(["/email/code", "/email/verify", "/sms/code", "/sms/verify", "/captcha", "/captcha/verify", "/refresh", "/logout"], (_req, res, next) => {
   res.set("Cache-Control", "no-store");
-  if (!cloudbaseEnabled()) { res.status(404).json({ message: "邮箱认证未启用" }); return; }
+  if (!cloudbaseEnabled()) { res.status(404).json({ message: "验证码认证未启用" }); return; }
   next();
 }, limits);
 
