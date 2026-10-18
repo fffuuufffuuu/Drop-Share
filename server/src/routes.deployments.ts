@@ -15,6 +15,7 @@ import {
 } from "./retention";
 import { removeDeploymentFolder, saveDeploymentFiles } from "./storage";
 import { randomSlug, uploaderAgentForStorage } from "./utils";
+import { sendZip } from "./space-downloads";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 const createSchema = z.object({
@@ -192,6 +193,15 @@ deploymentRouter.post("/", requireAuth, upload.array("files", 1000), async (req,
     url: `${config.baseUrl}/p/${publicSlug}`,
     expiresAt,
   });
+});
+
+deploymentRouter.get("/:id/download", requireAuth, async (req, res, next) => {
+  const deployment = await prisma.deployment.findFirst({
+    where: { id: String(req.params.id), ownerUserId: req.authUser!.userId, deletedAt: null },
+    select: { title: true, rootPath: true },
+  });
+  if (!deployment) { res.status(404).json({ message: "作品不存在或无权下载" }); return; }
+  await sendZip(deployment, res, next);
 });
 
 deploymentRouter.patch("/:id", requireAuth, async (req, res) => {

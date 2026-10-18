@@ -11,6 +11,7 @@ import { ProjectNameModal } from "../components/ProjectNameModal";
 import { MergeSpacesModal } from "../components/MergeSpacesModal";
 import { WorkPreviewCard } from "../components/WorkPreviewCard";
 import { WorkActionIcon } from "../components/WorkActionIcon";
+import { downloadZip } from "../download";
 import type { PersonalDeployment, Space, SpaceUploadDeployment } from "../types";
 
 type DashboardPanel = "uploads" | "spaces";
@@ -33,6 +34,7 @@ export function DashboardPage() {
   const [spaceName, setSpaceName] = useState("");
   const [spaceError, setSpaceError] = useState("");
   const [message, setMessage] = useState("");
+  const [busyWorkId, setBusyWorkId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   async function loadDeployments() {
@@ -50,7 +52,6 @@ export function DashboardPage() {
       const now = new Date();
       const isAccessible = (deployment: PersonalDeployment) => (
         !deployment.deletedAt
-        && deployment.visibility === "visible"
         && new Date(deployment.expiresAt) > now
       );
       setPersonalWorks(personalData.filter(isAccessible));
@@ -93,6 +94,40 @@ export function DashboardPage() {
     setRenameTarget(deployment);
     setRenameValue(deployment.title);
     setRenameError("");
+  }
+
+  async function manageWork(deployment: PersonalDeployment, action: "download" | "toggle" | "delete") {
+    if (busyWorkId) return;
+    if (action === "delete" && !confirm(`确定删除“${deployment.title}”吗？作品文件和分享链接将被移除，无法恢复。`)) return;
+    setBusyWorkId(deployment.id);
+    try {
+      if (action === "download") {
+        await downloadZip(`/deployments/${deployment.id}/download`, `${deployment.title}.zip`);
+        setMessage("作品下载已开始");
+      } else if (action === "toggle") {
+        const visibility = deployment.visibility === "visible" ? "hidden" : "visible";
+        await api.patch(`/deployments/${deployment.id}`, { visibility });
+        const update = <T extends PersonalDeployment,>(items: T[]) => items.map(item => item.id === deployment.id ? { ...item, visibility } : item);
+        setPersonalWorks(update); setSpaceWorks(update);
+        setMessage(visibility === "hidden" ? "作品已隐藏，可随时重新显示" : "作品已显示");
+      } else {
+        await api.delete(`/deployments/${deployment.id}`);
+        setPersonalWorks(items => items.filter(item => item.id !== deployment.id));
+        setSpaceWorks(items => items.filter(item => item.id !== deployment.id));
+        setMessage("作品已删除");
+      }
+    } catch (error: any) {
+      setMessage(error.response?.data?.message || (action === "download" ? "下载失败" : action === "toggle" ? "切换显示状态失败" : "删除失败"));
+    } finally { setBusyWorkId(null); }
+  }
+
+  function workActions(deployment: PersonalDeployment) {
+    const visible = deployment.visibility === "visible";
+    return <>
+      <button type="button" className="work-icon-action" aria-label={`下载${deployment.title}`} title="下载作品" disabled={busyWorkId !== null} onClick={() => void manageWork(deployment, "download")}><WorkActionIcon type="download" /></button>
+      <button type="button" className="work-icon-action" aria-label={`${visible ? "隐藏" : "显示"}${deployment.title}`} title={visible ? "隐藏作品" : "显示作品"} disabled={busyWorkId !== null} onClick={() => void manageWork(deployment, "toggle")}><WorkActionIcon type={visible ? "hide" : "show"} /></button>
+      <button type="button" className="work-icon-action work-icon-action-danger" aria-label={`删除${deployment.title}`} title="删除作品" disabled={busyWorkId !== null} onClick={() => void manageWork(deployment, "delete")}><WorkActionIcon type="delete" /></button>
+    </>;
   }
 
   async function renameDeployment() {
@@ -205,7 +240,7 @@ export function DashboardPage() {
         <div className="dashboard-panel">
           <h2>我的上传</h2>
           <p className="hint">
-            查看仍可访问的个人作品，以及你上传到各个空间的作品。
+            管理个人作品和上传到空间的作品，隐藏的作品也可以在这里重新显示。
           </p>
           <div className="dashboard-upload-columns">
             <section
@@ -224,6 +259,9 @@ export function DashboardPage() {
                       publicSlug={deployment.publicSlug}
                       viewCount={deployment.viewCount}
                       cardLink
+                      hidden={deployment.visibility === "hidden"}
+                      tags={<span className={`work-visibility work-visibility-${deployment.visibility}`}>{deployment.visibility === "hidden" ? "已隐藏" : "显示中"}</span>}
+                      actions={workActions(deployment)}
                       meta={`到期时间：${new Date(deployment.expiresAt).toLocaleString()}`}
                       titleAction={<EditNameButton label={`重命名${deployment.title}`} onClick={() => openRename(deployment)} />}
                     />
@@ -247,6 +285,9 @@ export function DashboardPage() {
                       publicSlug={deployment.publicSlug}
                       viewCount={deployment.viewCount}
                       cardLink
+                      hidden={deployment.visibility === "hidden"}
+                      tags={<span className={`work-visibility work-visibility-${deployment.visibility}`}>{deployment.visibility === "hidden" ? "已隐藏" : "显示中"}</span>}
+                      actions={workActions(deployment)}
                       titleAction={<EditNameButton label={`重命名${deployment.title}`} onClick={() => openRename(deployment)} />}
                       meta={(
                         <div className="space-work-meta">

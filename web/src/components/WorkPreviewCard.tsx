@@ -52,6 +52,7 @@ type WorkPreviewCardProps = {
   actions?: ReactNode;
   titleAction?: ReactNode;
   cardLink?: boolean;
+  hidden?: boolean;
 };
 
 function actionItems(nodes: ReactNode): ReactNode[] {
@@ -64,7 +65,7 @@ function actionItems(nodes: ReactNode): ReactNode[] {
 }
 
 export function WorkPreviewCard({
-  title, publicSlug, viewCount, meta, tags, actions, titleAction, cardLink = false,
+  title, publicSlug, viewCount, meta, tags, actions, titleAction, cardLink = false, hidden = false,
 }: WorkPreviewCardProps) {
   const href = `/p/${publicSlug}/`;
   const cardRef = useRef<HTMLElement>(null);
@@ -110,10 +111,10 @@ export function WorkPreviewCard({
     >
       <div className="work-card-surface">
         <div className="work-preview-frame">
-          <iframe title={`${title}预览`} src={`${href}?preview=1`} loading="lazy"
-            sandbox="allow-scripts allow-same-origin" tabIndex={-1} />
+          {hidden ? <div className="work-hidden-preview"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18M9 5a12 12 0 0 1 3-.4c6 0 10 7.4 10 7.4a19 19 0 0 1-3 3.5M6 6a22 22 0 0 0-4 6s4 7.4 10 7.4a12 12 0 0 0 5-1.2M10 10a3 3 0 0 0 4 4"/></svg><span>作品已隐藏</span><small>切换为显示后，分享链接将恢复访问</small></div> : <iframe title={`${title}预览`} src={`${href}?preview=1`} loading="lazy"
+            sandbox="allow-scripts allow-same-origin" tabIndex={-1} />}
         </div>
-        {cardLink && <a className="work-preview-open-overlay" href={href} target="_blank"
+        {cardLink && !hidden && <a className="work-preview-open-overlay" href={href} target="_blank"
           rel="noreferrer" aria-label={`打开${title}`} />}
         <div className="work-preview-body">
           <h3>{title}</h3>
@@ -122,7 +123,7 @@ export function WorkPreviewCard({
             <div className="work-preview-meta">{meta}</div>
             <WorkViewCount count={viewCount} />
           </div>
-          {!cardLink && <a className="work-visit-link" href={href} target="_blank" rel="noreferrer"
+          {!cardLink && !hidden && <a className="work-visit-link" href={href} target="_blank" rel="noreferrer"
             aria-label={`打开${title}`}>打开作品</a>}
         </div>
       </div>

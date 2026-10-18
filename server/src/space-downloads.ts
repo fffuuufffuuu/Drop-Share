@@ -7,7 +7,7 @@ import { prisma } from "./db";
 import { requireAuth } from "./middleware";
 import { isExpired } from "./retention";
 
-async function sendZip(deployment: { title: string; rootPath: string }, res: Response, next: NextFunction) {
+export async function sendZip(deployment: { title: string; rootPath: string }, res: Response, next: NextFunction) {
   const archive = archiver("zip", { zlib: { level: 9 } });
   try {
     await appendDeploymentFolder(archive, deployment.rootPath);
