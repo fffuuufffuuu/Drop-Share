@@ -5,7 +5,7 @@ const { randomUUID } = require("node:crypto");
 const envId = process.argv[2];
 if (!envId || !/^[a-z][a-z0-9-]+$/.test(envId)) throw new Error("Pass the CloudBase environment ID");
 process.env.CLOUDBASE_ENV_ID = envId;
-const { cloudbaseRequest, getCloudbaseUser, cloudbaseSessionSchema } = require("../dist/cloudbase");
+const { AuthError, cloudbasePhone, cloudbaseRequest, getCloudbaseUser, cloudbaseSessionSchema } = require("../dist/cloudbase");
 const origin = "http://127.0.0.1:4051";
 let challenge;
 const html = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>CloudBase 认证验收</title>
@@ -42,7 +42,7 @@ http.createServer(async (req, res) => {
       const identity = String(input.identity || "").trim().toLowerCase().replace(/\s/g, "");
       const normalized = sms ? identity.replace(/^(1\d{10})$/, "+86$1") : identity;
       if (sms ? !/^\+861[3-9]\d{9}$/.test(normalized) : !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalized)) throw new Error("请输入有效手机号或邮箱");
-      const data = await cloudbaseRequest("/verification", {target:"ANY", ...(sms ? {phone_number:normalized} : {email:normalized})});
+      const data = await cloudbaseRequest("/verification", {target:"ANY", ...(sms ? {phone_number:cloudbasePhone(normalized)} : {email:normalized})});
       if (!data.verification_id) throw new Error("未收到验证码请求 ID");
       challenge = {proof:randomUUID(),sms,identity:normalized,id:data.verification_id,isUser:data.is_user===true,sentAt:Date.now()};
       res.end(JSON.stringify({proof:challenge.proof}));
@@ -52,7 +52,7 @@ http.createServer(async (req, res) => {
       const proof = challenge;
       if (!proof || proof.proof !== input.proof || Date.now() - proof.sentAt > 600000 || !/^\d{6}$/.test(input.code)) throw new Error("验证码请求无效或已过期");
       const verification = await cloudbaseRequest("/verification/verify", {verification_id:proof.id,verification_code:input.code});
-      const session = cloudbaseSessionSchema.parse(await cloudbaseRequest(proof.isUser?"/signin":"/signup", {verification_token:verification.verification_token, ...(proof.isUser?{}:proof.sms?{phone_number:proof.identity}:{email:proof.identity})}));
+      const session = cloudbaseSessionSchema.parse(await cloudbaseRequest(proof.isUser?"/signin":"/signup", {verification_token:verification.verification_token, ...(proof.isUser?{}:proof.sms?{phone_number:cloudbasePhone(proof.identity)}:{email:proof.identity})}));
       let latestToken = session.access_token;
       try {
         const refreshed = cloudbaseSessionSchema.parse(await cloudbaseRequest("/token", {grant_type:"refresh_token",refresh_token:session.refresh_token}));
@@ -71,6 +71,9 @@ http.createServer(async (req, res) => {
     }
     res.writeHead(404).end('{"message":"Not found"}');
   } catch (error) {
-    res.writeHead(400).end(JSON.stringify({message:error instanceof Error?error.message:"验证失败"}));
+    const diagnostic = error instanceof AuthError ? { code:error.code, ...error.diagnostic } : undefined;
+    if (diagnostic) console.log(JSON.stringify({stage:"provider_error", ...diagnostic}));
+    const details = diagnostic ? `\n诊断信息：${JSON.stringify(diagnostic)}` : "";
+    res.writeHead(400).end(JSON.stringify({message:(error instanceof Error?error.message:"验证失败") + details}));
   }
 }).listen(4051, "127.0.0.1", () => console.log(`CloudBase acceptance check: ${origin}`));

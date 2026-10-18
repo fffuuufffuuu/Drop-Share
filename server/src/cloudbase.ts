@@ -2,8 +2,11 @@ import { z } from "zod";
 import { config } from "./config";
 
 export class AuthError extends Error {
-  constructor(message: string, public status = 400, public code?:string) { super(message); }
+  constructor(message: string, public status = 400, public code?:string, public diagnostic?: { upstreamStatus: number; errorCode?: number; requestId?: string }) { super(message); }
 }
+
+// CloudBase requires a space between the country code and national number.
+export function cloudbasePhone(phone: string): string { return phone.replace(/^\+86(?=1\d{10}$)/, "+86 "); }
 
 export function cloudbaseEnabled(): boolean { return config.authProvider === "cloudbase"; }
 
@@ -35,7 +38,11 @@ export async function cloudbaseRequest(path: string, body?: object, token?: stri
       invalid_grant: "登录已过期，请重新登录",
     };
     const limited = response.status === 429 || ["resource_exhausted", "rate_limit_exceeded"].includes(data.error);
-    throw new AuthError(messages[data.error] ?? "身份验证失败，请重试", limited ? 429 : response.status >= 500 ? 503 : 400,data.error);
+    const code = typeof data.error === "string" && /^[a-z_]{1,80}$/.test(data.error) ? data.error : undefined;
+    const diagnostic = { upstreamStatus: response.status,
+      ...(Number.isInteger(data.error_code) ? { errorCode: data.error_code } : {}),
+      ...(typeof data.requestId === "string" && /^[a-zA-Z0-9-]{1,80}$/.test(data.requestId) ? { requestId: data.requestId } : {}) };
+    throw new AuthError(messages[code ?? ""] ?? "身份验证失败，请重试", limited ? 429 : response.status >= 500 ? 503 : 400, code, diagnostic);
   }
   return data;
 }

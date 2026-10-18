@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { config } from "./config";
 import { prisma } from "./db";
-import { AuthError, cloudbaseEnabled, cloudbaseRequest, cloudbaseSessionSchema, getCloudbaseUser } from "./cloudbase";
+import { AuthError, cloudbaseEnabled, cloudbasePhone, cloudbaseRequest, cloudbaseSessionSchema, getCloudbaseUser } from "./cloudbase";
 import { resolveCloudbaseAccount } from "./cloudbase-accounts";
 
 export const cloudbaseAuthRouter = Router();
@@ -46,7 +46,7 @@ cloudbaseAuthRouter.post(["/email/code", "/sms/code"], async (req, res) => {
     const sms = req.path.startsWith("/sms/");
     const captchaToken=z.string().min(1).max(8192).optional().parse(req.body.captchaToken);
     const identity = sms ? { phone: phoneSchema.parse(req.body.phone) } : { email: emailSchema.parse(req.body.email) };
-    const payload={ ...(sms ? { phone_number: identity.phone } : { email: identity.email }), target: "ANY" };
+    const payload={ ...(sms ? { phone_number: cloudbasePhone(identity.phone!) } : { email: identity.email }), target: "ANY" };
     const result = z.object({ verification_id: z.string().min(1), expires_in: z.number().positive(), is_user: z.boolean().optional() }).parse(await (captchaToken?cloudbaseRequest("/verification",payload,undefined,captchaToken):cloudbaseRequest("/verification",payload)));
     const expiresIn = Math.min(result.expires_in, 600);
     const challenge = jwt.sign({ ...identity, verificationId: result.verification_id, isUser: result.is_user === true, envId: config.cloudbaseEnvId }, config.jwtSecret, { audience: sms ? "cloudbase-sms" : "cloudbase-email", expiresIn });
@@ -62,7 +62,7 @@ cloudbaseAuthRouter.post(["/email/verify", "/sms/verify"], async (req, res) => {
     const proof = challengeSchema.parse(jwt.verify(input.challenge, config.jwtSecret, { audience: sms ? "cloudbase-sms" : "cloudbase-email", algorithms: ["HS256"] }));
     if (proof.envId !== config.cloudbaseEnvId || !(sms ? proof.phone : proof.email)) throw new AuthError("验证码请求已失效，请重新获取");
     const verification = z.object({ verification_token: z.string().min(1) }).parse(await cloudbaseRequest("/verification/verify", { verification_id: proof.verificationId, verification_code: input.code }));
-    const session = cloudbaseSessionSchema.parse(await cloudbaseRequest(proof.isUser ? "/signin" : "/signup", { ...(proof.isUser ? {} : sms ? { phone_number: proof.phone } : { email: proof.email }), verification_token: verification.verification_token }));
+    const session = cloudbaseSessionSchema.parse(await cloudbaseRequest(proof.isUser ? "/signin" : "/signup", { ...(proof.isUser ? {} : sms ? { phone_number: cloudbasePhone(proof.phone!) } : { email: proof.email }), verification_token: verification.verification_token }));
     const profile = await getCloudbaseUser(session.access_token);
     const matches = sms ? profile.phone_number?.replace(/\s/g, "") === proof.phone : profile.email?.toLowerCase() === proof.email;
     if (profile.sub !== session.sub || !matches) throw new AuthError("认证身份不匹配，请重新登录", 401);

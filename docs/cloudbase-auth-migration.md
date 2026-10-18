@@ -43,7 +43,7 @@
 2. 新增可空 cloudbaseEnvId、cloudbaseSubject。
 3. 新增组合唯一索引；保留现有 ID、密码、角色和所有权关系。
 
-项目规则要求生产数据库迁移明确批准。批准前只能本地生成客户端、测试和构建，不能执行生产迁移。
+项目规则要求生产数据库迁移明确批准。用户已于 2026-10-18 批准：真实短信验收通过并完整备份后，执行上述生产数据库迁移和登录切换。验收完成前不执行生产迁移。
 
 ## 验收和切换
 
@@ -59,11 +59,14 @@
 
 回退：保留数据库新增列，将 AUTH_PROVIDER 切回 legacy 并恢复旧前端/后端版本；不通过删除身份列回退。旧用户原密码仍有效；新 CloudBase-only 用户不能通过旧密码入口登录。
 
+2026-10-18 首次真实发送失败已定位为手机格式：CloudBase 要求区号后带空格（`+86 138…`），接口实际返回的参数正则也要求空白分隔。发送与注册请求已统一转换为该格式，签名挑战与身份比对仍使用去空格后的号码。验收工具错误输出只保留错误码、HTTP 状态及请求 ID，不输出上游错误描述中的身份信息；修正后的真实短信验收仍待完成。
+
 ## 官方依据
 
 - https://cloud.tencent.com/document/product/876/127357
 - https://cloud.tencent.com/document/api/876/34822
 - https://docs.cloudbase.net/http-api/auth/auth-send-verification
+- https://docs.cloudbase.net/authentication-v2/method/sms-login
 - https://docs.cloudbase.net/http-api/auth/auth-verify-verification
 - https://docs.cloudbase.net/http-api/auth/user-me
 - https://docs.cloudbase.net/http-api/auth/auth-grant-token

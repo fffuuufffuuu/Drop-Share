@@ -5,6 +5,11 @@ import { cloudbaseRequest, getCloudbaseUser } from "./cloudbase";
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("CloudBase authentication boundary", () => {
+  it("keeps only safe provider diagnostics and does not expose the upstream description", async () => {
+    config.cloudbaseEnvId = "test-env";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "invalid_argument", error_code: 3, requestId: "request-123", error_description: "private phone and credential details" }), { status: 400 })));
+    await expect(cloudbaseRequest("/verification", {})).rejects.toMatchObject({ message: "身份验证失败，请重试", code: "invalid_argument", diagnostic: { upstreamStatus: 400, errorCode: 3, requestId: "request-123" } });
+  });
   it("validates the token at the configured environment, ignoring client claims", async () => {
     config.cloudbaseEnvId = "test-env";
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ sub: "provider-id", email: "teacher@example.com", status: "ACTIVE", groups: ["ADMIN"] })));

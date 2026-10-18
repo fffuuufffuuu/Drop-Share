@@ -21,19 +21,28 @@ describe("CloudBase email routes", () => {
     vi.mocked(cloudbaseRequest).mockResolvedValue({ verification_id: "sms-challenge", expires_in: 600, is_user: true });
     const response = await request(app).post("/sms/code").send({ phone: "13800138000" });
     expect(response.status).toBe(200);
-    expect(cloudbaseRequest).toHaveBeenCalledWith("/verification", { phone_number: "+8613800138000", target: "ANY" });
+    expect(cloudbaseRequest).toHaveBeenCalledWith("/verification", { phone_number: "+86 13800138000", target: "ANY" });
     expect(jwt.verify(response.body.challenge, config.jwtSecret, { audience: "cloudbase-sms" })).toMatchObject({ phone: "+8613800138000" });
   });
   it("passes the human verification token only in the documented captcha header argument",async()=>{
     vi.mocked(cloudbaseRequest).mockResolvedValue({verification_id:"id",expires_in:600,is_user:true});
     const response=await request(app).post("/sms/code").send({phone:"13800138000",captchaToken:"human-proof"});
     expect(response.status).toBe(200);
-    expect(cloudbaseRequest).toHaveBeenCalledWith("/verification",{phone_number:"+8613800138000",target:"ANY"},undefined,"human-proof");
+    expect(cloudbaseRequest).toHaveBeenCalledWith("/verification",{phone_number:"+86 13800138000",target:"ANY"},undefined,"human-proof");
   });
   it("rejects an email proof at the SMS endpoint", async () => {
     const challenge = jwt.sign({ email: "a@example.com", verificationId: "id", envId: "test-env", isUser: true }, config.jwtSecret, { audience: "cloudbase-email", expiresIn: 600 });
     const response = await request(app).post("/sms/verify").send({ challenge, code: "123456" });
     expect(response.status).toBe(400); expect(cloudbaseRequest).not.toHaveBeenCalled();
+  });
+  it("uses the provider phone format for signup and compares the normalized verified phone", async () => {
+    const challenge = jwt.sign({ phone: "+8613800138000", verificationId: "id", envId: "test-env", isUser: false }, config.jwtSecret, { audience: "cloudbase-sms", expiresIn: 600 });
+    vi.mocked(cloudbaseRequest).mockResolvedValueOnce({ verification_token: "proof" }).mockResolvedValueOnce({ access_token: "access", refresh_token: "refresh", expires_in: 7200, sub: "subject" });
+    vi.mocked(getCloudbaseUser).mockResolvedValue({ sub: "subject", phone_number: "+86 13800138000", status: "ACTIVE" });
+    vi.mocked(resolveCloudbaseAccount).mockResolvedValue({ id: "local", username: "teacher", role: "USER", createdAt: new Date() } as any);
+    const response = await request(app).post("/sms/verify").send({ challenge, code: "123456" });
+    expect(response.status).toBe(200);
+    expect(cloudbaseRequest).toHaveBeenCalledWith("/signup", { phone_number: "+86 13800138000", verification_token: "proof" });
   });
   it("signs the provider challenge and prevents client email substitution", async () => {
     vi.mocked(cloudbaseRequest).mockResolvedValue({ verification_id: "provider-challenge", expires_in: 600, is_user: false });
