@@ -8,6 +8,16 @@ const old = { id: "old-user", username: "teacher", passwordHash: "hash", role: "
 const identity = { sub: "subject-1", status: "ACTIVE" as const, email: "a@example.com" };
 beforeEach(() => { vi.clearAllMocks(); config.cloudbaseEnvId = "test-env"; });
 describe("CloudBase account binding", () => {
+  it("requires an explicit username instead of creating a generated one", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+    await expect(resolveCloudbaseAccount(identity)).rejects.toMatchObject({ code: "username_required" });
+    expect(prisma.user.create).not.toHaveBeenCalled();
+  });
+  it("does not require a new username for an already mapped account", async () => {
+    const mapped = { ...old, cloudbaseSubject: "subject-1", cloudbaseEnvId: "test-env" };
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(mapped as any);
+    expect(await resolveCloudbaseAccount(identity)).toMatchObject({ id: old.id, username: "teacher" });
+  });
   it("does not claim a same-name old user without their password", async () => {
     vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(null).mockResolvedValueOnce(old as any);
     await expect(resolveCloudbaseAccount(identity, { username: "teacher" })).rejects.toMatchObject({ status: 409 });

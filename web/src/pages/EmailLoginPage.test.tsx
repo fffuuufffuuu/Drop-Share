@@ -9,6 +9,34 @@ vi.mock("../api", () => ({ api: { post: vi.fn() }, setAuthToken: vi.fn() }));
 beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); });
 afterEach(cleanup);
 describe("email authentication", () => {
+  it("completes an unmapped provider identity with a required username without resending OTP", async () => {
+    render(<MemoryRouter><EmailLoginPage method="sms" /></MemoryRouter>);
+    vi.mocked(api.post).mockResolvedValueOnce({ data: { challenge: "known-provider", requiresUsername: false } });
+    fireEvent.change(screen.getByLabelText("手机号"), { target: { value: "13800138000" } });
+    fireEvent.change(screen.getByLabelText("用户名"), { target: { value: "无效" } });
+    fireEvent.click(screen.getByRole("button", { name: "获取验证码" }));
+    await waitFor(() => expect(screen.queryByLabelText("用户名")).not.toBeInTheDocument());
+    vi.mocked(api.post).mockRejectedValueOnce({ response: { data: { usernameRequired: true, registrationToken: "verified-provider-session", message: "请填写用户名" } } });
+    fireEvent.change(screen.getByLabelText("验证码"), { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: "验证并登录" }));
+    expect(await screen.findByLabelText("用户名")).toBeRequired();
+    expect(api.post).toHaveBeenCalledWith("/auth/sms/verify", { challenge: "known-provider", code: "123456" });
+    fireEvent.change(screen.getByLabelText("用户名"), { target: { value: "teacher" } });
+    vi.mocked(api.post).mockRejectedValueOnce({ response: { data: { message: "用户名已占用" } } });
+    fireEvent.click(screen.getByRole("button", { name: "完成注册" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/auth/registration/complete", { registrationToken: "verified-provider-session", username: "teacher" }));
+    expect(api.post).toHaveBeenCalledTimes(3);
+  });
+  it("requires a registration username and hides it once an existing identity is recognized", async () => {
+    render(<MemoryRouter><EmailLoginPage method="sms" /></MemoryRouter>);
+    expect(screen.getByLabelText("用户名")).toBeRequired();
+    vi.mocked(api.post).mockResolvedValue({ data: { challenge: "existing", requiresUsername: false } });
+    fireEvent.change(screen.getByLabelText("手机号"), { target: { value: "13800138000" } });
+    fireEvent.click(screen.getByRole("button", { name: "获取验证码" }));
+    await waitFor(() => expect(screen.queryByLabelText("用户名")).not.toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText("手机号"), { target: { value: "13900139000" } });
+    expect(screen.getByLabelText("用户名")).toBeRequired();
+  });
   it("switches between SMS, email and CloudBase password login without reusing OTP challenges", async () => {
     vi.mocked(api.post).mockResolvedValue({ data: { challenge: "sms-proof" } });
     render(<MemoryRouter><EmailLoginPage method="sms" /></MemoryRouter>);

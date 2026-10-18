@@ -24,7 +24,8 @@ describe("SMS routes through the real CloudBase HTTP boundary", () => {
     vi.mocked(resolveCloudbaseAccount).mockResolvedValue({ id: "old-id", username: "teacher", role: "USER", createdAt: new Date() } as any);
     const sent = await request(app).post("/sms/code").send({ phone: "13800138000" });
     expect(sent.status).toBe(200);
-    const verified = await request(app).post("/sms/verify").send({ challenge: sent.body.challenge, code: "123456" });
+    expect(sent.body.requiresUsername).toBe(!isUser);
+    const verified = await request(app).post("/sms/verify").send({ challenge: sent.body.challenge, code: "123456", ...(!isUser ? {username: "teacher"} : {}) });
     expect(verified.status).toBe(200);
     expect(verified.body).toMatchObject({ token: "access", refreshToken: "refresh", user: { id: "old-id" } });
     expect(resolveCloudbaseAccount).toHaveBeenCalledWith({ sub: "subject", phone_number: "+86 13800138000" }, expect.anything());
