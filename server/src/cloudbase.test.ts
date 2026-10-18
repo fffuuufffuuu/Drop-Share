@@ -10,6 +10,11 @@ describe("CloudBase authentication boundary", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "invalid_argument", error_code: 3, requestId: "request-123", error_description: "private phone and credential details" }), { status: 400 })));
     await expect(cloudbaseRequest("/verification", {})).rejects.toMatchObject({ message: "身份验证失败，请重试", code: "invalid_argument", diagnostic: { upstreamStatus: 400, errorCode: 3, requestId: "request-123" } });
   });
+  it("identifies incompatible profile fields without recording identity values", async () => {
+    config.cloudbaseEnvId = "test-env";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ sub: "private-subject", email: "", phone_number: "+86 13800138000", status: "ACTIVE" }))));
+    await expect(getCloudbaseUser("private-token")).rejects.toMatchObject({ code: "invalid_profile", diagnostic: { profileIssues: [{ field: "email", code: "invalid_format", valueKind: "empty" }] } });
+  });
   it("validates the token at the configured environment, ignoring client claims", async () => {
     config.cloudbaseEnvId = "test-env";
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ sub: "provider-id", email: "teacher@example.com", status: "ACTIVE", groups: ["ADMIN"] })));

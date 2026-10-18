@@ -2,7 +2,7 @@ import { z } from "zod";
 import { config } from "./config";
 
 export class AuthError extends Error {
-  constructor(message: string, public status = 400, public code?:string, public diagnostic?: { upstreamStatus: number; errorCode?: number; requestId?: string }) { super(message); }
+  constructor(message: string, public status = 400, public code?:string, public diagnostic?: { upstreamStatus?: number; errorCode?: number; requestId?: string; profileIssues?: { field: string; code: string; valueKind: string }[] }) { super(message); }
 }
 
 // CloudBase requires a space between the country code and national number.
@@ -55,8 +55,18 @@ const profileSchema = z.object({
 });
 
 export async function getCloudbaseUser(token: string) {
-  const profile = profileSchema.safeParse(await cloudbaseRequest("/user/me", undefined, token));
-  if (!profile.success) throw new AuthError("Invalid token", 401);
+  const data = await cloudbaseRequest("/user/me", undefined, token);
+  const profile = profileSchema.safeParse(data);
+  if (!profile.success) {
+    const fields = ["sub", "email", "phone_number", "status"];
+    const profileIssues = profile.error.issues.map(issue => {
+      const field = fields.includes(String(issue.path[0])) ? String(issue.path[0]) : "profile";
+      const value = field === "profile" ? data : data?.[field];
+      const valueKind = value === undefined ? "missing" : value === null ? "null" : value === "" ? "empty" : typeof value;
+      return {field, code: issue.code, valueKind};
+    });
+    throw new AuthError("Invalid token", 401, "invalid_profile", {profileIssues});
+  }
   return profile.data;
 }
 
