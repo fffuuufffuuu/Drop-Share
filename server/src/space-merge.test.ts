@@ -38,6 +38,8 @@ function app(admin = false) {
 describe("space merge", () => {
   let tempRoot = "";
   let tx: {
+    $queryRaw: ReturnType<typeof vi.fn>;
+    spaceAdministrator:{findMany:ReturnType<typeof vi.fn>;createMany:ReturnType<typeof vi.fn>};
     space: { findMany: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn> };
     spaceTag: { findMany: ReturnType<typeof vi.fn>; createMany: ReturnType<typeof vi.fn> };
     deploymentTag: { createMany: ReturnType<typeof vi.fn> };
@@ -52,6 +54,8 @@ describe("space merge", () => {
     tempRoot = await mkdtemp(path.join(tmpdir(), "drop-share-merge-"));
     config.uploadRoot = tempRoot;
     tx = {
+      $queryRaw:vi.fn(),
+      spaceAdministrator:{findMany:vi.fn().mockResolvedValue([]),createMany:vi.fn()},
       space: {
         findMany: vi.fn().mockResolvedValue(sourceSpaces),
         create: vi.fn().mockImplementation(async ({ data }) => data),
@@ -105,16 +109,18 @@ describe("space merge", () => {
 
   it("copies files for an independent new space while preserving the originals", async () => {
     const sourceRoot = path.join(tempRoot, "original");
+    const previousRoot=path.join(tempRoot,"previous");await mkdir(previousRoot);await writeFile(path.join(previousRoot,"index.html"),"previous page");
     await mkdir(sourceRoot);
     await writeFile(path.join(sourceRoot, "index.html"), "original page");
     const original = {
-      id: "work-1", spaceId: "first", rootPath: sourceRoot, title: "轨道演示",
+      id: "work-1", spaceId: "first", rootPath: sourceRoot, previousRootPath:previousRoot,title: "轨道演示",
       ownerUserId: "uploader", visibility: "hidden", uploaderIp: null, uploaderAgent: null,
       createdAt: new Date("2026-01-01"), tags: [{ tag: { name: "课件" } }],
     };
     vi.mocked(prisma.space.findMany).mockResolvedValue(sourceSpaces as never);
     vi.mocked(prisma.deployment.findMany).mockResolvedValue([original] as never);
-    tx.deployment.findMany.mockResolvedValue([{ id: "work-1" }]);
+    tx.deployment.findMany.mockResolvedValue([{ id: "work-1",rootPath:sourceRoot,previousRootPath:previousRoot }]);
+    tx.spaceAdministrator.findMany.mockResolvedValue([{userId:"delegate"},{userId:"delegate"}]);
     tx.spaceTag.findMany.mockResolvedValue([{ id: "old-tag", name: "课件", spaceId: "first" }]);
 
     const response = await request(app()).post("/merge").send({
@@ -137,6 +143,9 @@ describe("space merge", () => {
     expect(copy.publicSlug).toBeTruthy();
     expect(copy.rootPath).not.toBe(sourceRoot);
     expect(await readFile(path.join(copy.rootPath, "index.html"), "utf8")).toBe("original page");
+    expect(copy.previousRootPath).not.toBe(previousRoot);
+    expect(await readFile(path.join(copy.previousRootPath,"index.html"),"utf8")).toBe("previous page");
+    expect(tx.spaceAdministrator.createMany).toHaveBeenCalledWith({data:[{spaceId:response.body.id,userId:"delegate"}],skipDuplicates:true});
     expect(await readFile(path.join(sourceRoot, "index.html"), "utf8")).toBe("original page");
   });
 
@@ -161,7 +170,7 @@ describe("space merge", () => {
       ownerUserId: null, visibility: "visible", uploaderIp: null, uploaderAgent: null,
       createdAt: new Date("2026-01-01"), tags: [],
     }] as never);
-    tx.deployment.findMany.mockResolvedValue([{ id: "work-1" }]);
+    tx.deployment.findMany.mockResolvedValue([{ id: "work-1",rootPath:sourceRoot,previousRootPath:null }]);
     let createdRoot = "";
     tx.space.create.mockImplementation(async ({ data }) => {
       createdRoot = path.join(tempRoot, "spaces", data.id);

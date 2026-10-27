@@ -10,6 +10,10 @@ vi.mock("./space-downloads", () => ({ sendZip: vi.fn(async (_deployment, res) =>
 
 vi.mock("./db", () => ({
   prisma: {
+    spaceAdministrator:{findUnique:vi.fn().mockResolvedValue(null)},
+    user:{findUnique:vi.fn().mockResolvedValue(null)},
+    $queryRaw:vi.fn(),
+    $transaction:vi.fn(),
     deployment: {
       create: vi.fn(),
       findMany: vi.fn(),
@@ -46,6 +50,7 @@ function createApp() {
   app.use("/api/deployments", deploymentRouter);
   return app;
 }
+beforeEach(()=>{vi.mocked(prisma.$transaction).mockImplementation(async(fn:any)=>fn(prisma));});
 
 describe("personal deployment history", () => {
   it("requires authentication to download an owned work", async () => {
@@ -111,6 +116,8 @@ describe("personal deployment history", () => {
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
+        ownerUserId:true,
+        previousRootPath:true,
         title: true,
         publicSlug: true,
         viewCount: true,
@@ -157,6 +164,8 @@ describe("personal deployment history", () => {
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
+        ownerUserId:true,
+        previousRootPath:true,
         title: true,
         publicSlug: true,
         viewCount: true,
@@ -167,6 +176,8 @@ describe("personal deployment history", () => {
         space: {
           select: {
             id: true,
+            ownerUserId:true,
+            expiresAt:true,
             name: true,
             slug: true,
           },

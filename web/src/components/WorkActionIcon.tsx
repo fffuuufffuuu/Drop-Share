@@ -1,4 +1,6 @@
-export function WorkActionIcon({ type }: { type: "download" | "hide" | "show" | "delete" | "manage" | "edit" | "extend" }) {
+export function WorkActionIcon({ type }: { type: "download" | "hide" | "show" | "delete" | "manage" | "edit" | "extend" | "update" | "rollback" }) {
+  if (type === "update") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5" /></svg>;
+  if (type === "rollback") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10h10a7 7 0 1 1-6 11M3 10l5-5m-5 5 5 5" /></svg>;
   if (type === "download") {
     return <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M12 3v12m-4-4 4 4 4-4M4 17v3h16v-3" />

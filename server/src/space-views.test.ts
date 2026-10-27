@@ -16,6 +16,8 @@ const fixture = vi.hoisted(() => {
   return { deployments, space };
 });
 vi.mock("./db", () => ({ prisma: {
+  spaceAdministrator:{findUnique:vi.fn().mockResolvedValue(null)},
+  user:{findUnique:vi.fn().mockResolvedValue({role:"ADMIN"})},
   space: {
     findUnique: async () => ({ ...fixture.space, deployments: fixture.deployments.filter(d => d.spaceId === "s1" && !d.deletedAt) }),
     findMany: async () => [fixture.space, { ...fixture.space, id: "empty", _count: { deployments: 0 } }],
@@ -35,6 +37,7 @@ vi.mock("./db", () => ({ prisma: {
   spaceTag: { findMany: async () => [] },
 } }));
 vi.mock("./middleware", () => ({
+  optionalAuth:(_req:any,_res:any,next:any)=>next(),
   requireAuth: (req: any, _res: any, next: any) => { req.authUser = { userId: "owner", username: "owner" }; next(); },
   requireAdmin: (_req: any, _res: any, next: any) => next(),
 }));

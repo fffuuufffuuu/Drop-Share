@@ -53,7 +53,7 @@ previewRouter.get(/^\/p\/([^/]+)(?:\/(.*))?$/, async (req, res, next) => {
     && !/prefetch/i.test(`${req.get("Sec-Purpose") ?? ""} ${req.get("Purpose") ?? ""}`);
 
   // Document reloads must reach the server; preview frames never count.
-  if (isHtml) res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Cache-Control", "no-store");
   res.sendFile(path.resolve(filePath), (error) => {
     if (error) {
       next(error);

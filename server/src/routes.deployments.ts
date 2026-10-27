@@ -1,4 +1,4 @@
-import { Visibility } from "@prisma/client";
+import { Prisma, Visibility } from "@prisma/client";
 import { Router } from "express";
 import multer from "multer";
 import path from "node:path";
@@ -16,6 +16,9 @@ import {
 import { removeDeploymentFolder, saveDeploymentFiles } from "./storage";
 import { randomSlug, uploaderAgentForStorage } from "./utils";
 import { sendZip } from "./space-downloads";
+import {canManageSpace,workCapabilities} from "./space-permissions";
+import {registerDeploymentVersionRoutes} from "./deployment-versions";
+import {lockSpace} from "./space-contributors";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 const createSchema = z.object({
@@ -33,6 +36,7 @@ function buildUploadItems(files: Express.Multer.File[], paths: string[] | string
 }
 
 export const deploymentRouter = Router();
+registerDeploymentVersionRoutes(deploymentRouter);
 
 deploymentRouter.get("/", requireAuth, async (req, res) => {
   const deployments = await prisma.deployment.findMany({
@@ -43,6 +47,8 @@ deploymentRouter.get("/", requireAuth, async (req, res) => {
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
+      ownerUserId: true,
+      previousRootPath: true,
       title: true,
       publicSlug: true,
       viewCount: true,
@@ -53,7 +59,7 @@ deploymentRouter.get("/", requireAuth, async (req, res) => {
     },
   });
 
-  res.json(deployments);
+  res.json(await Promise.all(deployments.map(async({previousRootPath,...deployment})=>({...deployment,...await workCapabilities({...deployment,previousRootPath},req.authUser?.userId)}))));
 });
 
 deploymentRouter.get("/space-uploads", requireAuth, async (req, res) => {
@@ -65,6 +71,8 @@ deploymentRouter.get("/space-uploads", requireAuth, async (req, res) => {
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
+      ownerUserId: true,
+      previousRootPath: true,
       title: true,
       publicSlug: true,
       viewCount: true,
@@ -75,6 +83,8 @@ deploymentRouter.get("/space-uploads", requireAuth, async (req, res) => {
       space: {
         select: {
           id: true,
+          ownerUserId: true,
+          expiresAt: true,
           name: true,
           slug: true,
         },
@@ -82,7 +92,7 @@ deploymentRouter.get("/space-uploads", requireAuth, async (req, res) => {
     },
   });
 
-  res.json(deployments);
+  res.json(await Promise.all(deployments.map(async({previousRootPath,...deployment})=>({...deployment,...await workCapabilities({...deployment,previousRootPath},req.authUser?.userId)}))));
 });
 
 deploymentRouter.post("/anonymous", upload.array("files", 1000), async (req, res) => {
@@ -137,7 +147,7 @@ deploymentRouter.post("/", requireAuth, upload.array("files", 1000), async (req,
 
   if (payload.data.spaceId) {
     const space = await prisma.space.findUnique({ where: { id: payload.data.spaceId } });
-    if (!space || space.ownerUserId !== req.authUser?.userId) {
+    if (!space || !await canManageSpace(space,req.authUser?.userId)) {
       res.status(403).json({ message: "No permission to this space" });
       return;
     }
@@ -229,7 +239,7 @@ deploymentRouter.patch("/:id", requireAuth, async (req, res) => {
 
   const canManage =
     deployment.ownerUserId === req.authUser?.userId ||
-    deployment.space?.ownerUserId === req.authUser?.userId;
+    !!deployment.space && await canManageSpace(deployment.space,req.authUser?.userId);
 
   if (!canManage) {
     res.status(403).json({ message: "No permission" });
@@ -259,34 +269,34 @@ deploymentRouter.patch("/:id", requireAuth, async (req, res) => {
       ...(parsed.data.title !== undefined ? { title: parsed.data.title } : {}),
     },
   });
-  res.json(updated);
+  const {rootPath,previousRootPath,uploaderIp,uploaderAgent,...publicDeployment}=updated;
+  res.json(publicDeployment);
 });
 
 deploymentRouter.delete("/:id", requireAuth, async (req, res) => {
-  const deployment = await prisma.deployment.findUnique({
+  const snapshot = await prisma.deployment.findUnique({
     where: { id: String(req.params.id) },
     include: { space: true },
   });
-  if (!deployment) {
+  if (!snapshot) {
     res.status(404).json({ message: "Deployment not found" });
     return;
   }
 
-  const canManage =
-    deployment.ownerUserId === req.authUser?.userId ||
-    deployment.space?.ownerUserId === req.authUser?.userId;
-
-  if (!canManage) {
-    res.status(403).json({ message: "No permission" });
-    return;
-  }
-
-  await prisma.deployment.update({
-    where: { id: deployment.id },
-    data: { deletedAt: new Date() },
+  const deployment=await prisma.$transaction(async tx=>{
+    if(snapshot.spaceId)await lockSpace(tx,snapshot.spaceId);
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM Deployment WHERE id = ${snapshot.id} FOR UPDATE`);
+    const current=await tx.deployment.findUnique({where:{id:snapshot.id},include:{space:true}});
+    if(!current)return null;
+    const canManage=current.ownerUserId===req.authUser?.userId||!!current.space&&await canManageSpace(current.space,req.authUser?.userId,tx);
+    if(!canManage)return null;
+    await tx.deployment.update({where:{id:current.id},data:{deletedAt:new Date()}});
+    return current;
   });
+  if(!deployment){res.status(403).json({message:"作品不存在或无权删除"});return;}
   try {
     await removeDeploymentFolder(deployment.rootPath);
+    if(deployment.previousRootPath)await removeDeploymentFolder(deployment.previousRootPath);
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error("[delete] removeDeploymentFolder failed", deployment.id, err);

@@ -99,3 +99,12 @@ describe("WorkPreviewCard", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("已复制");
   });
 });
+it("refreshes the preview after a version change while preserving the public link", async () => {
+  render(<WorkPreviewCard title="课程作品" publicSlug="course-work" workId="d1" meta="member" />);
+  const iframe = screen.getByTitle("课程作品预览");
+  const previous = iframe.getAttribute("src");
+  const { act } = await import("@testing-library/react");
+  act(() => { window.dispatchEvent(new CustomEvent("work-version-changed", { detail: "d1" })); });
+  expect(screen.getByTitle("课程作品预览").getAttribute("src")).not.toBe(previous);
+  expect(screen.getByRole("link", { name: "打开课程作品" })).toHaveAttribute("href", "/p/course-work/");
+});

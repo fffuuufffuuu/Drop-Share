@@ -218,7 +218,7 @@ describe("SpacePage", () => {
       "/deployments/d1",
       { title: "新的项目名" },
     ));
-    expect(getSpy).toHaveBeenCalledTimes(2);
+    expect(getSpy.mock.calls.filter(([url]) => url === "/spaces/s1")).toHaveLength(2);
   });
 
   it("lets the space creator change the space name", async () => {

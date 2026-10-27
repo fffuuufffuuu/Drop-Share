@@ -6,6 +6,8 @@ import { getCurrentUser } from "../auth";
 import { EditSpaceModal } from "../components/EditSpaceModal";
 import { SpaceDownloadSwitch } from "../components/SpaceDownloadSwitch";
 import { WorkViewCount } from "../components/WorkViewCount";
+import { WorkVersionActions } from "../components/WorkVersionActions";
+import { SpaceContributors } from "../components/SpaceContributors";
 import { WorkActionIcon } from "../components/WorkActionIcon";
 import { MergeSpacesModal } from "../components/MergeSpacesModal";
 import { SpaceTagControls, TagChips, TagFilter } from "../components/SpaceTagControls";
@@ -59,6 +61,7 @@ function filenameFromDisposition(disposition: unknown, fallback: string): string
 function DeploymentTable({
   deployments,
   onDownload,
+  onChanged,
   onDelete,
   onToggleVisibility,
   showExpiration = true,
@@ -66,6 +69,7 @@ function DeploymentTable({
   selection,
 }: {
   deployments: AdminDeployment[];
+  onChanged: () => void | Promise<void>;
   onDownload: (deployment: AdminDeployment) => void;
   onDelete: (deployment: AdminDeployment) => void;
   onToggleVisibility?: (
@@ -138,6 +142,8 @@ function DeploymentTable({
               </td>
               <td className="admin-work-actions-cell">
                 <div className="admin-actions admin-work-actions">
+                  <WorkVersionActions work={deployment} action="update" onChanged={onChanged} />
+                  <WorkVersionActions work={deployment} action="rollback" onChanged={onChanged} />
                   {!titleLinksToPreview && (
                     <a className="admin-action-link work-icon-action" href={`/p/${deployment.publicSlug}`}
                       target="_blank" rel="noreferrer" aria-label={`预览${deployment.title}`} title="预览作品">
@@ -437,6 +443,7 @@ export function AdminPage() {
           <p>包括登录用户与匿名上传，按上传时间从新到旧排列。</p>
           <DeploymentTable
             deployments={personal}
+            onChanged={loadPersonal}
             onDownload={(deployment) => void download(
               `/admin/deployments/${deployment.id}/download`,
               `${deployment.title}.zip`,
@@ -577,6 +584,7 @@ export function AdminPage() {
               </button>
             </div>
           </div>
+          <SpaceContributors spaceId={detail.id} refreshKey={detail.deployments.length} onChanged={() => loadSpaceDetail(detail.id)} />
           <SpaceDownloadSwitch enabled={detail.downloadsEnabled ?? false}
             onToggle={(enabled) => void toggleSpaceDownloads(enabled)} />
           <SpaceTagControls
@@ -588,6 +596,7 @@ export function AdminPage() {
             <TagFilter tags={detail.tags ?? []} selectedId={tagFilter} onChange={setTagFilter} />
             <DeploymentTable
               deployments={filteredSpaceDeployments}
+              onChanged={() => loadSpaceDetail(detail.id)}
               showExpiration={false}
               titleLinksToPreview
               selection={{ ids: selectedIds, onChange: setSelectedIds, tags: detail.tags ?? [] }}

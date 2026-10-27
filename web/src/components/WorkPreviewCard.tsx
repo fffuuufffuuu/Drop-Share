@@ -44,6 +44,7 @@ function CopyShareLinkButton({ title, href }: { title: string; href: string }) {
 }
 
 type WorkPreviewCardProps = {
+  workId?: string;
   title: string;
   publicSlug: string;
   viewCount?: number;
@@ -65,8 +66,14 @@ function actionItems(nodes: ReactNode): ReactNode[] {
 }
 
 export function WorkPreviewCard({
-  title, publicSlug, viewCount, meta, tags, actions, titleAction, cardLink = false, hidden = false,
+  workId, title, publicSlug, viewCount, meta, tags, actions, titleAction, cardLink = false, hidden = false,
 }: WorkPreviewCardProps) {
+  const [revision, setRevision] = useState(0);
+  useEffect(() => {
+    const changed = (event: Event) => { if ((event as CustomEvent).detail === workId) setRevision(value => value + 1); };
+    window.addEventListener("work-version-changed", changed);
+    return () => window.removeEventListener("work-version-changed", changed);
+  }, [workId]);
   const href = `/p/${publicSlug}/`;
   const cardRef = useRef<HTMLElement>(null);
   const menuId = useId();
@@ -111,7 +118,7 @@ export function WorkPreviewCard({
     >
       <div className="work-card-surface">
         <div className="work-preview-frame">
-          {hidden ? <div className="work-hidden-preview"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18M9 5a12 12 0 0 1 3-.4c6 0 10 7.4 10 7.4a19 19 0 0 1-3 3.5M6 6a22 22 0 0 0-4 6s4 7.4 10 7.4a12 12 0 0 0 5-1.2M10 10a3 3 0 0 0 4 4"/></svg><span>作品已隐藏</span><small>切换为显示后，分享链接将恢复访问</small></div> : <iframe title={`${title}预览`} src={`${href}?preview=1`} loading="lazy"
+          {hidden ? <div className="work-hidden-preview"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18M9 5a12 12 0 0 1 3-.4c6 0 10 7.4 10 7.4a19 19 0 0 1-3 3.5M6 6a22 22 0 0 0-4 6s4 7.4 10 7.4a12 12 0 0 0 5-1.2M10 10a3 3 0 0 0 4 4"/></svg><span>作品已隐藏</span><small>切换为显示后，分享链接将恢复访问</small></div> : <iframe title={`${title}预览`} src={`${href}?preview=1${revision ? `&revision=${revision}` : ""}`} loading="lazy"
             sandbox="allow-scripts allow-same-origin" tabIndex={-1} />}
         </div>
         {cardLink && !hidden && <a className="work-preview-open-overlay" href={href} target="_blank"

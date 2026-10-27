@@ -10,7 +10,9 @@ import { z } from "zod";
 import { permanentlyDeleteSpace } from "./admin-deletion";
 import { prisma } from "./db";
 import { getSpaceViewCounts, sumWorkViews } from "./space-views";
-import { requireAuth } from "./middleware";
+import { requireAuth, optionalAuth } from "./middleware";
+import {canManageSpace,workCapabilities,isSiteAdministrator} from "./space-permissions";
+import {registerSpaceContributorRoutes,lockSpace} from "./space-contributors";
 import {
   addDays,
   isExpired,
@@ -117,6 +119,7 @@ function assignBatchHomepage(group: { relativePath: string }[]): string | null {
 }
 
 export const spaceRouter = Router();
+registerSpaceContributorRoutes(spaceRouter);
 registerSpaceTagRoutes(spaceRouter, "/:id", false);
 registerSpaceDownloadRoutes(spaceRouter, "/:id", false);
 registerPublicSpaceDownloadRoute(spaceRouter);
@@ -149,10 +152,11 @@ spaceRouter.post("/", requireAuth, async (req, res) => {
 
 spaceRouter.get("/", requireAuth, async (req, res) => {
   const spaces = await prisma.space.findMany({
-    where: { ownerUserId: req.authUser!.userId },
+    where: { OR:[{ownerUserId:req.authUser!.userId},{administrators:{some:{userId:req.authUser!.userId}}}] },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
+      ownerUserId: true,
       name: true,
       slug: true,
       createdAt: true,
@@ -177,6 +181,8 @@ spaceRouter.get("/", requireAuth, async (req, res) => {
     downloadsEnabled: space.downloadsEnabled,
     deploymentCount: space._count.deployments,
     viewCount: viewCounts.get(space.id) ?? 0,
+    isOwner:space.ownerUserId===req.authUser!.userId,
+    canManage:true,
   })));
 });
 
@@ -184,7 +190,7 @@ spaceRouter.get("/:id", requireAuth, async (req, res) => {
   const space = await prisma.space.findUnique({
     where: { id: String(req.params.id) },
   });
-  if (!space || space.ownerUserId !== req.authUser?.userId) {
+  if (!space || !await canManageSpace(space,req.authUser?.userId)) {
     res.status(404).json({ message: "Space not found" });
     return;
   }
@@ -207,13 +213,16 @@ spaceRouter.get("/:id", requireAuth, async (req, res) => {
   });
   res.json({
     ...space,
+    isOwner:space.ownerUserId===req.authUser!.userId,
+    canManage:true,
     viewCount: sumWorkViews(deployments),
     tags,
-    deployments: deployments.map(({ owner, tags: assignments, ...deployment }) => ({
+    deployments: await Promise.all(deployments.map(async ({ owner, tags: assignments, rootPath, previousRootPath, uploaderIp, uploaderAgent, ...deployment }) => ({
       ...deployment,
       tagIds: assignments.map(({ tagId }) => tagId),
       uploaderName: owner?.username ?? "匿名",
-    })),
+      ...await workCapabilities({...deployment,space,previousRootPath},req.authUser?.userId,prisma,{spaceManager:true}),
+    }))),
   });
 });
 
@@ -236,23 +245,15 @@ spaceRouter.patch("/:id", requireAuth, async (req, res) => {
 });
 
 spaceRouter.post("/:id/extend", requireAuth, async (req, res) => {
-  const space = await prisma.space.findUnique({
-    where: { id: String(req.params.id) },
+  const result=await prisma.$transaction(async tx=>{
+    const id=String(req.params.id);await lockSpace(tx,id);
+    const space=await tx.space.findUnique({where:{id}});
+    if(!space||!await canManageSpace(space,req.authUser?.userId,tx))return {status:404,data:{message:"Space not found"}};
+    if(isExpired(space.expiresAt))return {status:410,data:{message:"Space has expired and cannot be extended"}};
+    const updated=await tx.space.update({where:{id},data:{expiresAt:addDays(new Date(),SPACE_EXTENSION_DAYS)}});
+    return {status:200,data:updated};
   });
-  if (!space || space.ownerUserId !== req.authUser?.userId) {
-    res.status(404).json({ message: "Space not found" });
-    return;
-  }
-  if (isExpired(space.expiresAt)) {
-    res.status(410).json({ message: "Space has expired and cannot be extended" });
-    return;
-  }
-
-  const updated = await prisma.space.update({
-    where: { id: space.id },
-    data: { expiresAt: addDays(new Date(), SPACE_EXTENSION_DAYS) },
-  });
-  res.json(updated);
+  res.status(result.status).json(result.data);
 });
 
 spaceRouter.delete("/:id", requireAuth, async (req, res, next) => {
@@ -362,7 +363,7 @@ spaceRouter.post("/:id/deployments/batch-upload", requireAuth, batchUpload.array
     });
   });
   const space = await prisma.space.findUnique({ where: { id: String(req.params.id) } });
-  if (!space || space.ownerUserId !== req.authUser?.userId) {
+  if (!space || !await canManageSpace(space,req.authUser?.userId)) {
     res.status(403).json({ message: "No permission" });
     return;
   }
@@ -427,8 +428,8 @@ spaceRouter.post("/:id/deployments/batch-upload", requireAuth, batchUpload.array
   res.status(201).json({ count: created.length, deployments: created, failures });
 });
 
-spaceRouter.get("/entry/:slug", async (req, res) => {
-  const space = await prisma.space.findUnique({ where: { slug: req.params.slug } });
+spaceRouter.get("/entry/:slug", optionalAuth, async (req, res) => {
+  const space = await prisma.space.findUnique({ where: { slug: String(req.params.slug) } });
   if (!space) {
     res.status(404).json({ message: "Space not found" });
     return;
@@ -452,6 +453,8 @@ spaceRouter.get("/entry/:slug", async (req, res) => {
   });
 
   const visible = deployments.filter((deployment) => deployment.visibility === "visible");
+  const manager=await canManageSpace(space,req.authUser?.userId);
+  const siteAdmin=await isSiteAdministrator(req.authUser?.userId);
   const tags = await prisma.spaceTag.findMany({
     where: { spaceId: space.id }, orderBy: { createdAt: "asc" },
   });
@@ -461,12 +464,14 @@ spaceRouter.get("/entry/:slug", async (req, res) => {
       name: space.name,
       slug: space.slug,
       ownerUserId: space.ownerUserId,
+      canManage:manager,
+      isOwner:space.ownerUserId===req.authUser?.userId,
       expiresAt: space.expiresAt,
       downloadsEnabled: space.downloadsEnabled,
       viewCount: sumWorkViews(deployments),
     },
     tags,
-    deployments: visible.map((deployment) => ({
+    deployments: await Promise.all(visible.map(async (deployment) => ({
       id: deployment.id,
       title: deployment.title,
       publicSlug: deployment.publicSlug,
@@ -474,6 +479,7 @@ spaceRouter.get("/entry/:slug", async (req, res) => {
       tagIds: deployment.tags.map(({ tagId }) => tagId),
       ownerUserId: deployment.ownerUserId,
       uploaderName: deployment.owner?.username ?? "匿名",
-    })),
+      ...await workCapabilities({...deployment,space},req.authUser?.userId,prisma,{spaceManager:manager,siteAdministrator:siteAdmin}),
+    }))),
   });
 });

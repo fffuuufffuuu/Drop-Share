@@ -357,3 +357,21 @@ describe("SpaceEntryPage upload selection", () => {
     expect(screen.queryByRole("heading", { name: "待删除作品" })).not.toBeInTheDocument();
   });
 });
+it("opens management for a delegate using the server capability", async () => {
+  localStorage.setItem("user", JSON.stringify({ id: "delegate", username: "delegate", role: "USER" }));
+  vi.spyOn(api, "get").mockResolvedValue({ data: { space: { id: "s1", ownerUserId: "owner", name: "协作空间", slug: "demo", expiresAt: "2099-01-01", canManage: true, isOwner: false }, tags: [], deployments: [] } });
+  renderSpaceEntry();
+  expect(await screen.findByRole("link", { name: "管理页面" })).toHaveAttribute("href", "/spaces/s1");
+});
+it("lets delegated managers hide another contributor's work through the regular route", async () => {
+  localStorage.setItem("user", JSON.stringify({ id: "delegate", username: "delegate", role: "USER" }));
+  vi.spyOn(api, "get").mockResolvedValue({ data: { space: { id: "s1", ownerUserId: "owner", name: "协作空间", slug: "demo", expiresAt: "2099-01-01", canManage: true }, tags: [], deployments: [{ id: "d1", title: "他人的实验", publicSlug: "same", ownerUserId: "other", uploaderName: "其他人", canUpdate: true, canRollback: true, hasPreviousVersion: true }] } });
+  const patch = vi.spyOn(api, "patch").mockResolvedValue({ data: {} });
+  renderSpaceEntry();
+  await screen.findByRole("heading", { name: "他人的实验" });
+  await userEvent.click(screen.getByRole("button", { name: "他人的实验的更多操作" }));
+  expect(screen.getByRole("button", { name: "更新上传他人的实验" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "退回他人的实验上一版" })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "隐藏他人的实验" }));
+  expect(patch).toHaveBeenCalledWith("/deployments/d1", { visibility: "hidden" });
+});

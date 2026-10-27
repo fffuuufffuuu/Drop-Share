@@ -9,6 +9,7 @@ import { prisma } from "./db";
 import { registerPublicSpaceDownloadRoute, registerSpaceDownloadRoutes } from "./space-downloads";
 
 vi.mock("./db", () => ({ prisma: {
+  spaceAdministrator:{findUnique:vi.fn().mockResolvedValue(null)},
   space: { findUnique: vi.fn(), update: vi.fn() },
   deployment: { findFirst: vi.fn() },
 } }));
@@ -51,6 +52,11 @@ afterEach(async () => {
 });
 
 describe("space downloads", () => {
+  it("allows a delegated space administrator to change the download switch",async()=>{
+    vi.mocked(prisma.spaceAdministrator.findUnique).mockResolvedValueOnce({spaceId:"s1",userId:"delegate"} as any);
+    vi.mocked(prisma.space.update).mockResolvedValue({...space,downloadsEnabled:true} as any);
+    expect((await request(app()).patch("/api/spaces/s1/downloads").set("x-user","delegate").send({downloadsEnabled:true})).status).toBe(200);
+  });
   it("blocks anonymous download while the switch is off", async () => {
     const response = await request(app()).get("/api/spaces/entry/demo/deployments/d1/download");
     expect(response.status).toBe(403);

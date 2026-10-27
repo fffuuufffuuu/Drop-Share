@@ -6,6 +6,9 @@ import { permanentlyDeleteDeployment } from "./admin-deletion";
 import { prisma } from "./db";
 import { requireAuth } from "./middleware";
 import { removeDeploymentFolder } from "./storage";
+import {canManageSpace} from "./space-permissions";
+import {isExpired} from "./retention";
+import {lockSpace} from "./space-contributors";
 
 const nameSchema = z.object({ name: z.string().trim().min(1).max(80) });
 const bulkSchema = z.discriminatedUnion("action", [
@@ -17,7 +20,7 @@ const bulkSchema = z.discriminatedUnion("action", [
 export function registerSpaceTagRoutes(router: Router, prefix: string, admin: boolean) {
   async function allowed(spaceId: string, userId: string | undefined) {
     const space = await prisma.space.findUnique({ where: { id: spaceId } });
-    return space && (admin || space.ownerUserId === userId) ? space : null;
+    return space && !isExpired(space.expiresAt) && (admin || await canManageSpace(space,userId)) ? space : null;
   }
 
     router.post(`${prefix}/tags`, requireAuth, async (req, res) => {
@@ -70,7 +73,7 @@ export function registerSpaceTagRoutes(router: Router, prefix: string, admin: bo
     if (!space) return void res.status(404).json({ message: "空间不存在或无权管理" });
     const deployments = await prisma.deployment.findMany({
       where: { id: { in: parsed.data.ids }, spaceId: space.id, deletedAt: null },
-      select: { id: true, rootPath: true },
+      select: { id: true, rootPath: true, previousRootPath: true },
     });
     if (deployments.length !== parsed.data.ids.length) {
       return void res.status(400).json({ message: "部分作品不属于该空间或已删除，请刷新后重试" });
@@ -102,13 +105,18 @@ export function registerSpaceTagRoutes(router: Router, prefix: string, admin: bo
     if (admin) {
       for (const deployment of deployments) await permanentlyDeleteDeployment(deployment.id);
     } else {
-      await prisma.deployment.updateMany({
-        where: { id: { in: parsed.data.ids }, spaceId: space.id, deletedAt: null },
-        data: { deletedAt: new Date() },
+      const removed=await prisma.$transaction(async tx=>{
+        await lockSpace(tx,space.id);
+        const currentSpace=await tx.space.findUnique({where:{id:space.id}});
+        if(!currentSpace||!await canManageSpace(currentSpace,req.authUser?.userId,tx))throw new Error("空间管理权限已变化，请刷新后重试");
+        const current=await tx.deployment.findMany({where:{id:{in:parsed.data.ids},spaceId:space.id,deletedAt:null},select:{id:true,rootPath:true,previousRootPath:true}});
+        await tx.deployment.updateMany({where:{id:{in:current.map(item=>item.id)},spaceId:space.id,deletedAt:null},data:{deletedAt:new Date()}});
+        return current;
       });
-      for (const deployment of deployments) {
+      for (const deployment of removed) {
         try {
           await removeDeploymentFolder(deployment.rootPath);
+          if(deployment.previousRootPath)await removeDeploymentFolder(deployment.previousRootPath);
         } catch (error) {
           console.error("[bulk-delete] removeDeploymentFolder failed", deployment.id, error);
         }

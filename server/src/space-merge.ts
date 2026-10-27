@@ -8,6 +8,7 @@ import { config } from "./config";
 import { prisma } from "./db";
 import { isExpired } from "./retention";
 import { randomSlug } from "./utils";
+import {lockSpace} from "./space-contributors";
 
 const mergeSchema = z.object({
   sourceIds: z.array(z.string().min(1)).length(2),
@@ -47,10 +48,10 @@ export function mergeSpacesHandler(admin: boolean) {
         source: {
           id: string; spaceId: string | null; title: string; ownerUserId: string | null;
           visibility: "visible" | "hidden"; uploaderIp: string | null; uploaderAgent: string | null;
-          createdAt: Date;
+          createdAt: Date; rootPath:string;previousRootPath:string|null;
         };
         tagNames: string[];
-        id: string; publicSlug: string; rootPath: string;
+        id: string; publicSlug: string; rootPath: string;previousRootPath:string|null;
       }[] = [];
       if (sourceDisposition === "keep") {
         const sources = await prisma.space.findMany({ where: { id: { in: sourceIds } } });
@@ -75,13 +76,16 @@ export function mergeSpacesHandler(admin: boolean) {
           const id = randomSlug(18);
           const rootPath = path.join(copyRoot, id);
           await fs.cp(source.rootPath, rootPath, { recursive: true, errorOnExist: true, force: false });
+          const previousRootPath=source.previousRootPath?path.join(copyRoot,`${id}-previous`):null;
+          if(previousRootPath)await fs.cp(source.previousRootPath!,previousRootPath,{recursive:true,errorOnExist:true,force:false});
           copiedDeployments.push({
             source, tagNames: source.tags.map(({ tag }) => tag.name),
-            id, publicSlug: randomSlug(10), rootPath,
+            id, publicSlug: randomSlug(10), rootPath,previousRootPath,
           });
         }
       }
       const merged = await prisma.$transaction(async (tx) => {
+        for(const sourceId of [...sourceIds].sort())await lockSpace(tx,sourceId);
         const found = await tx.space.findMany({ where: { id: { in: sourceIds } } });
         if (found.length !== 2) throw new MergeError(404, "原空间不存在或已被删除");
         const spaces = sourceIds.map((id) => found.find((space) => space.id === id)!);
@@ -97,10 +101,13 @@ export function mergeSpacesHandler(admin: boolean) {
         if (sourceDisposition === "keep") {
           const current = await tx.deployment.findMany({
             where: { spaceId: { in: sourceIds }, deletedAt: null },
-            select: { id: true },
+            select: { id: true,rootPath:true,previousRootPath:true },
           });
           const copiedIds = new Set(copiedDeployments.map(({ source }) => source.id));
-          if (current.length !== copiedIds.size || current.some(({ id }) => !copiedIds.has(id))) {
+          if (current.length !== copiedIds.size || current.some(({ id,rootPath,previousRootPath }) => {
+            const source=copiedDeployments.find(copy=>copy.source.id===id)?.source;
+            return !copiedIds.has(id)||source?.rootPath!==rootPath||(source?.previousRootPath??null)!==(previousRootPath??null);
+          })) {
             throw new MergeError(409, "原空间作品在合并期间发生变化，请重试");
           }
         }
@@ -121,6 +128,8 @@ export function mergeSpacesHandler(admin: boolean) {
             expiresAt,
           },
         });
+        const grants=await tx.spaceAdministrator.findMany({where:{spaceId:{in:sourceIds}},select:{userId:true}});
+        if(grants.length)await tx.spaceAdministrator.createMany({data:Array.from(new Set(grants.map(grant=>grant.userId))).map(userId=>({spaceId:space.id,userId})),skipDuplicates:true});
         const sourceNames = sourceTagNames(spaces);
         const tagNames = Array.from(new Set([...sourceNames, ...oldTags.map((tag) => tag.name)]));
         const tagIds = new Map(tagNames.map((tagName) => [tagName, randomSlug(18)]));
@@ -140,6 +149,7 @@ export function mergeSpacesHandler(admin: boolean) {
                   ownerUserId: copy.source.ownerUserId,
                   spaceId: space.id,
                   rootPath: copy.rootPath,
+                  previousRootPath: copy.previousRootPath,
                   expiresAt,
                   createdAt: copy.source.createdAt,
                   visibility: copy.source.visibility,

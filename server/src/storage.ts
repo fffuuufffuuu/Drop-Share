@@ -5,7 +5,7 @@ import type { Express } from "express";
 import { config } from "./config";
 import { sanitizeRelativePath } from "./utils";
 
-type UploadItem = {
+export type UploadItem = {
   file: Express.Multer.File;
   relativePath: string;
 };
@@ -44,7 +44,7 @@ export async function saveDeploymentFiles(baseDir: string, items: UploadItem[]):
     if (safeRelativePath.toLowerCase() === "index.html") {
       hasIndex = true;
     }
-    const absoluteTarget = path.join(deploymentRoot, safeRelativePath);
+    const absoluteTarget = path.join(deploymentRoot, safeRelativePath.toLowerCase()==="index.html"?"index.html":safeRelativePath);
     await fs.mkdir(path.dirname(absoluteTarget), { recursive: true });
     await storeUploadedFile(item.file, absoluteTarget);
   }
