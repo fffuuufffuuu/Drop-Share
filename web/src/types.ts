@@ -16,6 +16,10 @@ export type AuthResponse = {
 };
 
 export type Deployment = {
+  ownerUserId?: string | null;
+  hasPreviousVersion?: boolean;
+  canUpdate?: boolean;
+  canRollback?: boolean;
   id: string;
   title: string;
   publicSlug: string;
@@ -55,6 +59,8 @@ export type SpaceTag = {
 };
 
 export type Space = {
+  isOwner?: boolean;
+  canManage?: boolean;
   id: string;
   name: string;
   slug: string;

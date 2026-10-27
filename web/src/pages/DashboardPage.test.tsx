@@ -374,3 +374,27 @@ describe("DashboardPage", () => {
     );
   });
 });
+it("keeps delegated spaces manageable while hiding owner-only changes and merge candidates", async () => {
+  vi.mocked(api.get).mockImplementation(async url => ({ data: url === "/spaces" ? [{ id: "s-delegate", name: "协作空间", slug: "shared", expiresAt: "2099-01-01", createdAt: "2026-01-01", isOwner: false, canManage: true, deploymentCount: 1 }] : [] }));
+  renderPage();
+  await userEvent.click(screen.getByRole("button", { name: "空间管理" }));
+  expect(await screen.findByRole("button", { name: "进入协作空间管理" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "为协作空间延长一年" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "修改协作空间名称" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "删除协作空间" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "合并空间" })).toBeDisabled();
+});
+it("opens permitted update from the card and leaves the preview link unchanged", async () => {
+  vi.mocked(api.get).mockImplementation(async url => ({ data: url === "/deployments" ? [{ ...activeDeployment, canUpdate: true, canRollback: false, hasPreviousVersion: true }] : [] }));
+  vi.mocked(api.post).mockResolvedValue({ data: { id: "d1", publicSlug: "personal-home" } });
+  renderPage();
+  await screen.findByRole("heading", { name: "个人首页" });
+  await userEvent.click(screen.getByRole("button", { name: "个人首页的更多操作" }));
+  expect(screen.queryByRole("button", { name: "退回个人首页上一版" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "更新上传个人首页" }));
+  await userEvent.upload(screen.getByLabelText("选择 HTML 文件"), new File(["new"], "index.html", { type: "text/html" }));
+  await userEvent.click(screen.getByRole("button", { name: "确认替换" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(screen.getByTitle("个人首页预览").getAttribute("src")).toContain("revision=");
+  expect(screen.getByRole("link", { name: "打开个人首页" })).toHaveAttribute("href", "/p/personal-home/");
+});

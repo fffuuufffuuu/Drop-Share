@@ -6,6 +6,7 @@ import { appendDeploymentFolder, archiveDisposition, MissingDeploymentFolderErro
 import { prisma } from "./db";
 import { requireAuth } from "./middleware";
 import { isExpired } from "./retention";
+import {canManageSpace} from "./space-permissions";
 
 export async function sendZip(deployment: { title: string; rootPath: string }, res: Response, next: NextFunction) {
   const archive = archiver("zip", { zlib: { level: 9 } });
@@ -31,7 +32,7 @@ export function registerSpaceDownloadRoutes(router: Router, prefix: string, admi
     const parsed = z.object({ downloadsEnabled: z.boolean() }).safeParse(req.body);
     if (!parsed.success) return void res.status(400).json({ message: "下载开关的值无效" });
     const space = await prisma.space.findUnique({ where: { id: String(req.params.id) } });
-    if (!space || (!admin && space.ownerUserId !== req.authUser?.userId)) {
+    if (!space || isExpired(space.expiresAt) || (!admin && !await canManageSpace(space,req.authUser?.userId))) {
       return void res.status(404).json({ message: "空间不存在或无权修改" });
     }
     const updated = await prisma.space.update({
@@ -44,7 +45,7 @@ export function registerSpaceDownloadRoutes(router: Router, prefix: string, admi
     router.get(`${prefix}/deployments/:deploymentId/download`, requireAuth,
       async (req: Request, res: Response, next: NextFunction) => {
         const space = await prisma.space.findUnique({ where: { id: String(req.params.id) } });
-        if (!space || space.ownerUserId !== req.authUser?.userId) {
+        if (!space || isExpired(space.expiresAt) || !await canManageSpace(space,req.authUser?.userId)) {
           return void res.status(404).json({ message: "空间不存在或无权下载" });
         }
         const deployment = await prisma.deployment.findFirst({

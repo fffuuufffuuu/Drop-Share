@@ -8,6 +8,8 @@ import { EditNameButton } from "../components/EditNameButton";
 import { EditSpaceModal } from "../components/EditSpaceModal";
 import { SpaceDownloadSwitch } from "../components/SpaceDownloadSwitch";
 import { WorkViewCount } from "../components/WorkViewCount";
+import { WorkVersionActions } from "../components/WorkVersionActions";
+import { SpaceContributors } from "../components/SpaceContributors";
 import { WorkActionIcon } from "../components/WorkActionIcon";
 import { SpaceTagControls, TagChips, TagFilter } from "../components/SpaceTagControls";
 import { downloadZip } from "../download";
@@ -17,6 +19,8 @@ import type { SpaceDeployment, SpaceTag } from "../types";
 type BatchReportItem = { title: string; ok: boolean; message?: string };
 
 type SpaceDetail = {
+  isOwner?: boolean;
+  canManage?: boolean;
   id: string;
   name: string;
   slug: string;
@@ -188,11 +192,11 @@ export function SpacePage() {
               <p>/{detail.slug}</p>
               <div className="space-view-summary"><span>空间访问次数</span><WorkViewCount count={detail.viewCount} /></div>
             </div>
-            <button type="button" className="space-name-edit" onClick={() => {
+            {detail.isOwner !== false && <button type="button" className="space-name-edit" onClick={() => {
               setSpaceName(detail.name);
               setSpaceError("");
               setSpaceEditOpen(true);
-            }}>修改空间名称</button>
+            }}>修改空间名称</button>}
           </div>
           <p className={`retention-note retention-note--user${isDeadlineNear(detail.expiresAt) ? " deadline-near" : ""}`}>
             空间内作品统一于 {new Date(detail.expiresAt).toLocaleString()} 到期
@@ -225,6 +229,7 @@ export function SpacePage() {
             </div>
             <p className="space-batch-guidance">单次批量上传的文件总大小不超过 2000 MB。HTML 文件：每个文件生成一个项目，以文件名命名。文件夹：根目录有 index.html 时作为一个项目，以文件夹名命名；没有 index.html 时，用该文件夹里唯一的 HTML 文件作为主页。多个项目请放在同一父文件夹内，并分别以子文件夹名命名。图片、脚本等资源放在对应项目文件夹内。</p>
           </div>
+          <SpaceContributors spaceId={detail.id} refreshKey={detail.deployments.length} onChanged={loadDetail} />
           <SpaceDownloadSwitch enabled={detail.downloadsEnabled ?? false}
             onToggle={(enabled) => void toggleDownloads(enabled)} />
           <SpaceTagControls
@@ -266,6 +271,8 @@ export function SpacePage() {
                   <td>{deployment.visibility === "visible" ? "显示" : "隐藏"}</td>
                   <td className="space-work-actions-cell">
                     <div className="space-deployment-actions">
+                      <WorkVersionActions work={deployment} action="update" onChanged={loadDetail} />
+                      <WorkVersionActions work={deployment} action="rollback" onChanged={loadDetail} />
                       <button type="button" className="work-icon-action"
                         aria-label={`下载${deployment.title} ZIP`} title="下载 ZIP"
                         onClick={() => void downloadDeployment(deployment)}>

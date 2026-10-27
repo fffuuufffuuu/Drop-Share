@@ -30,6 +30,11 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   }
 }
 
+export async function optionalAuth(req:Request,res:Response,next:NextFunction):Promise<void>{
+  if(req.headers.authorization){await requireAuth(req,res,next);return;}
+  next();
+}
+
 export async function requireAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
   if (!req.authUser) {
     res.status(401).json({ message: "请先登录" });

@@ -7,10 +7,12 @@ import { registerSpaceTagRoutes } from "./space-tags";
 import { removeDeploymentFolder } from "./storage";
 
 vi.mock("./db", () => ({ prisma: {
+  spaceAdministrator:{findUnique:vi.fn().mockResolvedValue(null)},
   space: { findUnique: vi.fn() },
   spaceTag: { create: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), delete: vi.fn() },
   deployment: { findMany: vi.fn(), updateMany: vi.fn() },
   $transaction: vi.fn(),
+  $queryRaw:vi.fn(),
 } }));
 vi.mock("./storage", () => ({ removeDeploymentFolder: vi.fn() }));
 vi.mock("./admin-deletion", () => ({ permanentlyDeleteDeployment: vi.fn() }));
@@ -32,7 +34,7 @@ function app(admin = false) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(prisma.space.findUnique).mockResolvedValue({ id: "s1", ownerUserId: "owner" } as never);
+  vi.mocked(prisma.space.findUnique).mockResolvedValue({ id: "s1", ownerUserId: "owner",expiresAt:new Date("2099-01-01") } as never);
   vi.mocked(prisma.deployment.findMany).mockResolvedValue([
     { id: "d1", rootPath: "storage/s1/d1" },
     { id: "d2", rootPath: "storage/s1/d2" },
@@ -40,6 +42,12 @@ beforeEach(() => {
 });
 
 describe("space tag management", () => {
+  it("allows a delegated administrator to manage tags without creator-only rights",async()=>{
+    vi.mocked(prisma.spaceAdministrator.findUnique).mockResolvedValueOnce({spaceId:"s1",userId:"delegate"} as any);
+    vi.mocked(prisma.spaceTag.create).mockResolvedValue({id:"tag",name:"new"} as any);
+    const response=await request(app()).post("/spaces/s1/tags").set("x-user","delegate").send({name:"new"});
+    expect(response.status).toBe(201);
+  });
   it("lets the space owner create tags, while denying other users", async () => {
     vi.mocked(prisma.spaceTag.create).mockResolvedValue({ id: "t1", name: "课件" } as never);
     const owner = await request(app()).post("/spaces/s1/tags").send({ name: "课件" });
@@ -91,6 +99,7 @@ describe("space tag management", () => {
   });
 
   it("keeps owner bulk deletion available", async () => {
+    vi.mocked(prisma.$transaction).mockImplementation(async(fn:any)=>fn(prisma));
     const response = await request(app()).post("/spaces/s1/deployments/bulk")
       .send({ action: "delete", ids: ["d1", "d2"] });
     expect(response.status).toBe(200);

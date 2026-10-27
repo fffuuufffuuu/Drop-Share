@@ -9,6 +9,7 @@ import { EditNameButton } from "../components/EditNameButton";
 import { EditSpaceModal } from "../components/EditSpaceModal";
 import { ProjectNameModal } from "../components/ProjectNameModal";
 import { MergeSpacesModal } from "../components/MergeSpacesModal";
+import { WorkVersionActions } from "../components/WorkVersionActions";
 import { WorkPreviewCard } from "../components/WorkPreviewCard";
 import { WorkActionIcon } from "../components/WorkActionIcon";
 import { downloadZip } from "../download";
@@ -124,6 +125,8 @@ export function DashboardPage() {
   function workActions(deployment: PersonalDeployment) {
     const visible = deployment.visibility === "visible";
     return <>
+      {deployment.canUpdate === true && <WorkVersionActions work={deployment} action="update" onChanged={loadDeployments} />}
+      {deployment.canRollback === true && deployment.hasPreviousVersion === true && <WorkVersionActions work={deployment} action="rollback" onChanged={loadDeployments} />}
       <button type="button" className="work-icon-action" aria-label={`下载${deployment.title}`} title="下载作品" disabled={busyWorkId !== null} onClick={() => void manageWork(deployment, "download")}><WorkActionIcon type="download" /></button>
       <button type="button" className="work-icon-action" aria-label={`${visible ? "隐藏" : "显示"}${deployment.title}`} title={visible ? "隐藏作品" : "显示作品"} disabled={busyWorkId !== null} onClick={() => void manageWork(deployment, "toggle")}><WorkActionIcon type={visible ? "hide" : "show"} /></button>
       <button type="button" className="work-icon-action work-icon-action-danger" aria-label={`删除${deployment.title}`} title="删除作品" disabled={busyWorkId !== null} onClick={() => void manageWork(deployment, "delete")}><WorkActionIcon type="delete" /></button>
@@ -256,6 +259,7 @@ export function DashboardPage() {
                   {personalWorks.map((deployment) => (
                     <WorkPreviewCard
                       key={deployment.id}
+                      workId={deployment.id}
                       title={deployment.title}
                       publicSlug={deployment.publicSlug}
                       viewCount={deployment.viewCount}
@@ -282,6 +286,7 @@ export function DashboardPage() {
                   {spaceWorks.map((deployment) => (
                     <WorkPreviewCard
                       key={deployment.id}
+                      workId={deployment.id}
                       title={deployment.title}
                       publicSlug={deployment.publicSlug}
                       viewCount={deployment.viewCount}
@@ -317,7 +322,7 @@ export function DashboardPage() {
             <div className="dashboard-space-header-actions">
               <button type="button" onClick={() => setCreateSpaceOpen(true)}>新建空间</button>
               <button type="button" onClick={() => setMergeSpaceOpen(true)}
-                disabled={spaces.filter((space) => getSpaceStatus(space) === "有效").length < 2}>合并空间</button>
+                disabled={spaces.filter((space) => space.isOwner !== false && getSpaceStatus(space) === "有效").length < 2}>合并空间</button>
             </div>
           </div>
           {spaces.length === 0 ? (
@@ -365,11 +370,11 @@ export function DashboardPage() {
                         </td>
                         <td className="dashboard-space-actions-cell">
                           <div className="dashboard-space-actions">
-                            <button type="button" className="work-icon-action"
+                            {space.isOwner !== false && <button type="button" className="work-icon-action"
                               aria-label={`修改${space.name}名称`} title="修改名称"
                               onClick={() => openEditSpace(space)}>
                               <WorkActionIcon type="edit" />
-                            </button>
+                            </button>}
                             {status === "有效" && (
                               <>
                               <button type="button" className="work-icon-action"
@@ -387,7 +392,7 @@ export function DashboardPage() {
                               </button>
                               </>
                             )}
-                            <button
+                            {space.isOwner !== false && <button
                               type="button"
                               className="work-icon-action work-icon-action-danger"
                               aria-label={`删除${space.name}`}
@@ -395,7 +400,7 @@ export function DashboardPage() {
                               onClick={() => void deleteSpace(space)}
                             >
                               <WorkActionIcon type="delete" />
-                            </button>
+                            </button>}
                           </div>
                         </td>
                       </tr>
@@ -418,7 +423,7 @@ export function DashboardPage() {
         }}
       />
       <MergeSpacesModal
-        open={mergeSpaceOpen} spaces={spaces}
+        open={mergeSpaceOpen} spaces={spaces.filter(space => space.isOwner !== false)}
         onClose={() => setMergeSpaceOpen(false)}
         onMerged={(slug) => {
           setMergeSpaceOpen(false);

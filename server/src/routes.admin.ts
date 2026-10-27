@@ -19,6 +19,7 @@ import { requireAdmin, requireAuth } from "./middleware";
 import { registerSpaceTagRoutes } from "./space-tags";
 import { registerSpaceDownloadRoutes } from "./space-downloads";
 import { mergeSpacesHandler } from "./space-merge";
+import {workCapabilities,canManageSpace} from "./space-permissions";
 
 export const adminRouter = Router();
 
@@ -27,12 +28,14 @@ registerSpaceTagRoutes(adminRouter, "/spaces/:id", true);
 registerSpaceDownloadRoutes(adminRouter, "/spaces/:id", true);
 adminRouter.post("/spaces/merge", mergeSpacesHandler(true));
 
-adminRouter.get("/deployments/personal", async (_req, res) => {
+adminRouter.get("/deployments/personal", async (req, res) => {
   const deployments = await prisma.deployment.findMany({
     where: { spaceId: null, deletedAt: null },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
+      ownerUserId: true,
+      previousRootPath: true,
       title: true,
       publicSlug: true,
       viewCount: true,
@@ -45,7 +48,7 @@ adminRouter.get("/deployments/personal", async (_req, res) => {
     },
   });
 
-  res.json(deployments.map((deployment) => ({
+  res.json(await Promise.all(deployments.map(async (deployment) => ({
     id: deployment.id,
     title: deployment.title,
     publicSlug: deployment.publicSlug,
@@ -54,7 +57,9 @@ adminRouter.get("/deployments/personal", async (_req, res) => {
     createdAt: deployment.createdAt,
     expiresAt: deployment.expiresAt,
     ownerLabel: deployment.owner?.username ?? "匿名",
-  })));
+    ownerUserId:deployment.ownerUserId,
+    ...await workCapabilities(deployment,req.authUser?.userId,prisma,{spaceManager:false,siteAdministrator:true}),
+  }))));
 });
 
 adminRouter.patch("/deployments/:id", async (req, res) => {
@@ -80,7 +85,8 @@ adminRouter.patch("/deployments/:id", async (req, res) => {
     where: { id: deployment.id },
     data: { visibility: parsed.data.visibility },
   });
-  res.json(updated);
+  const {rootPath,previousRootPath,uploaderIp,uploaderAgent,...publicDeployment}=updated;
+  res.json(publicDeployment);
 });
 
 adminRouter.get("/deployments/:id/download", async (req, res, next) => {
@@ -278,6 +284,8 @@ adminRouter.get("/spaces/:id", async (req, res) => {
         orderBy: { createdAt: "desc" },
         select: {
           id: true,
+          ownerUserId: true,
+          previousRootPath: true,
           title: true,
           publicSlug: true,
           viewCount: true,
@@ -301,6 +309,7 @@ adminRouter.get("/spaces/:id", async (req, res) => {
     res.status(404).json({ message: "空间不存在或已被删除" });
     return;
   }
+  const manager=await canManageSpace(space,req.authUser?.userId);
 
   res.json({
     id: space.id,
@@ -313,7 +322,7 @@ adminRouter.get("/spaces/:id", async (req, res) => {
     ownerUsername: space.owner.username,
     tags: space.tags,
     viewCount: sumWorkViews(space.deployments),
-    deployments: space.deployments.map((deployment) => ({
+    deployments: await Promise.all(space.deployments.map(async (deployment) => ({
       id: deployment.id,
       title: deployment.title,
       publicSlug: deployment.publicSlug,
@@ -323,6 +332,8 @@ adminRouter.get("/spaces/:id", async (req, res) => {
       createdAt: deployment.createdAt,
       expiresAt: deployment.expiresAt,
       ownerLabel: deployment.owner?.username ?? "匿名",
-    })),
+      ownerUserId:deployment.ownerUserId,
+      ...await workCapabilities({...deployment,spaceId:space.id,space},req.authUser?.userId,prisma,{spaceManager:manager,siteAdministrator:true}),
+    }))),
   });
 });

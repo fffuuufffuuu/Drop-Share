@@ -10,6 +10,8 @@ import { removeDeploymentFolder, saveDeploymentFiles } from "./storage";
 
 vi.mock("./db", () => ({
   prisma: {
+    $queryRaw:vi.fn(),$transaction:vi.fn(),
+    spaceAdministrator:{findUnique:vi.fn().mockResolvedValue(null)},
     deployment: {
       groupBy: vi.fn().mockResolvedValue([]),
       create: vi.fn(),
@@ -41,6 +43,7 @@ vi.mock("./admin-deletion", () => ({
 }));
 
 vi.mock("./middleware", () => ({
+  optionalAuth:(_req:any,_res:any,next:any)=>next(),
   requireAuth: (req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (!req.headers.authorization) {
       res.status(401).json({ message: "Missing token" });
@@ -61,6 +64,7 @@ function createApp() {
 function authed(testRequest: request.Test) {
   return testRequest.set("Authorization", "Bearer user-token");
 }
+beforeEach(()=>{vi.mocked(prisma.$transaction).mockImplementation(async(fn:any)=>fn(prisma));});
 
 const now = new Date("2026-07-30T01:00:00.000Z");
 const activeSpace = {
@@ -73,6 +77,14 @@ const activeSpace = {
 };
 
 describe("space expiration", () => {
+  it("allows delegated administrators to renew but not delete a space",async()=>{
+    vi.mocked(prisma.space.findUnique).mockResolvedValue({...activeSpace,ownerUserId:"creator"} as any);
+    vi.mocked(prisma.spaceAdministrator.findUnique).mockResolvedValueOnce({spaceId:"s1",userId:"user-1"} as any);
+    vi.mocked(prisma.space.update).mockResolvedValue({...activeSpace,expiresAt:new Date("2099-01-01")} as any);
+    expect((await authed(request(createApp()).post("/api/spaces/s1/extend"))).status).toBe(200);
+    expect((await authed(request(createApp()).delete("/api/spaces/s1"))).status).toBe(404);
+    expect(permanentlyDeleteSpace).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(prisma.spaceTag.findMany).mockResolvedValue([]);
@@ -128,7 +140,7 @@ describe("space expiration", () => {
 
     expect(response.status).toBe(200);
     expect(prisma.space.findMany).toHaveBeenCalledWith({
-      where: { ownerUserId: "user-1" },
+      where: { OR:[{ownerUserId:"user-1"},{administrators:{some:{userId:"user-1"}}}] },
       orderBy: { createdAt: "desc" },
       select: expect.objectContaining({
         expiresAt: true,
@@ -520,6 +532,7 @@ describe("space expiration", () => {
     }));
     expect(response.body.deployments).toEqual([
       {
+        canUpdate:false,canRollback:false,hasPreviousVersion:false,
         id: "d1",
         title: "登录作品",
         publicSlug: "signed-work",
@@ -528,6 +541,7 @@ describe("space expiration", () => {
         uploaderName: "member",
       },
       {
+        canUpdate:false,canRollback:false,hasPreviousVersion:false,
         id: "d2",
         title: "匿名作品",
         publicSlug: "anonymous-work",

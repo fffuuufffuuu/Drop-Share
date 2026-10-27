@@ -28,6 +28,7 @@ model User {
   createdAt   DateTime     @default(now())
   spaces      Space[]
   deployments Deployment[] @relation("OwnerDeployments")
+  administeredSpaces SpaceAdministrator[]
 
   @@unique([cloudbaseEnvId, cloudbaseSubject])
 }
@@ -43,8 +44,20 @@ model Space {
   downloadsEnabled Boolean @default(false)
   deployments Deployment[]
   tags        SpaceTag[]
+  administrators SpaceAdministrator[]
 
   @@index([expiresAt])
+}
+
+model SpaceAdministrator {
+  spaceId String
+  userId String
+  createdAt DateTime @default(now())
+  space Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([spaceId, userId])
+  @@index([userId])
 }
 
 model SpaceTag {
@@ -80,6 +93,7 @@ model Deployment {
   space          Space?      @relation(fields: [spaceId], references: [id], onDelete: SetNull)
   tags           DeploymentTag[]
   rootPath       String
+  previousRootPath String?
   expiresAt      DateTime
   visibility     Visibility  @default(visible)
   createdAt      DateTime    @default(now())

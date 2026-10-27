@@ -7,6 +7,8 @@ import { getCurrentUser } from "../auth";
 import { UploadDropzone } from "../components/UploadDropzone";
 import { ProjectNameModal } from "../components/ProjectNameModal";
 import { EditNameButton } from "../components/EditNameButton";
+import { WorkVersionActions } from "../components/WorkVersionActions";
+import { SpaceContributors } from "../components/SpaceContributors";
 import { WorkPreviewCard } from "../components/WorkPreviewCard";
 import { WorkActionIcon } from "../components/WorkActionIcon";
 import { TagChips, TagFilter } from "../components/SpaceTagControls";
@@ -15,6 +17,9 @@ import { suggestProjectName, type UploadEntry } from "../uploader";
 import { isDeadlineNear } from "../space-deadline";
 
 type DeploymentItem = {
+  canUpdate?: boolean;
+  canRollback?: boolean;
+  hasPreviousVersion?: boolean;
   id: string;
   title: string;
   publicSlug: string;
@@ -25,7 +30,7 @@ type DeploymentItem = {
 };
 
 type SpaceEntryData = {
-  space: { id: string; name: string; slug: string; ownerUserId: string; expiresAt: string; downloadsEnabled: boolean; viewCount: number };
+  space: { canManage?: boolean; isOwner?: boolean; id: string; name: string; slug: string; ownerUserId: string; expiresAt: string; downloadsEnabled: boolean; viewCount: number };
   deployments: DeploymentItem[];
   tags: SpaceTag[];
 };
@@ -46,7 +51,7 @@ export function SpaceEntryPage() {
     !selectedTag || (deployment.tagIds ?? []).includes(selectedTag)) ?? [];
 
   const currentUser = getCurrentUser();
-  const canManageSpace = !!data && !!currentUser && (currentUser.role === "ADMIN" || currentUser.id === data.space.ownerUserId);
+  const canManageSpace = !!data && !!currentUser && (currentUser.role === "ADMIN" || (data.space.canManage ?? currentUser.id === data.space.ownerUserId));
   useEffect(() => {
     setAuthToken(localStorage.getItem("token") ?? undefined);
   }, []);
@@ -139,9 +144,9 @@ export function SpaceEntryPage() {
     }
   }
 
-  async function hideAsAdmin(deploymentId: string) {
+  async function hideDeployment(deploymentId: string) {
     try {
-      await api.patch(`/admin/deployments/${deploymentId}`, { visibility: "hidden" });
+      await api.patch(`${currentUser?.role === "ADMIN" ? "/admin" : ""}/deployments/${deploymentId}`, { visibility: "hidden" });
       setData((current) => current ? {
         ...current,
         deployments: current.deployments.filter((item) => item.id !== deploymentId),
@@ -174,6 +179,7 @@ export function SpaceEntryPage() {
 
   return (
     <section className="card space-entry">
+      <SpaceContributors spaceId={data.space.id} drawer refreshKey={data.deployments.length} onChanged={load} />
       <header className="space-entry-hero">
         <span className="space-entry-eyebrow">作品空间</span>
         <h1 className="space-entry-title">{data.space.name}</h1>
@@ -235,29 +241,36 @@ export function SpaceEntryPage() {
             {visibleDeployments.map((deployment) => (
               <WorkPreviewCard
                 key={deployment.id}
+                workId={deployment.id}
                 title={deployment.title}
                 publicSlug={deployment.publicSlug}
                 viewCount={deployment.viewCount}
                 cardLink
                 titleAction={currentUser && (
-                  currentUser.id === data.space.ownerUserId || currentUser.id === deployment.ownerUserId
+                  canManageSpace || currentUser.id === deployment.ownerUserId
                 ) ? <EditNameButton label={`重命名${deployment.title}`} onClick={() => openRename(deployment)} /> : undefined}
                 tags={(data.tags ?? []).some((tag) => (deployment.tagIds ?? []).includes(tag.id))
                   ? <TagChips tags={data.tags ?? []} tagIds={deployment.tagIds ?? []} /> : undefined}
                 meta={<span className="space-work-card-uploader">上传者：{deployment.uploaderName}</span>}
-                actions={(data.space.downloadsEnabled || currentUser?.role === "ADMIN"
-                      || (currentUser && deployment.ownerUserId === currentUser.id)) && <div className="work-admin-actions">
+                actions={<>
+                  {deployment.canUpdate === true && <WorkVersionActions work={deployment} action="update" onChanged={load} />}
+                  {deployment.canRollback === true && deployment.hasPreviousVersion === true && <WorkVersionActions work={deployment} action="rollback" onChanged={load} />}
+                  {(data.space.downloadsEnabled || currentUser?.role === "ADMIN"
+                      || canManageSpace || (currentUser && deployment.ownerUserId === currentUser.id)) && <div className="work-admin-actions">
                     {data.space.downloadsEnabled && <a className="work-icon-action"
                       aria-label={`下载${deployment.title} ZIP`} title="下载 ZIP"
                       href={`${String(api.defaults.baseURL ?? "/api").replace(/\/$/, "")}/spaces/entry/${encodeURIComponent(data.space.slug)}/deployments/${encodeURIComponent(deployment.id)}/download`}
                     ><WorkActionIcon type="download" /></a>}
+                    {canManageSpace && currentUser?.role !== "ADMIN" && <button type="button" className="work-icon-action"
+                      aria-label={`隐藏${deployment.title}`} title="隐藏作品" onClick={() => void hideDeployment(deployment.id)}>
+                      <WorkActionIcon type="hide" /></button>}
                     {currentUser?.role === "ADMIN" ? (<>
                       <button
                         type="button"
                         className="work-icon-action"
                         aria-label={`隐藏${deployment.title}`}
                         title="隐藏作品"
-                        onClick={() => void hideAsAdmin(deployment.id)}
+                        onClick={() => void hideDeployment(deployment.id)}
                       >
                         <WorkActionIcon type="hide" />
                       </button>
@@ -270,7 +283,7 @@ export function SpaceEntryPage() {
                       >
                         <WorkActionIcon type="delete" />
                       </button>
-                    </>) : currentUser && deployment.ownerUserId === currentUser.id ? (
+                    </>) : currentUser && (canManageSpace || deployment.ownerUserId === currentUser.id) ? (
                     <button
                       type="button"
                       className="work-icon-action work-icon-action-danger"
@@ -281,7 +294,7 @@ export function SpaceEntryPage() {
                       <WorkActionIcon type="delete" />
                     </button>
                   ) : null}
-                    </div>}
+                    </div>}</>}
               />
             ))}
           </div>}
