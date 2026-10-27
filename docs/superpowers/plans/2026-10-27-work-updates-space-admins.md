@@ -49,7 +49,7 @@
 - [x] Run complete relevant server/frontend suites and required builds; inspect additive migration SQL and schema validation.
 - [x] Fresh-context whole-branch review; fix important findings with regression tests.
 - [x] Commit and synchronize a reviewable PR, include exact migration and rollback steps; clean temporary artifacts.
-- [ ] Ask explicit approval for production migration with the completed SQL, checks and backup plan; do not migrate/deploy before approval.
+- [x] Ask explicit approval for production migration with the completed SQL, checks and backup plan; do not migrate/deploy before approval.
 
 ## Execution ledger — 2026-10-27
 
@@ -61,4 +61,4 @@
 - Local browser acceptance uses actual compiled routes and file storage with an in-memory database and fictional accounts only. Update submission, rollback, required confirmations, contributor drawer and approved fictional administrator grant checked; production SQL behavior remains untested until separately approved migration.
 - Fixture folder initially hid previews because Express ignores dot directories; moved fixture storage to a normal temporary directory. Product routing was not changed for the fixture issue.
 - Production read-only disk check: 1.6 GB free, current storage 1.5 GB. No production files, roles, schema or settings changed. Backups must use verified deduplication or off-server storage before release; no old backups may be silently deleted.
-- Task 4: implementation committed and pushed; draft PR https://github.com/fffuuufffuuu/Drop-Share/pull/12 contains migration and rollback instructions. Temporary fixture service and files removed. Production migration approval pending; no deployment before explicit approval.
+- Task 4: implementation committed and pushed; PR https://github.com/fffuuufffuuu/Drop-Share/pull/12 merged after the user explicitly requested deployment. Temporary fixture service and files removed. Full verified backups preceded the successful production migration and publish; original business record digests match. See docs/2026-10-27-space-admins-release.md for actual release evidence.
