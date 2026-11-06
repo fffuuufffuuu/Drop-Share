@@ -7,6 +7,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../api";
+import { formatLocaleDateTime } from "../format-datetime";
 import { SpacePage } from "./SpacePage";
 
 beforeEach(() => {
@@ -159,7 +160,7 @@ describe("SpacePage", () => {
     );
 
     expect(await screen.findByText(
-      `空间内作品统一于 ${new Date("2027-07-30T01:00:00.000Z").toLocaleString()} 到期`,
+      `空间内作品统一于 ${formatLocaleDateTime("2027-07-30T01:00:00.000Z")} 到期`,
     )).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "作品空间" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "作品空间" })).toHaveAttribute("href", "/s/portfolio");
