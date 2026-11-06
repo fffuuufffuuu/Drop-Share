@@ -17,6 +17,11 @@ it("uploader may update but only space managers may rollback",async()=>{
   expect(await workCapabilities(work,"creator")).toEqual({canUpdate:true,canRollback:true,hasPreviousVersion:true});
   expect((await workCapabilities({...work,deletedAt:new Date()},"creator")).canUpdate).toBe(false);
 });
+it("lets personal work owners roll back when a previous version exists",async()=>{
+  const work={ownerUserId:"owner",spaceId:null,deletedAt:null,expiresAt:new Date("2099-01-01"),previousRootPath:"previous"};
+  expect(await workCapabilities(work,"owner")).toMatchObject({canUpdate:true,canRollback:true,hasPreviousVersion:true});
+  expect(await workCapabilities(work,"stranger")).toMatchObject({canUpdate:false,canRollback:false});
+});
 it("site administrators can update without gaining space rollback privileges",async()=>{
   vi.mocked(prisma.user.findUnique).mockResolvedValue({role:"ADMIN"} as any);
   expect(await workCapabilities({ownerUserId:"uploader",space,spaceId:space.id,deletedAt:null,expiresAt:space.expiresAt,previousRootPath:"previous"},"site-admin")).toMatchObject({canUpdate:true,canRollback:false});

@@ -553,4 +553,45 @@ describe("space expiration", () => {
     expect(response.body.deployments[0]).not.toHaveProperty("owner");
     expect(response.body.space.ownerUserId).toBe("user-1");
   });
+
+  it("omits hidden works from the public space entry", async () => {
+    vi.mocked(prisma.space.findUnique).mockResolvedValue(activeSpace as never);
+    vi.mocked(prisma.deployment.findMany).mockImplementation((async ({ where }: any) => {
+      const works = [
+        {
+          id: "visible-work",
+          title: "公开作品",
+          publicSlug: "public-work",
+          ownerUserId: "user-1",
+          visibility: "visible",
+          viewCount: 2,
+          owner: { username: "member" },
+          tags: [],
+        },
+        {
+          id: "hidden-work",
+          title: "隐藏作品",
+          publicSlug: "hidden-work",
+          ownerUserId: "user-1",
+          visibility: "hidden",
+          viewCount: 5,
+          owner: { username: "member" },
+          tags: [],
+        },
+      ];
+      if (where.visibility === "visible") {
+        return works.filter((work) => work.visibility === "visible") as never;
+      }
+      return works.map(({ viewCount, visibility }) => ({ viewCount, visibility })) as never;
+    }) as any);
+
+    const response = await request(createApp()).get("/api/spaces/entry/portfolio");
+
+    expect(response.status).toBe(200);
+    expect(prisma.deployment.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ visibility: "visible" }),
+    }));
+    expect(response.body.deployments.map((work: { id: string }) => work.id)).toEqual(["visible-work"]);
+    expect(response.body.space.viewCount).toBe(7);
+  });
 });

@@ -16,6 +16,29 @@ type DeployResult = {
   expiresAt: string;
 };
 
+const UPLOAD_SPACES_CACHE_KEY = "drop-share-upload-spaces";
+
+function readCachedSpaces(): Space[] {
+  try {
+    const raw = sessionStorage.getItem(UPLOAD_SPACES_CACHE_KEY);
+    if (!raw) {
+      return [];
+    }
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed as Space[] : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCachedSpaces(spaces: Space[]) {
+  try {
+    sessionStorage.setItem(UPLOAD_SPACES_CACHE_KEY, JSON.stringify(spaces));
+  } catch {
+    // ignore quota or privacy mode errors
+  }
+}
+
 export function UploadPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -24,7 +47,10 @@ export function UploadPage() {
   const [deployResult, setDeployResult] = useState<DeployResult | null>(null);
   const [durationDays, setDurationDays] = useState(1);
   const [spaceId, setSpaceId] = useState("");
-  const [spaces, setSpaces] = useState<Space[]>([]);
+  const [spaces, setSpaces] = useState<Space[]>(() => (getCurrentUser() ? readCachedSpaces() : []));
+  const [spacesLoading, setSpacesLoading] = useState(() => (
+    getCurrentUser() !== null && readCachedSpaces().length === 0
+  ));
   const [submittedCount, setSubmittedCount] = useState<number | null>(null);
   const [overviewError, setOverviewError] = useState("");
   const [createSpaceOpen, setCreateSpaceOpen] = useState(false);
@@ -49,15 +75,27 @@ export function UploadPage() {
 
   useEffect(() => {
     if (!isLoggedIn) {
+      setSpaces([]);
+      setSpacesLoading(false);
       return;
     }
 
     setAuthToken(localStorage.getItem("token") ?? undefined);
+    const cached = readCachedSpaces();
+    if (cached.length) {
+      setSpaces(cached);
+    } else {
+      setSpacesLoading(true);
+    }
     void api.get<Space[]>("/spaces")
-      .then(({ data }) => setSpaces(data))
+      .then(({ data }) => {
+        setSpaces(data);
+        writeCachedSpaces(data);
+      })
       .catch((error: any) => {
         setMessage(error.response?.data?.message || "空间列表加载失败");
-      });
+      })
+      .finally(() => setSpacesLoading(false));
     void loadSubmissionCount();
     if (searchParams.get("createSpace") === "1") {
       setCreateSpaceOpen(true);
@@ -168,7 +206,9 @@ export function UploadPage() {
           <span className="space-field-note">在一个空间里分享所有人的作品</span>
           <select
             id="space-select"
-            value={spaceId}
+            value={spacesLoading ? "" : spaceId}
+            disabled={spacesLoading}
+            aria-busy={spacesLoading}
             onChange={(event) => {
               const nextValue = event.target.value;
               if (nextValue !== "__create_space__") {
@@ -182,11 +222,17 @@ export function UploadPage() {
               }
             }}
           >
-            <option value="">仅个人上传（不加入空间）</option>
-            <option value="__create_space__">+ 新建空间</option>
-            {spaces.filter((space) => new Date(space.expiresAt) > new Date()).map((space) => (
-              <option key={space.id} value={space.id}>{space.name}</option>
-            ))}
+            {spacesLoading ? (
+              <option value="">加载空间…</option>
+            ) : (
+              <>
+                <option value="">仅个人上传（不加入空间）</option>
+                <option value="__create_space__">+ 新建空间</option>
+                {spaces.filter((space) => new Date(space.expiresAt) > new Date()).map((space) => (
+                  <option key={space.id} value={space.id}>{space.name}</option>
+                ))}
+              </>
+            )}
           </select>
         </div>
       </div>
@@ -281,7 +327,11 @@ export function UploadPage() {
         open={createSpaceOpen}
         onClose={() => setCreateSpaceOpen(false)}
         onCreated={(space) => {
-          setSpaces((current) => [...current, space]);
+          setSpaces((current) => {
+            const next = [...current, space];
+            writeCachedSpaces(next);
+            return next;
+          });
           setSpaceId(space.id);
           setCreateSpaceOpen(false);
           if (searchParams.get("createSpace") === "1") {

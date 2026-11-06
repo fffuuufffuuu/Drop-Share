@@ -92,6 +92,14 @@ describe("authentication destinations", () => {
     },
   };
 
+  it("redirects unauthenticated visitors from the dashboard to login", async () => {
+    vi.spyOn(api, "get").mockImplementation(async (url) => (
+      { data: url === "/auth/config" ? { provider: "legacy" } : [] }
+    ) as any);
+    renderApp("/dashboard");
+    expect(await screen.findByRole("heading", { name: "账号密码登录" })).toBeInTheDocument();
+  });
+
   it("opens the uploader after login", async () => {
     localStorage.setItem("cloudbaseSession",JSON.stringify({refreshToken:"old-provider-refresh",expiresAt:0}));
     vi.spyOn(api, "post").mockResolvedValue({ data: authResponse });

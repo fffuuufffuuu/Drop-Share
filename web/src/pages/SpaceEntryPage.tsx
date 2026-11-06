@@ -28,6 +28,7 @@ type DeploymentItem = {
   ownerUserId: string | null;
   uploaderName: string;
   tagIds: string[];
+  visibility?: "visible" | "hidden";
 };
 
 type SpaceEntryData = {
@@ -49,7 +50,8 @@ export function SpaceEntryPage() {
   const [renameError, setRenameError] = useState("");
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const visibleDeployments = data?.deployments.filter((deployment) =>
-    !selectedTag || (deployment.tagIds ?? []).includes(selectedTag)) ?? [];
+    deployment.visibility !== "hidden"
+    && (!selectedTag || (deployment.tagIds ?? []).includes(selectedTag))) ?? [];
 
   const currentUser = getCurrentUser();
   const canManageSpace = !!data && !!currentUser && (currentUser.role === "ADMIN" || (data.space.canManage ?? currentUser.id === data.space.ownerUserId));

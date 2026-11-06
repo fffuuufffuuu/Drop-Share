@@ -376,3 +376,16 @@ it("lets delegated managers hide another contributor's work through the regular 
   await userEvent.click(screen.getByRole("button", { name: "隐藏他人的实验" }));
   expect(patch).toHaveBeenCalledWith("/deployments/d1", { visibility: "hidden" });
 });
+it("does not list hidden works if an older API still returns them", async () => {
+  vi.spyOn(api, "get").mockResolvedValue({ data: {
+    space: { id: "space-1", name: "作品空间", slug: "demo", expiresAt: "2099-01-01" },
+    tags: [],
+    deployments: [
+      { id: "d1", title: "公开作品", publicSlug: "public", visibility: "visible", tagIds: [], ownerUserId: null, uploaderName: "匿名" },
+      { id: "d2", title: "隐藏作品", publicSlug: "hidden", visibility: "hidden", tagIds: [], ownerUserId: null, uploaderName: "匿名" },
+    ],
+  } });
+  renderSpaceEntry();
+  expect(await screen.findByRole("heading", { name: "公开作品" })).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "隐藏作品" })).not.toBeInTheDocument();
+});
