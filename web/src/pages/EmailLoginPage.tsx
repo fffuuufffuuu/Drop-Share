@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, setAuthToken } from "../api";
 import { storeCloudbaseSession } from "../cloudbase-session";
 import type { AuthResponse } from "../types";
+import { getLoginDestination } from "../auth";
 
 export function EmailLoginPage({ method: initialMethod = "email" }: { method?: "sms" | "email" }) {
   const [method, setMethod] = useState<"sms" | "email" | "password">(initialMethod);
@@ -49,7 +50,7 @@ export function EmailLoginPage({ method: initialMethod = "email" }: { method?: "
         ? await api.post<AuthResponse>("/auth/password/login", { username: loginAccount, password, ...(captchaToken ? {captchaToken} : {}) })
         : await api.post<AuthResponse>(`/auth/${method}/verify`, { challenge, code, ...(mode === "link" ? { legacyUsername, legacyPassword } : requiresUsername && username ? { username } : {}) });
       storeCloudbaseSession(data); setAuthToken(data.token);
-      navigate(params.get("next") === "/upload?createSpace=1" ? "/upload?createSpace=1" : "/upload");
+      navigate(getLoginDestination(params.get("next")));
     } catch (error: any) {
       setMessage(error.response?.data?.message ?? "登录失败，请稍后重试");
       if (error.response?.data?.usernameRequired) setRequiresUsername(true);

@@ -1,3 +1,4 @@
+import { formatDateTime } from "../format-datetime";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
@@ -199,7 +200,7 @@ export function SpacePage() {
             }}>修改空间名称</button>}
           </div>
           <p className={`retention-note retention-note--user${isDeadlineNear(detail.expiresAt) ? " deadline-near" : ""}`}>
-            空间内作品统一于 {new Date(detail.expiresAt).toLocaleString()} 到期
+            空间内作品统一于 {formatDateTime(detail.expiresAt)} 到期
           </p>
           <div className="space-batch-upload">
             <div className="space-batch-actions">

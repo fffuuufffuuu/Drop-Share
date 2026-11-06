@@ -1,3 +1,4 @@
+import { formatDateTime } from "../format-datetime";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
@@ -33,6 +34,8 @@ export function DashboardPage() {
   const [personalWorks, setPersonalWorks] = useState<PersonalDeployment[]>([]);
   const [spaceWorks, setSpaceWorks] = useState<SpaceUploadDeployment[]>([]);
   const [spaces, setSpaces] = useState<Space[]>([]);
+  const [uploadsStatus, setUploadsStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [spacesStatus, setSpacesStatus] = useState<"loading" | "ready" | "error">("loading");
   const [createSpaceOpen, setCreateSpaceOpen] = useState(false);
   const [mergeSpaceOpen, setMergeSpaceOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<PersonalDeployment | SpaceUploadDeployment | null>(null);
@@ -46,9 +49,11 @@ export function DashboardPage() {
   const navigate = useNavigate();
 
   async function loadDeployments() {
+    setUploadsStatus("loading");
     const token = localStorage.getItem("token");
     if (!token) {
       setMessage("请先登录。");
+      setUploadsStatus("error");
       return;
     }
     setAuthToken(token);
@@ -64,23 +69,29 @@ export function DashboardPage() {
       );
       setPersonalWorks(personalData.filter(isAccessible));
       setSpaceWorks(spaceData.filter(isAccessible));
+      setUploadsStatus("ready");
     } catch (error: any) {
       setMessage(error.response?.data?.message || "加载我的上传失败");
+      setUploadsStatus("error");
     }
   }
 
   async function loadSpaces() {
+    setSpacesStatus("loading");
     const token = localStorage.getItem("token");
     if (!token) {
       setMessage("请先登录。");
+      setSpacesStatus("error");
       return;
     }
     setAuthToken(token);
     try {
       const { data } = await api.get<Space[]>("/spaces");
       setSpaces(data);
+      setSpacesStatus("ready");
     } catch (error: any) {
       setMessage(error.response?.data?.message || "加载空间失败");
+      setSpacesStatus("error");
     }
   }
 
@@ -228,9 +239,9 @@ export function DashboardPage() {
       tags={<span className={`work-visibility work-visibility-${deployment.visibility}`}>{deployment.visibility === "hidden" ? "已隐藏" : "显示中"}</span>}
       actions={workActions(deployment)}
       meta={"space" in deployment ? <div className="space-work-meta">
-        <span>到期时间：{new Date(deployment.expiresAt).toLocaleString()}</span>
+        <span>到期时间：{formatDateTime(deployment.expiresAt)}</span>
         <Link to={`/s/${deployment.space.slug}`}>{deployment.space.name}</Link>
-      </div> : `到期时间：${new Date(deployment.expiresAt).toLocaleString()}`}
+      </div> : `到期时间：${formatDateTime(deployment.expiresAt)}`}
       titleAction={<EditNameButton label={`重命名${deployment.title}`} onClick={() => openRename(deployment)} />}
     />
   );
@@ -284,7 +295,7 @@ export function DashboardPage() {
           <p className="hint">
             管理个人作品和上传到空间的作品，隐藏的作品也可以在这里重新显示。
           </p>
-          <div className="dashboard-upload-columns">
+          {uploadsStatus === "loading" ? <p role="status">正在加载作品…</p> : uploadsStatus === "ready" ? <div className="dashboard-upload-columns">
             <section
               className="dashboard-upload-column"
               aria-labelledby="dashboard-personal-works-title"
@@ -315,7 +326,7 @@ export function DashboardPage() {
               <h3 id="dashboard-hidden-work-title">未显示作品</h3>
               <WorkCardGrid>{hiddenWorks.map(renderWork)}</WorkCardGrid>
             </section>}
-          </div>
+          </div> : null}
         </div>
       )}
 
@@ -332,7 +343,7 @@ export function DashboardPage() {
                 disabled={spaces.filter((space) => space.isOwner !== false && getSpaceStatus(space) === "有效").length < 2}>合并空间</button>
             </div>
           </div>
-          {spaces.length === 0 ? (
+          {spacesStatus === "loading" ? <p role="status">正在加载空间…</p> : spacesStatus === "error" ? null : spaces.length === 0 ? (
             <p className="hint">还没有空间，点击“新建空间”开始创建。</p>
           ) : (
             <div className="admin-table-scroll">
@@ -365,7 +376,7 @@ export function DashboardPage() {
                         <td>/{space.slug}</td>
                         <td>{space.deploymentCount}</td>
                         <td><WorkViewCount count={space.viewCount} /></td>
-                        <td>{new Date(space.expiresAt).toLocaleString()}</td>
+                        <td>{formatDateTime(space.expiresAt)}</td>
                         <td>
                           <span
                             className={`dashboard-status dashboard-status-${

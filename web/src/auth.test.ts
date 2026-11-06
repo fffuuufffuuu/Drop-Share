@@ -2,7 +2,19 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { getCurrentUser } from "./auth";
+import { getCurrentUser, getLoginDestination } from "./auth";
+
+it.each([
+  ["/dashboard?tab=spaces#pending", "/dashboard?tab=spaces#pending"],
+  ["/upload?createSpace=1", "/upload?createSpace=1"],
+  [null, "/upload"],
+  ["https://outside.example/", "/upload"],
+  ["//outside.example/", "/upload"],
+  ["/\\outside.example/", "/upload"],
+  ["/\n/outside.example/", "/upload"],
+])("keeps login destinations inside the current site: %s", (next, expected) => {
+  expect(getLoginDestination(next)).toBe(expected);
+});
 
 describe("getCurrentUser", () => {
   afterEach(() => {

@@ -1,3 +1,4 @@
+import { formatDateTime } from "../format-datetime";
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { api } from "../api";
 import { getCurrentUser } from "../auth";
@@ -79,7 +80,7 @@ function CommentItem({ workId, comment, onUpdated, onDeleted }: { workId: string
     finally { setBusy(false); }
   }
   return <div className="work-comment">
-    <div><strong>{comment.authorName}</strong><time dateTime={comment.createdAt}>{new Date(comment.createdAt).toLocaleString()}</time></div>
+    <div><strong>{comment.authorName}</strong><time dateTime={comment.createdAt}>{formatDateTime(comment.createdAt)}</time></div>
     {editing ? <form onSubmit={event => void save(event)}>
       <textarea aria-label="编辑评论" autoFocus maxLength={1000} required value={content} disabled={busy} onChange={event => setContent(event.target.value)} />
       <div className="work-detail-form-actions"><button disabled={busy || !content.trim()}>保存评论</button><button type="button" disabled={busy} onClick={() => { setEditing(false); setError(""); }}>取消</button></div>

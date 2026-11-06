@@ -40,3 +40,20 @@ it("invalid folders and traversal attempts leave all live file references untouc
   expect(state.rootPath).toBe(originalRoot);expect(state.previousRootPath).toBeNull();
   expect(await fs.readFile(path.join(originalRoot,"index.html"),"utf8")).toBe("version A");
 });
+it("retains one previous personal version and lets its owner swap it without changing metadata",async()=>{
+  state.spaceId=null;state.space=null;
+  const metadata={...state};delete metadata.rootPath;delete metadata.previousRootPath;
+  const replaced=await replaceWorkFiles("work","uploader",upload("personal version B"));
+  expect(replaced.hasPreviousVersion).toBe(true);
+  expect(await fs.readFile(path.join(state.previousRootPath,"index.html"),"utf8")).toBe("version A");
+  const rootB=state.rootPath;
+  await expect(rollbackWorkFiles("work","stranger")).rejects.toMatchObject({status:403});
+  await rollbackWorkFiles("work","uploader");
+  expect(await fs.readFile(path.join(state.rootPath,"index.html"),"utf8")).toBe("version A");
+  expect(state.previousRootPath).toBe(rootB);
+  await rollbackWorkFiles("work","uploader");
+  expect(await fs.readFile(path.join(state.rootPath,"index.html"),"utf8")).toBe("personal version B");
+  await replaceWorkFiles("work","uploader",upload("personal version C"));
+  await expect(fs.access(originalRoot)).rejects.toThrow();
+  const after={...state};delete after.rootPath;delete after.previousRootPath;expect(after).toEqual(metadata);
+});

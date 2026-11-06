@@ -1,3 +1,4 @@
+import { formatDateTime } from "../format-datetime";
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
@@ -42,7 +43,7 @@ function errorMessage(error: unknown, fallback: string): string {
 }
 
 function formatDate(value: string): string {
-  return new Date(value).toLocaleString("zh-CN");
+  return formatDateTime(value);
 }
 
 function filenameFromDisposition(disposition: unknown, fallback: string): string {

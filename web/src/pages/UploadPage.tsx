@@ -1,3 +1,4 @@
+import { formatDateTime } from "../format-datetime";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
@@ -8,8 +9,10 @@ import { ProjectNameModal } from "../components/ProjectNameModal";
 import { UploadDropzone } from "../components/UploadDropzone";
 import type { PersonalDeployment, Space, SpaceUploadDeployment } from "../types";
 import { suggestProjectName, type UploadEntry } from "../uploader";
+import { CopyShareLinkButton } from "../components/CopyShareLinkButton";
 
 export function UploadPage() {
+  const isLoggedIn = getCurrentUser() !== null;
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [entries, setEntries] = useState<UploadEntry[]>([]);
@@ -17,6 +20,9 @@ export function UploadPage() {
   const [durationDays, setDurationDays] = useState(1);
   const [spaceId, setSpaceId] = useState("");
   const [spaces, setSpaces] = useState<Space[]>([]);
+  const [spacesStatus, setSpacesStatus] = useState<"loading" | "ready" | "error">(isLoggedIn ? "loading" : "ready");
+  const [spacesReload, setSpacesReload] = useState(0);
+  const [result, setResult] = useState<{ url: string; expiresAt: string } | null>(null);
   const [submittedCount, setSubmittedCount] = useState<number | null>(null);
   const [overviewError, setOverviewError] = useState("");
   const [createSpaceOpen, setCreateSpaceOpen] = useState(false);
@@ -24,7 +30,6 @@ export function UploadPage() {
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
   const [projectNameError, setProjectNameError] = useState("");
-  const isLoggedIn = getCurrentUser() !== null;
   const selectedSpace = spaces.find((space) => space.id === spaceId);
 
   async function loadSubmissionCount() {
@@ -42,20 +47,27 @@ export function UploadPage() {
 
   useEffect(() => {
     if (!isLoggedIn) {
+      setSpaces([]);
+      setSpaceId("");
+      setSpacesStatus("ready");
       return;
     }
-
+    let active = true;
+    setSpacesStatus("loading");
     setAuthToken(localStorage.getItem("token") ?? undefined);
     void api.get<Space[]>("/spaces")
-      .then(({ data }) => setSpaces(data))
+      .then(({ data }) => { if (active) { setSpaces(data); setSpacesStatus("ready"); } })
       .catch((error: any) => {
+        if (!active) return;
+        setSpacesStatus("error");
         setMessage(error.response?.data?.message || "空间列表加载失败");
       });
     void loadSubmissionCount();
     if (searchParams.get("createSpace") === "1") {
       setCreateSpaceOpen(true);
     }
-  }, [isLoggedIn, searchParams]);
+    return () => { active = false; };
+  }, [isLoggedIn, searchParams, spacesReload]);
 
   const hasIndex = useMemo(
     () =>
@@ -65,6 +77,7 @@ export function UploadPage() {
   );
 
   function openProjectNameModal() {
+    if (isLoggedIn && spacesStatus !== "ready") return;
     if (!entries.length) {
       setMessage("请先选择文件。");
       return;
@@ -100,10 +113,12 @@ export function UploadPage() {
     }
 
     try {
+      setMessage("");
+      setResult(null);
       const url = isLoggedIn ? "/deployments" : "/deployments/anonymous";
       const { data } = await api.post(url, formData);
       setProjectNameOpen(false);
-      setMessage(`部署成功：${data.url}（到期：${new Date(data.expiresAt).toLocaleString()}）`);
+      setResult({ url: data.url, expiresAt: data.expiresAt });
       if (isLoggedIn) void loadSubmissionCount();
     } catch (error: any) {
       setProjectNameError(error.response?.data?.message || "部署失败");
@@ -116,7 +131,7 @@ export function UploadPage() {
       <p className="hint">支持单个 HTML 文件或整个文件夹，自动生成临时访问链接。</p>
       <UploadDropzone
         entries={entries}
-        onEntriesChange={setEntries}
+        onEntriesChange={next => { setEntries(next); setResult(null); }}
         onError={setMessage}
       />
 
@@ -133,7 +148,7 @@ export function UploadPage() {
             <>
               <span className="upload-setting-label">空间到期时间</span>
               <span className="retention-note retention-note--user">
-                空间内作品跟随空间到期：{new Date(selectedSpace.expiresAt).toLocaleString()}
+                空间内作品跟随空间到期：{formatDateTime(selectedSpace.expiresAt)}
               </span>
             </>
           ) : (
@@ -163,6 +178,8 @@ export function UploadPage() {
           <select
             id="space-select"
             value={spaceId}
+            disabled={isLoggedIn && spacesStatus !== "ready"}
+            aria-busy={spacesStatus === "loading"}
             onChange={(event) => {
               const nextValue = event.target.value;
               if (nextValue !== "__create_space__") {
@@ -176,18 +193,21 @@ export function UploadPage() {
               }
             }}
           >
+            {spacesStatus !== "ready" ? <option value="">{spacesStatus === "loading" ? "加载空间…" : "空间加载失败"}</option> : <>
             <option value="">仅个人上传（不加入空间）</option>
             <option value="__create_space__">+ 新建空间</option>
             {spaces.filter((space) => new Date(space.expiresAt) > new Date()).map((space) => (
               <option key={space.id} value={space.id}>{space.name}</option>
             ))}
+            </>}
           </select>
+          {spacesStatus === "error" && <button type="button" onClick={() => { setMessage(""); setSpacesReload(value => value + 1); }}>重新加载空间</button>}
         </div>
       </div>
 
       <div className="row">
         {isLoggedIn ? (
-          <button type="button" onClick={openProjectNameModal}>
+          <button type="button" disabled={spacesStatus !== "ready"} onClick={openProjectNameModal}>
             部署
           </button>
         ) : (
@@ -201,6 +221,14 @@ export function UploadPage() {
       </div>
 
       {message && <pre className="message">{message}</pre>}
+      {result && <section className="upload-result" aria-label="部署成功" aria-live="polite">
+        <strong>部署成功</strong>
+        <div className="upload-result-link">
+          <a href={result.url} target="_blank" rel="noreferrer">{result.url}</a>
+          <CopyShareLinkButton key={result.url} title="部署链接" href={result.url} />
+        </div>
+        <p>到期：{formatDateTime(result.expiresAt)}</p>
+      </section>}
       {isLoggedIn && (
         <section className="upload-overview" aria-labelledby="upload-overview-title">
           <div className="upload-overview-summary">
@@ -212,7 +240,7 @@ export function UploadPage() {
             <Link className="button-link" to="/dashboard">我的作品</Link>
           </div>
           <h4>我创建的空间</h4>
-          {spaces.length === 0 ? (
+          {spacesStatus === "loading" ? <p role="status">正在加载空间…</p> : spacesStatus === "error" ? null : spaces.length === 0 ? (
             <p className="hint">还没有创建空间。</p>
           ) : (
             <ul className="upload-space-list">

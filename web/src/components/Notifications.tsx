@@ -1,3 +1,4 @@
+import { formatDateTime } from "../format-datetime";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
@@ -77,7 +78,7 @@ export function NotificationsPanel() {
     {loaded && !items.length && <p className="empty-state">还没有消息</p>}
     <ul className="notification-list">{items.map(item => <li key={item.id} data-unread={!item.readAt}>
       <div className="notification-heading"><h3>{item.title}</h3>{!item.readAt && <span className="notification-unread-label">未读</span>}</div>
-      <p>{item.content}</p><div className="notification-footer"><time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString()}</time>
+      <p>{item.content}</p><div className="notification-footer"><time dateTime={item.createdAt}>{formatDateTime(item.createdAt)}</time>
         <div><Link to={item.href} onClick={event => { if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); void markRead(item, true); } }}>{item.kind === "space_admin" ? "进入空间" : "查看作品和评论"}</Link>
           {!item.readAt && <button type="button" disabled={busy} onClick={() => void markRead(item)}>标为已读</button>}</div>
       </div>

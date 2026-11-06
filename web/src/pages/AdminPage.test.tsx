@@ -1,3 +1,4 @@
+import { formatDateTime } from "../format-datetime";
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
@@ -175,7 +176,7 @@ describe("AdminPage", () => {
       expect(button.querySelector("svg")).toBeInTheDocument();
     }
     expect(screen.getByText(
-      `空间内作品统一于 ${new Date(spaceDetail.expiresAt).toLocaleString("zh-CN")} 到期`,
+      `空间内作品统一于 ${formatDateTime(spaceDetail.expiresAt)} 到期`,
     )).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "到期时间" })).not.toBeInTheDocument();
     const worksPanel = screen.getByRole("region", { name: "空间作品列表" });

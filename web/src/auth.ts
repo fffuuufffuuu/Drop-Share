@@ -6,6 +6,14 @@ export function notifyAuthChanged(): void {
   window.dispatchEvent(new Event(authChangedEvent));
 }
 
+export function getLoginDestination(next: string | null): string {
+  if (!next?.startsWith("/") || next.startsWith("//") || next.includes("\\")) return "/upload";
+  try {
+    const url = new URL(next, window.location.origin);
+    return url.origin === window.location.origin ? `${url.pathname}${url.search}${url.hash}` : "/upload";
+  } catch { return "/upload"; }
+}
+
 export function getCurrentUser(): CurrentUser | null {
   const stored = localStorage.getItem("user");
   if (!stored) {

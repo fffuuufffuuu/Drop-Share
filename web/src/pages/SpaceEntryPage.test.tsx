@@ -7,7 +7,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../api";
-const formatLocaleDateTime = (value: string) => new Date(value).toLocaleString();
+import { formatDateTime as formatLocaleDateTime } from "../format-datetime";
 import { SpaceEntryPage } from "./SpaceEntryPage";
 
 vi.mock("../components/WorkDiscussion", () => ({ WorkDiscussion: () => null }));

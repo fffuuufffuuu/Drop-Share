@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { authChangedEvent, getCurrentUser } from "./auth";
@@ -40,6 +40,15 @@ function AccountRedirect() {
   return <Navigate replace to={{ pathname: "/dashboard", search: `?${params}`, hash: location.hash }} />;
 }
 
+function RequireAuth({ children }: { children: ReactNode }) {
+  const location = useLocation();
+  if (!getCurrentUser() || !localStorage.getItem("token")) {
+    const next = `${location.pathname}${location.search}${location.hash}`;
+    return <Navigate replace to={`/login?next=${encodeURIComponent(next)}`} />;
+  }
+  return children;
+}
+
 function SiteFooter() {
   return (
     <footer className="site-footer">
@@ -77,7 +86,7 @@ export default function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/upload" element={<UploadPage />} />
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/dashboard" element={<RequireAuth><DashboardPage /></RequireAuth>} />
           <Route path="/account" element={<AccountRedirect />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/spaces/:spaceId" element={<SpacePage />} />

@@ -78,8 +78,11 @@ export function UploadDropzone({
         </label>
       </div>
       <p className="upload-selection-status" aria-live="polite">
-        已选 {entries.length} 个文件
+        {entries.length === 1 ? `已选 ${entries[0].path}` : `已选 ${entries.length} 个文件`}
       </p>
+      {entries.length > 1 && <ul className="upload-selected-files" aria-label="已选择的文件">
+        {entries.map((entry, index) => <li key={`${index}:${entry.path}`}>{entry.path}</li>)}
+      </ul>}
     </section>
   );
 }

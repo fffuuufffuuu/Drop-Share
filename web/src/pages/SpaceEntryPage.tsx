@@ -1,3 +1,4 @@
+import { formatDateTime } from "../format-datetime";
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
@@ -260,7 +261,7 @@ export function SpaceEntryPage() {
         <div className="space-view-summary"><span>空间访问次数</span><WorkViewCount count={data.space.viewCount} /></div>
         <div className="space-entry-deadline-row">
           <p className={`space-entry-expiration${isDeadlineNear(data.space.expiresAt) ? " deadline-near" : ""}`}>
-            空间内作品统一于 {new Date(data.space.expiresAt).toLocaleString()} 到期
+            空间内作品统一于 {formatDateTime(data.space.expiresAt)} 到期
           </p>
           {canManageSpace && <Link className="space-entry-manage-link"
             to={currentUser?.role === "ADMIN" ? `/admin?spaceId=${encodeURIComponent(data.space.id)}` : `/spaces/${data.space.id}`}>

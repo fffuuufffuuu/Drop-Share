@@ -25,6 +25,8 @@ function renderApp(initialEntry = "/login") {
 
 describe("homepage and account navigation", () => {
   it("redirects old account binding links to the dashboard account tab", async () => {
+    localStorage.setItem("token", "test-token");
+    localStorage.setItem("user", JSON.stringify({ id: "member", username: "member", role: "USER" }));
     vi.spyOn(api, "get").mockImplementation(async url => ({ data: url === "/auth/account" ? { username: "member", loginUsername: "login_name", phone: "", email: "teacher@example.com" } : url === "/notifications" ? { notifications: [], next: null } : [] }));
     renderApp("/account?bind=phone#account-binding");
     expect(await screen.findByRole("tab", { name: "账号设置" })).toHaveAttribute("aria-selected", "true");

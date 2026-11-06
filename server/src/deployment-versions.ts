@@ -38,9 +38,9 @@ async function commitRoots(snapshot:Awaited<ReturnType<typeof loadWork>>,userId:
     await tx.$queryRaw(Prisma.sql`SELECT id FROM Deployment WHERE id = ${snapshot.id} FOR UPDATE`);
     const current=await loadWork(snapshot.id,userId,rollback,tx);
     if(current.rootPath!==snapshot.rootPath||current.previousRootPath!==snapshot.previousRootPath||current.spaceId!==snapshot.spaceId)throw new VersionError(409,"作品已发生变化，请刷新后重试");
-    const changed=await tx.deployment.updateMany({where:{id:current.id,rootPath:snapshot.rootPath,previousRootPath:snapshot.previousRootPath,spaceId:snapshot.spaceId,deletedAt:null},data:{rootPath:newRoot,previousRootPath:current.spaceId?current.rootPath:null}});
+    const changed=await tx.deployment.updateMany({where:{id:current.id,rootPath:snapshot.rootPath,previousRootPath:snapshot.previousRootPath,spaceId:snapshot.spaceId,deletedAt:null},data:{rootPath:newRoot,previousRootPath:current.rootPath}});
     if(changed.count!==1)throw new VersionError(409,"作品已发生变化，请刷新后重试");
-    return {id:current.id,publicSlug:current.publicSlug,hasPreviousVersion:!!current.spaceId};
+    return {id:current.id,publicSlug:current.publicSlug,hasPreviousVersion:true};
   });
 }
 async function cleanupUnused(root:string|null|undefined){
@@ -57,7 +57,7 @@ export async function replaceWorkFiles(id:string,userId:string,items:UploadItem[
     stagedRoot=await saveDeploymentFiles(relative,items);
     result=await commitRoots(snapshot,userId,stagedRoot,false);
   }catch(error){await cleanupUnused(stagedRoot);throw error;}
-  await cleanupUnused(snapshot.spaceId?snapshot.previousRootPath:snapshot.rootPath);
+  await cleanupUnused(snapshot.previousRootPath);
   scheduleThumbnail(result.publicSlug);
   return result;
 }
