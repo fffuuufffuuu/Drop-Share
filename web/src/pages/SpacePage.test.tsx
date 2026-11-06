@@ -7,7 +7,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../api";
-import { formatLocaleDateTime } from "../format-datetime";
+const formatLocaleDateTime = (value: string) => new Date(value).toLocaleString();
 import { SpacePage } from "./SpacePage";
 
 beforeEach(() => {

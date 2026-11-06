@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { WorkViewCount } from "../components/WorkViewCount";
 import { api, setAuthToken, logoutSession } from "../api";
@@ -10,20 +10,26 @@ import { EditSpaceModal } from "../components/EditSpaceModal";
 import { ProjectNameModal } from "../components/ProjectNameModal";
 import { MergeSpacesModal } from "../components/MergeSpacesModal";
 import { WorkVersionActions } from "../components/WorkVersionActions";
+import { WorkCardGrid } from "../components/WorkCardGrid";
 import { WorkPreviewCard } from "../components/WorkPreviewCard";
 import { WorkActionIcon } from "../components/WorkActionIcon";
 import { downloadZip } from "../download";
 import type { PersonalDeployment, Space, SpaceUploadDeployment } from "../types";
-import { formatLocaleDateTime } from "../format-datetime";
+import { AccountSettings } from "../components/AccountSettings";
+import { NotificationsPanel, UnreadDot, useNotifications } from "../components/Notifications";
 
-type DashboardPanel = "uploads" | "spaces";
+type DashboardPanel = "uploads" | "spaces" | "messages" | "account";
 
 export function getSpaceStatus(space: Space, now = new Date()): "有效" | "已过期" {
   return new Date(space.expiresAt) > now ? "有效" : "已过期";
 }
 
 export function DashboardPage() {
-  const [activePanel, setActivePanel] = useState<DashboardPanel>("uploads");
+  const [params, setParams] = useSearchParams();
+  const activePanel: DashboardPanel = params.get("tab") === "account" ? "account" : params.get("tab") === "messages" ? "messages" : params.get("tab") === "spaces" ? "spaces" : "uploads";
+  const requestedWork = params.get("work");
+  const { unreadCount } = useNotifications();
+  const setActivePanel = (panel: DashboardPanel) => setParams(panel === "uploads" ? {} : { tab: panel });
   const [personalWorks, setPersonalWorks] = useState<PersonalDeployment[]>([]);
   const [spaceWorks, setSpaceWorks] = useState<SpaceUploadDeployment[]>([]);
   const [spaces, setSpaces] = useState<Space[]>([]);
@@ -36,19 +42,16 @@ export function DashboardPage() {
   const [spaceName, setSpaceName] = useState("");
   const [spaceError, setSpaceError] = useState("");
   const [message, setMessage] = useState("");
-  const [uploadsLoading, setUploadsLoading] = useState(true);
   const [busyWorkId, setBusyWorkId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   async function loadDeployments() {
     const token = localStorage.getItem("token");
     if (!token) {
-      setUploadsLoading(false);
       setMessage("请先登录。");
       return;
     }
     setAuthToken(token);
-    setUploadsLoading(true);
     try {
       const [{ data: personalData }, { data: spaceData }] = await Promise.all([
         api.get<PersonalDeployment[]>("/deployments"),
@@ -63,8 +66,6 @@ export function DashboardPage() {
       setSpaceWorks(spaceData.filter(isAccessible));
     } catch (error: any) {
       setMessage(error.response?.data?.message || "加载我的上传失败");
-    } finally {
-      setUploadsLoading(false);
     }
   }
 
@@ -87,7 +88,7 @@ export function DashboardPage() {
     setMessage("");
     if (activePanel === "uploads") {
       void loadDeployments();
-    } else {
+    } else if (activePanel === "spaces") {
       void loadSpaces();
     }
   }, [activePanel]);
@@ -211,6 +212,29 @@ export function DashboardPage() {
     }
   }
 
+  const hiddenWorks = [...personalWorks, ...spaceWorks].filter(work => work.visibility === "hidden");
+  const renderWork = (deployment: PersonalDeployment | SpaceUploadDeployment) => (
+    <WorkPreviewCard
+      key={deployment.id}
+      workId={deployment.id}
+      title={deployment.title}
+      publicSlug={deployment.publicSlug}
+      thumbnailVersion={deployment.thumbnailVersion}
+      viewCount={deployment.viewCount}
+      uploaderName={getCurrentUser()?.username}
+      cardLink
+      hidden={deployment.visibility === "hidden"}
+      focusRequested={requestedWork === deployment.id}
+      tags={<span className={`work-visibility work-visibility-${deployment.visibility}`}>{deployment.visibility === "hidden" ? "已隐藏" : "显示中"}</span>}
+      actions={workActions(deployment)}
+      meta={"space" in deployment ? <div className="space-work-meta">
+        <span>到期时间：{new Date(deployment.expiresAt).toLocaleString()}</span>
+        <Link to={`/s/${deployment.space.slug}`}>{deployment.space.name}</Link>
+      </div> : `到期时间：${new Date(deployment.expiresAt).toLocaleString()}`}
+      titleAction={<EditNameButton label={`重命名${deployment.title}`} onClick={() => openRename(deployment)} />}
+    />
+  );
+
   return (
     <section className="card dashboard-shell">
       <header className="dashboard-header">
@@ -219,7 +243,6 @@ export function DashboardPage() {
           <h2>{getCurrentUser()?.username ?? "当前用户"}</h2>
         </div>
         <div className="dashboard-header-actions">
-          <Link to="/account">账号设置</Link>
           {getCurrentUser()?.role === "ADMIN" && (
             <Link to="/admin">管理后台</Link>
           )}
@@ -230,6 +253,7 @@ export function DashboardPage() {
       <div className="dashboard-tabs" role="tablist" aria-label="控制台板块">
         <button
           type="button"
+          role="tab" aria-selected={activePanel === "uploads"}
           className={activePanel === "uploads" ? "dashboard-tab-active" : ""}
           onClick={() => setActivePanel("uploads")}
         >
@@ -237,14 +261,22 @@ export function DashboardPage() {
         </button>
         <button
           type="button"
+          role="tab" aria-selected={activePanel === "spaces"}
           className={activePanel === "spaces" ? "dashboard-tab-active" : ""}
           onClick={() => setActivePanel("spaces")}
         >
           空间管理
         </button>
+        <button type="button" role="tab" aria-selected={activePanel === "messages"}
+          className={activePanel === "messages" ? "dashboard-tab-active" : ""} onClick={() => setActivePanel("messages")}
+          title={unreadCount ? `${unreadCount} 条未读消息` : undefined}><span className="dashboard-message-tab-label">消息<UnreadDot count={unreadCount} /></span></button>
+        <button type="button" role="tab" aria-selected={activePanel === "account"}
+          className={activePanel === "account" ? "dashboard-tab-active" : ""} onClick={() => setActivePanel("account")}>账号设置</button>
       </div>
 
       {message && <p className="message dashboard-message">{message}</p>}
+      {activePanel === "messages" && <NotificationsPanel />}
+      {activePanel === "account" && <AccountSettings />}
 
       {activePanel === "uploads" && (
         <div className="dashboard-panel">
@@ -258,28 +290,12 @@ export function DashboardPage() {
               aria-labelledby="dashboard-personal-works-title"
             >
               <h3 id="dashboard-personal-works-title">个人作品</h3>
-              {uploadsLoading ? (
-                <p className="dashboard-loading" role="status">正在加载作品…</p>
-              ) : personalWorks.length === 0 ? (
+              {personalWorks.filter(work => work.visibility !== "hidden").length === 0 ? (
                 <p className="empty-state">你还没有可访问的个人作品。</p>
               ) : (
-                <div className="work-card-grid">
-                  {personalWorks.map((deployment) => (
-                    <WorkPreviewCard
-                      key={deployment.id}
-                      workId={deployment.id}
-                      title={deployment.title}
-                      publicSlug={deployment.publicSlug}
-                      viewCount={deployment.viewCount}
-                      cardLink
-                      hidden={deployment.visibility === "hidden"}
-                      tags={<span className={`work-visibility work-visibility-${deployment.visibility}`}>{deployment.visibility === "hidden" ? "已隐藏" : "显示中"}</span>}
-                      actions={workActions(deployment)}
-                      meta={`到期时间：${formatLocaleDateTime(deployment.expiresAt)}`}
-                      titleAction={<EditNameButton label={`重命名${deployment.title}`} onClick={() => openRename(deployment)} />}
-                    />
-                  ))}
-                </div>
+                <WorkCardGrid>
+                  {personalWorks.filter(work => work.visibility !== "hidden").map(renderWork)}
+                </WorkCardGrid>
               )}
             </section>
             <section
@@ -287,37 +303,18 @@ export function DashboardPage() {
               aria-labelledby="dashboard-space-works-title"
             >
               <h3 id="dashboard-space-works-title">在空间里上传的作品</h3>
-              {uploadsLoading ? (
-                <p className="dashboard-loading" role="status">正在加载作品…</p>
-              ) : spaceWorks.length === 0 ? (
+              {spaceWorks.filter(work => work.visibility !== "hidden").length === 0 ? (
                 <p className="empty-state">你还没有上传到空间的可访问作品。</p>
               ) : (
-                <div className="work-card-grid">
-                  {spaceWorks.map((deployment) => (
-                    <WorkPreviewCard
-                      key={deployment.id}
-                      workId={deployment.id}
-                      title={deployment.title}
-                      publicSlug={deployment.publicSlug}
-                      viewCount={deployment.viewCount}
-                      cardLink
-                      hidden={deployment.visibility === "hidden"}
-                      tags={<span className={`work-visibility work-visibility-${deployment.visibility}`}>{deployment.visibility === "hidden" ? "已隐藏" : "显示中"}</span>}
-                      actions={workActions(deployment)}
-                      titleAction={<EditNameButton label={`重命名${deployment.title}`} onClick={() => openRename(deployment)} />}
-                      meta={(
-                        <div className="space-work-meta">
-                          <span>到期时间：{formatLocaleDateTime(deployment.expiresAt)}</span>
-                          <Link to={`/s/${deployment.space.slug}`}>
-                            {deployment.space.name}
-                          </Link>
-                        </div>
-                      )}
-                    />
-                  ))}
-                </div>
+                <WorkCardGrid>
+                  {spaceWorks.filter(work => work.visibility !== "hidden").map(renderWork)}
+                </WorkCardGrid>
               )}
             </section>
+            {hiddenWorks.length > 0 && <section className="dashboard-upload-column hidden-work-section" aria-labelledby="dashboard-hidden-work-title">
+              <h3 id="dashboard-hidden-work-title">未显示作品</h3>
+              <WorkCardGrid>{hiddenWorks.map(renderWork)}</WorkCardGrid>
+            </section>}
           </div>
         </div>
       )}
@@ -368,7 +365,7 @@ export function DashboardPage() {
                         <td>/{space.slug}</td>
                         <td>{space.deploymentCount}</td>
                         <td><WorkViewCount count={space.viewCount} /></td>
-                        <td>{formatLocaleDateTime(space.expiresAt)}</td>
+                        <td>{new Date(space.expiresAt).toLocaleString()}</td>
                         <td>
                           <span
                             className={`dashboard-status dashboard-status-${

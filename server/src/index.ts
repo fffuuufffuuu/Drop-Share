@@ -1,3 +1,4 @@
+import { startThumbnailPreparation } from "./thumbnail-service";
 import cors from "cors";
 import express from "express";
 import rateLimit from "express-rate-limit";
@@ -13,6 +14,9 @@ import { deploymentRouter } from "./routes.deployments";
 import { previewRouter } from "./routes.preview";
 import { spaceRouter } from "./routes.spaces";
 import { ensureStorageRoot } from "./storage";
+import { workDiscussionRouter } from "./work-discussion";
+import { thumbnailRouter } from "./routes.thumbnails";
+import { notificationRouter } from "./notifications";
 
 function getAllowedOrigin(): string | string[] | true {
   try {
@@ -37,7 +41,7 @@ async function bootstrap(): Promise<void> {
   app.use(
     cors({
       origin: getAllowedOrigin(),
-      methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization"],
     }),
   );
@@ -66,7 +70,10 @@ async function bootstrap(): Promise<void> {
   app.use("/api/auth", authRouter);
   app.use("/api/admin", adminRouter);
   app.use("/api/deployments", deploymentRouter);
+  app.use("/api/deployments", workDiscussionRouter);
   app.use("/api/spaces", spaceRouter);
+  app.use("/api/previews", thumbnailRouter);
+  app.use("/api/notifications", notificationRouter);
 
   app.use(previewRouter);
 
@@ -75,6 +82,7 @@ async function bootstrap(): Promise<void> {
   app.listen(config.port, () => {
     // eslint-disable-next-line no-console
     console.log(`Server running at ${config.baseUrl}`);
+    startThumbnailPreparation();
   });
 }
 

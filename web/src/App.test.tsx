@@ -24,6 +24,24 @@ function renderApp(initialEntry = "/login") {
 }
 
 describe("homepage and account navigation", () => {
+  it("redirects old account binding links to the dashboard account tab", async () => {
+    vi.spyOn(api, "get").mockImplementation(async url => ({ data: url === "/auth/account" ? { username: "member", loginUsername: "login_name", phone: "", email: "teacher@example.com" } : url === "/notifications" ? { notifications: [], next: null } : [] }));
+    renderApp("/account?bind=phone#account-binding");
+    expect(await screen.findByRole("tab", { name: "账号设置" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByText("login_name")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "返回我的" })).not.toBeInTheDocument();
+  });
+  it("places an icon theme switch before upload and remembers the selected theme", async () => {
+    localStorage.setItem("drop-share:theme", "light"); renderApp("/");
+    const button = screen.getByRole("button", { name: "切换到夜间模式" });
+    expect(button.textContent).toBe("");
+    expect(button.nextElementSibling).toHaveAttribute("href", "/upload");
+    await userEvent.click(button);
+    expect(document.documentElement).toHaveAttribute("data-theme", "dark");
+    expect(localStorage.getItem("drop-share:theme")).toBe("dark");
+    await userEvent.click(screen.getByRole("button", { name: "切换到明亮模式" }));
+    expect(document.documentElement).toHaveAttribute("data-theme", "light");
+  });
   it("uses the landing page at root and keeps the uploader at /upload", () => {
     renderApp("/");
 
@@ -56,7 +74,7 @@ describe("homepage and account navigation", () => {
     renderApp("/");
 
     const navigation = within(screen.getByRole("navigation"));
-    expect(navigation.getByRole("link", { name: "我的作品" })).toHaveAttribute(
+    expect(navigation.getByRole("link", { name: "我的" })).toHaveAttribute(
       "href",
       "/dashboard",
     );
@@ -91,14 +109,6 @@ describe("authentication destinations", () => {
       createdAt: "2026-07-29T01:00:00.000Z",
     },
   };
-
-  it("redirects unauthenticated visitors from the dashboard to login", async () => {
-    vi.spyOn(api, "get").mockImplementation(async (url) => (
-      { data: url === "/auth/config" ? { provider: "legacy" } : [] }
-    ) as any);
-    renderApp("/dashboard");
-    expect(await screen.findByRole("heading", { name: "账号密码登录" })).toBeInTheDocument();
-  });
 
   it("opens the uploader after login", async () => {
     localStorage.setItem("cloudbaseSession",JSON.stringify({refreshToken:"old-provider-refresh",expiresAt:0}));
@@ -203,7 +213,7 @@ describe("administrator navigation", () => {
     const loginButtons = screen.getAllByRole("button", { name: "登录" });
     await user.click(loginButtons[loginButtons.length - 1]);
 
-    await user.click(await within(screen.getByRole("navigation")).findByRole("link", { name: "我的作品" }));
+    await user.click(await within(screen.getByRole("navigation")).findByRole("link", { name: "我的" }));
     await waitFor(() => {
       expect(within(screen.getByRole("main")).getByRole("link", { name: "管理后台" }))
         .toHaveAttribute("href", "/admin");

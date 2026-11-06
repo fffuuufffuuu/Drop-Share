@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { collectDroppedEntries, collectUploadEntries, formatUploadSelectionSummary, suggestProjectName } from "./uploader";
+import { collectDroppedEntries, collectUploadEntries, suggestProjectName } from "./uploader";
 
 function asFileList(files: File[]): FileList {
   return {
@@ -99,31 +99,5 @@ describe("upload entry collection", () => {
     await expect(collectDroppedEntries(dataTransfer)).resolves.toEqual([
       { file, path: "index.html" },
     ]);
-  });
-});
-
-describe("formatUploadSelectionSummary", () => {
-  it("names a single file, a folder, and multiple selections", () => {
-    const html = new File(["html"], "index.html", { type: "text/html" });
-    const css = new File(["css"], "app.css", { type: "text/css" });
-    const folderFile = new File(["html"], "index.html", { type: "text/html" });
-    Object.defineProperty(folderFile, "webkitRelativePath", { value: "Physics Lab/index.html" });
-    const folderEntries = collectUploadEntries(asFileList([folderFile]));
-
-    expect(formatUploadSelectionSummary([])).toBe("已选 0 个文件");
-    expect(formatUploadSelectionSummary([{ file: html, path: "index.html" }]))
-      .toBe("已选 index.html");
-    expect(formatUploadSelectionSummary(folderEntries))
-      .toBe("已选文件夹「Physics Lab」，共 1 个文件");
-    expect(formatUploadSelectionSummary([
-      { file: html, path: "index.html" },
-      { file: css, path: "app.css" },
-    ])).toBe("已选 index.html、app.css（共 2 个文件）");
-    expect(formatUploadSelectionSummary([
-      { file: new File(["a"], "a.html"), path: "a.html" },
-      { file: new File(["b"], "b.html"), path: "b.html" },
-      { file: new File(["c"], "c.html"), path: "c.html" },
-      { file: new File(["d"], "d.html"), path: "d.html" },
-    ])).toBe("已选 a.html、b.html、c.html 等共 4 个文件");
   });
 });

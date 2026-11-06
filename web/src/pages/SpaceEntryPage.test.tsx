@@ -7,8 +7,10 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../api";
-import { formatLocaleDateTime } from "../format-datetime";
+const formatLocaleDateTime = (value: string) => new Date(value).toLocaleString();
 import { SpaceEntryPage } from "./SpaceEntryPage";
+
+vi.mock("../components/WorkDiscussion", () => ({ WorkDiscussion: () => null }));
 
 afterEach(() => {
   cleanup();
@@ -190,12 +192,13 @@ describe("SpaceEntryPage upload selection", () => {
       .toHaveClass("space-entry-title");
     expect(screen.getByRole("heading", { name: "我的作品" })).toBeInTheDocument();
     expect(screen.getByText("上传者：member")).toBeInTheDocument();
+    expect(screen.queryByTitle("我的作品预览")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "展开我的作品" }));
     expect(screen.getByTitle("我的作品预览")).toHaveAttribute(
       "sandbox",
       "allow-scripts allow-same-origin",
     );
-    expect(screen.getByRole("link", { name: "打开我的作品" }))
-      .toHaveClass("work-preview-open-overlay");
+    expect(screen.getByRole("link", { name: "打开我的作品的预览" })).toHaveAttribute("href", "/p/my-work/");
     expect(screen.queryByText("打开作品")).not.toBeInTheDocument();
     await userEvent.hover(screen.getByRole("heading", { name: "我的作品" }).closest("article")!);
     expect(screen.queryByRole("button", { name: "隐藏我的作品" })).not.toBeInTheDocument();
@@ -232,7 +235,7 @@ describe("SpaceEntryPage upload selection", () => {
     const card = (await screen.findByRole("heading", { name: "我的作品" }))
       .closest("article")!;
     await userEvent.hover(card);
-    expect(within(card).getByRole("link", { name: "打开我的作品" }))
+    expect(within(card).getByRole("button", { name: "展开我的作品" }))
       .toHaveClass("work-preview-open-overlay");
     expect(within(card).getByRole("button", { name: "隐藏我的作品" })).toBeInTheDocument();
     expect(within(card).getByRole("button", { name: "删除我的作品" })).toBeInTheDocument();
@@ -281,7 +284,7 @@ describe("SpaceEntryPage upload selection", () => {
     expect(await screen.findByRole("button", { name: "重命名学生作品" })).toBeInTheDocument();
   });
 
-  it("removes a hidden work from the administrator space entry", async () => {
+  it("moves a hidden work into the manageable hidden section", async () => {
     localStorage.setItem("token", "admin-token");
     localStorage.setItem("user", JSON.stringify({
       id: "admin-1",
@@ -316,7 +319,9 @@ describe("SpaceEntryPage upload selection", () => {
       "/admin/deployments/d1",
       { visibility: "hidden" },
     );
-    expect(screen.queryByRole("heading", { name: "待隐藏作品" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "待隐藏作品" })).toBeInTheDocument();
+    expect(await screen.findByText("作品已隐藏")).toBeInTheDocument();
+    expect(screen.queryByTitle("待隐藏作品预览")).not.toBeInTheDocument();
   });
 
   it("confirms before permanently deleting a work as administrator", async () => {
@@ -375,17 +380,4 @@ it("lets delegated managers hide another contributor's work through the regular 
   expect(screen.getByRole("button", { name: "退回他人的实验上一版" })).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "隐藏他人的实验" }));
   expect(patch).toHaveBeenCalledWith("/deployments/d1", { visibility: "hidden" });
-});
-it("does not list hidden works if an older API still returns them", async () => {
-  vi.spyOn(api, "get").mockResolvedValue({ data: {
-    space: { id: "space-1", name: "作品空间", slug: "demo", expiresAt: "2099-01-01" },
-    tags: [],
-    deployments: [
-      { id: "d1", title: "公开作品", publicSlug: "public", visibility: "visible", tagIds: [], ownerUserId: null, uploaderName: "匿名" },
-      { id: "d2", title: "隐藏作品", publicSlug: "hidden", visibility: "hidden", tagIds: [], ownerUserId: null, uploaderName: "匿名" },
-    ],
-  } });
-  renderSpaceEntry();
-  expect(await screen.findByRole("heading", { name: "公开作品" })).toBeInTheDocument();
-  expect(screen.queryByRole("heading", { name: "隐藏作品" })).not.toBeInTheDocument();
 });

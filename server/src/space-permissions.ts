@@ -18,6 +18,5 @@ export async function workCapabilities(work:{ownerUserId:string|null;space?:Mana
   if(!userId||work.deletedAt||(expiry&&isExpired(expiry)))return {canUpdate:false,canRollback:false,hasPreviousVersion};
   const manager=known?.spaceManager??(work.space?await canManageSpace(work.space,userId,db):false);
   const canUpdate=work.ownerUserId===userId||manager||(known?.siteAdministrator??await isSiteAdministrator(userId,db));
-  const personalOwner=!work.spaceId&&work.ownerUserId===userId;
-  return {canUpdate,canRollback:hasPreviousVersion&&(manager||personalOwner),hasPreviousVersion};
+  return {canUpdate,canRollback:manager&&hasPreviousVersion,hasPreviousVersion};
 }

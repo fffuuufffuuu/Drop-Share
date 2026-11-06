@@ -1,4 +1,4 @@
-import { Visibility } from "@prisma/client";
+import { scheduleThumbnail, readyThumbnailVersion } from "./thumbnail-service";
 import { Router } from "express";
 import { resolveAuthUser } from "./auth-identity";
 import { AuthError } from "./cloudbase";
@@ -220,6 +220,7 @@ spaceRouter.get("/:id", requireAuth, async (req, res) => {
     tags,
     deployments: await Promise.all(deployments.map(async ({ owner, tags: assignments, rootPath, previousRootPath, uploaderIp, uploaderAgent, ...deployment }) => ({
       ...deployment,
+      thumbnailVersion: await readyThumbnailVersion({...deployment,rootPath,space}),
       tagIds: assignments.map(({ tagId }) => tagId),
       uploaderName: owner?.username ?? "匿名",
       ...await workCapabilities({...deployment,space,previousRootPath},req.authUser?.userId,prisma,{spaceManager:true}),
@@ -300,6 +301,11 @@ spaceRouter.post("/:id/deployments", upload.array("files", 1000), async (req, re
     res.status(400).json({ message: "请提供 1～80 字的项目名称" });
     return;
   }
+  const description = z.string().trim().max(2000, "简介最多 2000 字").optional().default("").safeParse(req.body.description);
+  if (!description.success) {
+    res.status(400).json({ message: "简介最多 2000 字" });
+    return;
+  }
   const existing = await prisma.deployment.findFirst({
     where: { spaceId: space.id, deletedAt: null, title },
   });
@@ -335,6 +341,7 @@ spaceRouter.post("/:id/deployments", upload.array("files", 1000), async (req, re
       data: {
         id: deploymentId,
         title,
+        description: description.data,
         ownerUserId,
         spaceId: space.id,
         publicSlug,
@@ -349,6 +356,7 @@ spaceRouter.post("/:id/deployments", upload.array("files", 1000), async (req, re
     throw error;
   }
 
+  scheduleThumbnail(deployment.publicSlug);
   res.status(201).json({
     id: deployment.id,
     url: `${config.baseUrl}/p/${deployment.publicSlug}`,
@@ -420,6 +428,7 @@ spaceRouter.post("/:id/deployments/batch-upload", requireAuth, batchUpload.array
           expiresAt: space.expiresAt,
         },
       });
+      scheduleThumbnail(dep.publicSlug);
       created.push({ id: dep.id, title: siteName, url: `${config.baseUrl}/p/${dep.publicSlug}` });
     } catch (error) {
       failures.push({ title: siteName, message: (error as Error).message || "上传失败" });
@@ -430,6 +439,8 @@ spaceRouter.post("/:id/deployments/batch-upload", requireAuth, batchUpload.array
 });
 
 spaceRouter.get("/entry/:slug", optionalAuth, async (req, res) => {
+  res.setHeader("Cache-Control", "private, no-store");
+  res.vary("Authorization");
   const space = await prisma.space.findUnique({ where: { slug: String(req.params.slug) } });
   if (!space) {
     res.status(404).json({ message: "Space not found" });
@@ -443,7 +454,6 @@ spaceRouter.get("/entry/:slug", optionalAuth, async (req, res) => {
     where: {
       spaceId: space.id,
       deletedAt: null,
-      visibility: Visibility.visible,
     },
     include: {
       owner: {
@@ -454,12 +464,10 @@ spaceRouter.get("/entry/:slug", optionalAuth, async (req, res) => {
     orderBy: { createdAt: "desc" },
   });
 
-  const viewCountDeployments = await prisma.deployment.findMany({
-    where: { spaceId: space.id, deletedAt: null },
-    select: { viewCount: true, visibility: true },
-  });
   const manager=await canManageSpace(space,req.authUser?.userId);
   const siteAdmin=await isSiteAdministrator(req.authUser?.userId);
+  const visible = deployments.filter(deployment => deployment.visibility === "visible"
+    || !!req.authUser && (manager || siteAdmin || deployment.ownerUserId === req.authUser.userId));
   const tags = await prisma.spaceTag.findMany({
     where: { spaceId: space.id }, orderBy: { createdAt: "asc" },
   });
@@ -473,13 +481,15 @@ spaceRouter.get("/entry/:slug", optionalAuth, async (req, res) => {
       isOwner:space.ownerUserId===req.authUser?.userId,
       expiresAt: space.expiresAt,
       downloadsEnabled: space.downloadsEnabled,
-      viewCount: sumWorkViews(viewCountDeployments),
+      viewCount: sumWorkViews(deployments),
     },
     tags,
-    deployments: await Promise.all(deployments.map(async (deployment) => ({
+    deployments: await Promise.all(visible.map(async (deployment) => ({
       id: deployment.id,
       title: deployment.title,
       publicSlug: deployment.publicSlug,
+      visibility: deployment.visibility,
+      thumbnailVersion: await readyThumbnailVersion({...deployment,space}),
       viewCount: deployment.viewCount,
       tagIds: deployment.tags.map(({ tagId }) => tagId),
       ownerUserId: deployment.ownerUserId,

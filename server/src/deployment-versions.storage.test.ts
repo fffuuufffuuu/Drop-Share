@@ -33,15 +33,6 @@ it("publishes new files at the same work identity and rolls back without losing 
   expect(await fs.readFile(path.join(state.previousRootPath,"index.html"),"utf8")).toBe("version A");
   const after={...state};delete after.rootPath;delete after.previousRootPath;expect(after).toEqual(metadata);
 });
-it("retains the previous personal version and lets the owner roll back", async () => {
-  state.spaceId = null;
-  state.space = null;
-  state.ownerUserId = "uploader";
-  await replaceWorkFiles("work", "uploader", upload("version B"));
-  expect(state.previousRootPath).toBe(originalRoot);
-  await rollbackWorkFiles("work", "uploader");
-  expect(state.rootPath).toBe(originalRoot);
-});
 it("invalid folders and traversal attempts leave all live file references untouched",async()=>{
   for(const bad of ["../index.html","/index.html","assets/script.js"]){
     await expect(replaceWorkFiles("work","uploader",[{file:{buffer:Buffer.from("bad")} as any,relativePath:bad}])).rejects.toMatchObject({status:400});

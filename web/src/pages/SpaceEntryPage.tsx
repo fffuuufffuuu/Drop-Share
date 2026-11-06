@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { WorkViewCount } from "../components/WorkViewCount";
 import { api, setAuthToken } from "../api";
@@ -9,26 +9,27 @@ import { ProjectNameModal } from "../components/ProjectNameModal";
 import { EditNameButton } from "../components/EditNameButton";
 import { WorkVersionActions } from "../components/WorkVersionActions";
 import { SpaceContributors } from "../components/SpaceContributors";
+import { WorkCardGrid } from "../components/WorkCardGrid";
 import { WorkPreviewCard } from "../components/WorkPreviewCard";
 import { WorkActionIcon } from "../components/WorkActionIcon";
 import { TagChips, TagFilter } from "../components/SpaceTagControls";
-import { formatLocaleDateTime } from "../format-datetime";
 import type { SpaceTag } from "../types";
 import { suggestProjectName, type UploadEntry } from "../uploader";
 import { isDeadlineNear } from "../space-deadline";
 
 type DeploymentItem = {
+  visibility?: "visible" | "hidden";
   canUpdate?: boolean;
   canRollback?: boolean;
   hasPreviousVersion?: boolean;
   id: string;
   title: string;
   publicSlug: string;
+  thumbnailVersion?: string;
   viewCount: number;
   ownerUserId: string | null;
   uploaderName: string;
   tagIds: string[];
-  visibility?: "visible" | "hidden";
 };
 
 type SpaceEntryData = {
@@ -39,22 +40,27 @@ type SpaceEntryData = {
 
 export function SpaceEntryPage() {
   const { spaceSlug } = useParams();
+  const [params] = useSearchParams();
+  const requestedWork = params.get("work");
   const [data, setData] = useState<SpaceEntryData | null>(null);
   const [message, setMessage] = useState("");
   const [entries, setEntries] = useState<UploadEntry[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [projectName, setProjectName] = useState("");
+  const [projectDescription, setProjectDescription] = useState("");
   const [modalError, setModalError] = useState("");
   const [renameTarget, setRenameTarget] = useState<DeploymentItem | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [renameError, setRenameError] = useState("");
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
-  const visibleDeployments = data?.deployments.filter((deployment) =>
-    deployment.visibility !== "hidden"
-    && (!selectedTag || (deployment.tagIds ?? []).includes(selectedTag))) ?? [];
+  useEffect(() => { setSelectedTag(null); }, [requestedWork]);
+  const matchingDeployments = data?.deployments.filter(deployment => !selectedTag || (deployment.tagIds ?? []).includes(selectedTag)) ?? [];
+  const visibleDeployments = matchingDeployments.filter(deployment => deployment.visibility !== "hidden");
 
   const currentUser = getCurrentUser();
   const canManageSpace = !!data && !!currentUser && (currentUser.role === "ADMIN" || (data.space.canManage ?? currentUser.id === data.space.ownerUserId));
+  const hiddenDeployments = matchingDeployments.filter(deployment => deployment.visibility === "hidden"
+    && !!currentUser && (canManageSpace || deployment.ownerUserId === currentUser.id));
   useEffect(() => {
     setAuthToken(localStorage.getItem("token") ?? undefined);
   }, []);
@@ -75,6 +81,7 @@ export function SpaceEntryPage() {
 
   function openUploadModal() {
     setProjectName(suggestProjectName(entries));
+    setProjectDescription("");
     setModalError("");
     setModalOpen(true);
   }
@@ -95,6 +102,7 @@ export function SpaceEntryPage() {
     }
     const formData = new FormData();
     formData.append("title", name);
+    formData.append("description", projectDescription.trim());
     entries.forEach((entry) => {
       formData.append("files", entry.file);
       formData.append("paths", entry.path);
@@ -147,14 +155,14 @@ export function SpaceEntryPage() {
     }
   }
 
-  async function hideDeployment(deploymentId: string) {
+  async function hideDeployment(deploymentId: string, visibility: "visible" | "hidden" = "hidden") {
     try {
-      await api.patch(`${currentUser?.role === "ADMIN" ? "/admin" : ""}/deployments/${deploymentId}`, { visibility: "hidden" });
+      await api.patch(`${currentUser?.role === "ADMIN" ? "/admin" : ""}/deployments/${deploymentId}`, { visibility });
       setData((current) => current ? {
         ...current,
-        deployments: current.deployments.filter((item) => item.id !== deploymentId),
+        deployments: current.deployments.map(item => item.id === deploymentId ? { ...item, visibility } : item),
       } : current);
-      setMessage("作品已隐藏，可在空间项目管理中恢复");
+      setMessage(visibility === "hidden" ? "作品已移至未显示作品" : "作品已恢复显示");
     } catch (error: any) {
       setMessage(error.response?.data?.message || "隐藏作品失败");
     }
@@ -180,6 +188,69 @@ export function SpaceEntryPage() {
     return <section className="card">加载中...</section>;
   }
 
+  const renderWork = (deployment: DeploymentItem) => (
+    <WorkPreviewCard
+      key={deployment.id}
+      workId={deployment.id}
+      title={deployment.title}
+      publicSlug={deployment.publicSlug}
+      focusRequested={requestedWork === deployment.id}
+      thumbnailVersion={deployment.thumbnailVersion}
+      viewCount={deployment.viewCount}
+      cardLink
+      hidden={deployment.visibility === "hidden"}
+      titleAction={currentUser && (
+        canManageSpace || currentUser.id === deployment.ownerUserId
+      ) ? <EditNameButton label={`重命名${deployment.title}`} onClick={() => openRename(deployment)} /> : undefined}
+      tags={(data.tags ?? []).some((tag) => (deployment.tagIds ?? []).includes(tag.id))
+        ? <TagChips tags={data.tags ?? []} tagIds={deployment.tagIds ?? []} /> : undefined}
+      meta={<span className="space-work-card-uploader">上传者：{deployment.uploaderName}</span>}
+      actions={<>
+        {deployment.canUpdate === true && <WorkVersionActions work={deployment} action="update" onChanged={load} />}
+        {deployment.canRollback === true && deployment.hasPreviousVersion === true && <WorkVersionActions work={deployment} action="rollback" onChanged={load} />}
+        {(data.space.downloadsEnabled || currentUser?.role === "ADMIN"
+            || canManageSpace || (currentUser && deployment.ownerUserId === currentUser.id)) && <div className="work-admin-actions">
+          {data.space.downloadsEnabled && deployment.visibility !== "hidden" && <a className="work-icon-action"
+            aria-label={`下载${deployment.title} ZIP`} title="下载 ZIP"
+            href={`${String(api.defaults.baseURL ?? "/api").replace(/\/$/, "")}/spaces/entry/${encodeURIComponent(data.space.slug)}/deployments/${encodeURIComponent(deployment.id)}/download`}
+          ><WorkActionIcon type="download" /></a>}
+          {(canManageSpace || deployment.visibility === "hidden" && currentUser?.id === deployment.ownerUserId) && currentUser?.role !== "ADMIN" && <button type="button" className="work-icon-action"
+            aria-label={`${deployment.visibility === "hidden" ? "显示" : "隐藏"}${deployment.title}`} title={deployment.visibility === "hidden" ? "显示作品" : "隐藏作品"} onClick={() => void hideDeployment(deployment.id, deployment.visibility === "hidden" ? "visible" : "hidden")}>
+            <WorkActionIcon type={deployment.visibility === "hidden" ? "show" : "hide"} /></button>}
+          {currentUser?.role === "ADMIN" ? (<>
+            <button
+              type="button"
+              className="work-icon-action"
+              aria-label={`${deployment.visibility === "hidden" ? "显示" : "隐藏"}${deployment.title}`}
+              title={deployment.visibility === "hidden" ? "显示作品" : "隐藏作品"}
+              onClick={() => void hideDeployment(deployment.id, deployment.visibility === "hidden" ? "visible" : "hidden")}
+            >
+              <WorkActionIcon type={deployment.visibility === "hidden" ? "show" : "hide"} />
+            </button>
+            <button
+              type="button"
+              className="work-icon-action work-icon-action-danger"
+              aria-label={`删除${deployment.title}`}
+              title="永久删除作品"
+              onClick={() => void deleteAsAdmin(deployment.id)}
+            >
+              <WorkActionIcon type="delete" />
+            </button>
+          </>) : currentUser && (canManageSpace || deployment.ownerUserId === currentUser.id) ? (
+          <button
+            type="button"
+            className="work-icon-action work-icon-action-danger"
+            aria-label={`删除${deployment.title}`}
+            title="删除作品"
+            onClick={() => closeDeployment(deployment.id)}
+          >
+            <WorkActionIcon type="delete" />
+          </button>
+        ) : null}
+          </div>}</>}
+    />
+  );
+
   return (
     <section className="card space-entry">
       <SpaceContributors spaceId={data.space.id} drawer refreshKey={data.deployments.length} onChanged={load} />
@@ -189,7 +260,7 @@ export function SpaceEntryPage() {
         <div className="space-view-summary"><span>空间访问次数</span><WorkViewCount count={data.space.viewCount} /></div>
         <div className="space-entry-deadline-row">
           <p className={`space-entry-expiration${isDeadlineNear(data.space.expiresAt) ? " deadline-near" : ""}`}>
-            空间内作品统一于 {formatLocaleDateTime(data.space.expiresAt)} 到期
+            空间内作品统一于 {new Date(data.space.expiresAt).toLocaleString()} 到期
           </p>
           {canManageSpace && <Link className="space-entry-manage-link"
             to={currentUser?.role === "ADMIN" ? `/admin?spaceId=${encodeURIComponent(data.space.id)}` : `/spaces/${data.space.id}`}>
@@ -213,6 +284,8 @@ export function SpaceEntryPage() {
       <ProjectNameModal
         open={modalOpen}
         value={projectName}
+        description={projectDescription}
+        onDescriptionChange={setProjectDescription}
         error={modalError}
         hint="名称在该空间内不可与其他项目重复，仅用于显示。"
         confirmLabel="确认上传"
@@ -239,69 +312,15 @@ export function SpaceEntryPage() {
         {(data.tags ?? []).length > 0 && <TagFilter tags={data.tags} selectedId={selectedTag}
           onChange={setSelectedTag} />}
         {visibleDeployments.length === 0 ? (
-          <p className="empty-state">{data.deployments.length ? "没有符合所选标签的作品" : "这个空间还没有作品"}</p>
-        ) : <div className="work-card-grid">
-            {visibleDeployments.map((deployment) => (
-              <WorkPreviewCard
-                key={deployment.id}
-                workId={deployment.id}
-                title={deployment.title}
-                publicSlug={deployment.publicSlug}
-                viewCount={deployment.viewCount}
-                cardLink
-                titleAction={currentUser && (
-                  canManageSpace || currentUser.id === deployment.ownerUserId
-                ) ? <EditNameButton label={`重命名${deployment.title}`} onClick={() => openRename(deployment)} /> : undefined}
-                tags={(data.tags ?? []).some((tag) => (deployment.tagIds ?? []).includes(tag.id))
-                  ? <TagChips tags={data.tags ?? []} tagIds={deployment.tagIds ?? []} /> : undefined}
-                meta={<span className="space-work-card-uploader">上传者：{deployment.uploaderName}</span>}
-                actions={<>
-                  {deployment.canUpdate === true && <WorkVersionActions work={deployment} action="update" onChanged={load} />}
-                  {deployment.canRollback === true && deployment.hasPreviousVersion === true && <WorkVersionActions work={deployment} action="rollback" onChanged={load} />}
-                  {(data.space.downloadsEnabled || currentUser?.role === "ADMIN"
-                      || canManageSpace || (currentUser && deployment.ownerUserId === currentUser.id)) && <div className="work-admin-actions">
-                    {data.space.downloadsEnabled && <a className="work-icon-action"
-                      aria-label={`下载${deployment.title} ZIP`} title="下载 ZIP"
-                      href={`${String(api.defaults.baseURL ?? "/api").replace(/\/$/, "")}/spaces/entry/${encodeURIComponent(data.space.slug)}/deployments/${encodeURIComponent(deployment.id)}/download`}
-                    ><WorkActionIcon type="download" /></a>}
-                    {canManageSpace && currentUser?.role !== "ADMIN" && <button type="button" className="work-icon-action"
-                      aria-label={`隐藏${deployment.title}`} title="隐藏作品" onClick={() => void hideDeployment(deployment.id)}>
-                      <WorkActionIcon type="hide" /></button>}
-                    {currentUser?.role === "ADMIN" ? (<>
-                      <button
-                        type="button"
-                        className="work-icon-action"
-                        aria-label={`隐藏${deployment.title}`}
-                        title="隐藏作品"
-                        onClick={() => void hideDeployment(deployment.id)}
-                      >
-                        <WorkActionIcon type="hide" />
-                      </button>
-                      <button
-                        type="button"
-                        className="work-icon-action work-icon-action-danger"
-                        aria-label={`删除${deployment.title}`}
-                        title="永久删除作品"
-                        onClick={() => void deleteAsAdmin(deployment.id)}
-                      >
-                        <WorkActionIcon type="delete" />
-                      </button>
-                    </>) : currentUser && (canManageSpace || deployment.ownerUserId === currentUser.id) ? (
-                    <button
-                      type="button"
-                      className="work-icon-action work-icon-action-danger"
-                      aria-label={`删除${deployment.title}`}
-                      title="删除作品"
-                      onClick={() => closeDeployment(deployment.id)}
-                    >
-                      <WorkActionIcon type="delete" />
-                    </button>
-                  ) : null}
-                    </div>}</>}
-              />
-            ))}
-          </div>}
+          <p className="empty-state">{selectedTag ? "没有符合所选标签的作品" : data.deployments.length ? "这个空间还没有显示中的作品" : "这个空间还没有作品"}</p>
+        ) : <WorkCardGrid>
+            {visibleDeployments.map(renderWork)}
+          </WorkCardGrid>}
       </section>
+      {hiddenDeployments.length > 0 && <section className="space-work-section hidden-work-section" aria-labelledby="space-hidden-work-title">
+        <h2 id="space-hidden-work-title">未显示作品</h2>
+        <WorkCardGrid>{hiddenDeployments.map(renderWork)}</WorkCardGrid>
+      </section>}
     </section>
   );
 }

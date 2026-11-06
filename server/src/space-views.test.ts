@@ -23,11 +23,7 @@ vi.mock("./db", () => ({ prisma: {
     findMany: async () => [fixture.space, { ...fixture.space, id: "empty", _count: { deployments: 0 } }],
   },
   deployment: {
-    findMany: async ({ where }: any) => fixture.deployments.filter(d => {
-      if (d.spaceId !== where.spaceId || (where.deletedAt === null && d.deletedAt)) return false;
-      if (where.visibility && d.visibility !== where.visibility) return false;
-      return true;
-    }),
+    findMany: async ({ where }: any) => fixture.deployments.filter(d => d.spaceId === where.spaceId && !d.deletedAt),
     groupBy: async ({ where }: any) => {
       const totals = new Map<string, number>();
       for (const d of fixture.deployments) {

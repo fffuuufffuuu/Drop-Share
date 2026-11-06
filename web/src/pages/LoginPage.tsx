@@ -4,7 +4,7 @@ import { clearCloudbaseSession } from "../cloudbase-session";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { api, setAuthToken } from "../api";
-import { notifyAuthChanged, loginDestinationFromNext } from "../auth";
+import { notifyAuthChanged } from "../auth";
 import type { AuthResponse } from "../types";
 
 type Mode = "login" | "register";
@@ -39,7 +39,9 @@ function LegacyLoginPage() {
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
   const requestedNext = searchParams.get("next");
-  const destination = loginDestinationFromNext(requestedNext);
+  const destination = requestedNext === "/upload?createSpace=1"
+    ? requestedNext
+    : "/upload";
 
   async function handleLogin() {
     try {

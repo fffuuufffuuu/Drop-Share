@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 
 type Account = { username: string; loginUsername: string; phone: string; email: string };
 type Method = "sms" | "email";
 export function AccountPage() {
+  const [params] = useSearchParams();
+  const requestedBinding = params.get("bind");
   const [account, setAccount] = useState<Account | null>(null);
   const [method, setMethod] = useState<Method>("sms");
   const [challenge, setChallenge] = useState(""); const [code, setCode] = useState(""); const [proof, setProof] = useState("");
@@ -20,10 +22,11 @@ export function AccountPage() {
     api.get<Account>("/auth/account").then(({ data }) => {
       if (!active) return;
       setAccount(data); setUsername(data.loginUsername || data.username);
-      setMethod(data.phone ? "sms" : "email"); setContactMethod(data.email ? "sms" : "email");
+      setMethod(data.phone ? "sms" : "email"); setContactMethod(requestedBinding === "phone" && !data.phone ? "sms" : requestedBinding === "email" && !data.email ? "email" : data.email ? "sms" : "email");
     }).catch((error) => { if (active) setMessage(error.response?.data?.message ?? "无法读取账号信息，请重新登录"); });
     return () => { active = false; };
   }, []);
+  useEffect(() => { if (account && requestedBinding) document.getElementById("account-binding")?.scrollIntoView?.({ block: "center" }); }, [account, requestedBinding]);
   useEffect(() => { if (!cooldown) return; const timer = window.setTimeout(() => setCooldown(cooldown - 1), 1000); return () => clearTimeout(timer); }, [cooldown]);
   useEffect(() => { if (!proof) return; const timer = window.setTimeout(() => { setProof(""); setChallenge(""); setCode(""); setContactChallenge(""); setMessage("身份验证已过期，请重新验证"); }, 9 * 60000); return () => clearTimeout(timer); }, [proof]);
   async function run(action: () => Promise<void>) {
@@ -52,7 +55,7 @@ export function AccountPage() {
   const captchaField = (purpose: "proof" | "contact") => captcha?.purpose === purpose && <div className="auth-captcha"><img src={captcha.data} alt="请识别图中的验证码"/><label>图形验证码<input value={captchaAnswer} onChange={e => setCaptchaAnswer(e.target.value)} /></label></div>;
   const sendDisabled = (purpose: "proof" | "contact") => busy || cooldown > 0 || captcha?.purpose === purpose && !captchaAnswer;
   return <section className="card account-page">
-    <header className="account-heading"><div><p className="dashboard-eyebrow">个人控制台</p><h2>账号设置</h2></div><Link to="/dashboard">返回我的作品</Link></header>
+    <header className="account-heading"><div><p className="dashboard-eyebrow">个人控制台</p><h2>账号设置</h2></div><Link to="/dashboard">返回我的</Link></header>
     <p className="message" role="status">{message}</p>
     {account && <>
       <div className="account-summary"><span>作品昵称 <strong>{account.username}</strong></span><span>手机号 <strong>{account.phone || "未绑定"}</strong></span><span>邮箱 <strong>{account.email || "未绑定"}</strong></span><span>登录用户名 <strong>{account.loginUsername || "尚未设置"}</strong></span></div>
@@ -67,7 +70,7 @@ export function AccountPage() {
         <button className="auth-submit" type="submit" disabled={busy || !challenge}>验证身份</button>
       </form>}</section>
       <div className="account-settings-grid">
-      <section className="account-section"><h3>2. 绑定其他登录方式</h3>
+      <section className="account-section" id="account-binding"><h3>2. 绑定其他登录方式</h3>
       {account.phone && account.email ? <p className="hint">手机号与邮箱均已绑定，可使用任一方式登录。</p> : <form className="auth-form" onSubmit={e => { e.preventDefault(); void run(async () => {
         await api.post("/auth/account/contact/verify", { proof, challenge: contactChallenge, code: contactCode });
         const { data } = await api.get<Account>("/auth/account"); setAccount(data); setContactChallenge(""); setContactCode(""); setIdentity(""); setMessage("绑定成功，两种方式现在可以登录同一个账号");
@@ -81,7 +84,7 @@ export function AccountPage() {
         <div className="auth-code-field"><label>新登录方式验证码<input required pattern="[0-9]{6}" maxLength={6} inputMode="numeric" autoComplete="one-time-code" value={contactCode} disabled={busy || !proof} onChange={e => setContactCode(e.target.value)} /></label><button type="button" disabled={sendDisabled("contact") || !proof || !identity} onClick={() => void send("contact")}>{cooldown ? `${cooldown} 秒后重发` : "获取验证码"}</button></div>
         <button className="auth-submit" type="submit" disabled={busy || !proof || !contactChallenge}>绑定到当前账号</button>
       </form>}</section>
-      <section className="account-section"><h3>3. 设置账号密码登录</h3>
+      <section className="account-section" id="account-password"><h3>3. 设置账号密码登录</h3>
       <form className="auth-form" onSubmit={e => { e.preventDefault(); void run(async () => {
         const { data } = await api.post("/auth/account/username", { proof, username }); setAccount({ ...account, loginUsername: data.loginUsername }); setMessage("登录用户名已保存，作品昵称保持不变");
       }); }}>

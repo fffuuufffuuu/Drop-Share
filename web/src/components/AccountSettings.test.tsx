@@ -4,13 +4,13 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { api } from "../api";
-import { AccountPage } from "./AccountPage";
+import { AccountSettings } from "./AccountSettings";
 vi.mock("../api", () => ({ api: { get: vi.fn(), post: vi.fn() } }));
 afterEach(cleanup);
 beforeEach(() => { vi.resetAllMocks(); vi.mocked(api.get).mockResolvedValue({ data: { username: "teacher", loginUsername: "", phone: "+86 13800138000", email: "" } }); });
 it("keeps credential changes disabled until the bound identity has passed step-up verification", async () => {
-  render(<MemoryRouter><AccountPage /></MemoryRouter>);
-  expect(await screen.findByLabelText("新邮箱")).toBeDisabled();
+  render(<MemoryRouter><AccountSettings /></MemoryRouter>);
+  fireEvent.click(await screen.findByRole("button", { name: "修改密码" }));
   expect(screen.getByLabelText("新密码")).toBeDisabled();
   vi.mocked(api.post).mockResolvedValueOnce({ data: { challenge: "current-sub-challenge" } }).mockResolvedValueOnce({ data: { proof: "step-up-proof" } });
   fireEvent.click(screen.getAllByRole("button", { name: "获取验证码" })[0]);
@@ -24,4 +24,25 @@ it("keeps credential changes disabled until the bound identity has passed step-u
   fireEvent.click(screen.getByRole("button", { name: "保存新密码" }));
   expect(await screen.findByText("两次输入的密码不一致")).toBeInTheDocument();
   expect(api.post).toHaveBeenCalledTimes(2);
+});
+it("shows only icon controls until an operation is selected and updates the nickname", async () => {
+  render(<MemoryRouter><AccountSettings /></MemoryRouter>);
+  const edit = await screen.findByRole("button", { name: "修改昵称" });
+  expect(edit.textContent).toBe(""); expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  fireEvent.click(edit);
+  vi.mocked(api.post).mockResolvedValue({ data: { username: "物理老师" } });
+  fireEvent.change(screen.getByLabelText("新昵称"), { target: { value: "物理老师" } });
+  fireEvent.click(screen.getByRole("button", { name: "保存昵称" }));
+  expect(await screen.findByText("昵称已修改")).toBeInTheDocument();
+  expect(screen.getByText("物理老师")).toBeInTheDocument();
+  await waitFor(() => expect(screen.queryByLabelText("新昵称")).not.toBeInTheDocument());
+});
+it("opens rebind directly without a dialog and retains the bound contact", async () => {
+  render(<MemoryRouter><AccountSettings /></MemoryRouter>);
+  fireEvent.click(await screen.findByRole("button", { name: "重新绑定手机号" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "解绑手机号" })).not.toBeInTheDocument();
+  expect(screen.getByLabelText("新手机号")).toBeDisabled();
+  expect(screen.getByText("+86 13800138000")).toBeInTheDocument();
+  expect(api.post).not.toHaveBeenCalled();
 });

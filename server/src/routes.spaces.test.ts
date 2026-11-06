@@ -1,3 +1,4 @@
+vi.mock("./thumbnail-service", () => ({ scheduleThumbnail: vi.fn(), readyThumbnailVersion: vi.fn().mockResolvedValue(undefined) }));
 import express from "express";
 import { stat } from "node:fs/promises";
 import request from "supertest";
@@ -43,7 +44,7 @@ vi.mock("./admin-deletion", () => ({
 }));
 
 vi.mock("./middleware", () => ({
-  optionalAuth:(_req:any,_res:any,next:any)=>next(),
+  optionalAuth:(req:any,_res:any,next:any)=>{if(req.headers["x-test-user"])req.authUser={userId:req.headers["x-test-user"],username:"test"};next();},
   requireAuth: (req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (!req.headers.authorization) {
       res.status(401).json({ message: "Missing token" });
@@ -536,6 +537,7 @@ describe("space expiration", () => {
         id: "d1",
         title: "登录作品",
         publicSlug: "signed-work",
+        visibility: "visible",
         tagIds: [],
         ownerUserId: "user-1",
         uploaderName: "member",
@@ -545,6 +547,7 @@ describe("space expiration", () => {
         id: "d2",
         title: "匿名作品",
         publicSlug: "anonymous-work",
+        visibility: "visible",
         tagIds: [],
         ownerUserId: null,
         uploaderName: "匿名",
@@ -553,45 +556,53 @@ describe("space expiration", () => {
     expect(response.body.deployments[0]).not.toHaveProperty("owner");
     expect(response.body.space.ownerUserId).toBe("user-1");
   });
+});
 
-  it("omits hidden works from the public space entry", async () => {
-    vi.mocked(prisma.space.findUnique).mockResolvedValue(activeSpace as never);
-    vi.mocked(prisma.deployment.findMany).mockImplementation((async ({ where }: any) => {
-      const works = [
-        {
-          id: "visible-work",
-          title: "公开作品",
-          publicSlug: "public-work",
-          ownerUserId: "user-1",
-          visibility: "visible",
-          viewCount: 2,
-          owner: { username: "member" },
-          tags: [],
-        },
-        {
-          id: "hidden-work",
-          title: "隐藏作品",
-          publicSlug: "hidden-work",
-          ownerUserId: "user-1",
-          visibility: "hidden",
-          viewCount: 5,
-          owner: { username: "member" },
-          tags: [],
-        },
-      ];
-      if (where.visibility === "visible") {
-        return works.filter((work) => work.visibility === "visible") as never;
-      }
-      return works.map(({ viewCount, visibility }) => ({ viewCount, visibility })) as never;
-    }) as any);
 
-    const response = await request(createApp()).get("/api/spaces/entry/portfolio");
+describe("optional descriptions on public space uploads", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.space.findUnique).mockReset().mockResolvedValue(activeSpace as never);
+    vi.mocked(prisma.deployment.findFirst).mockReset().mockResolvedValue(null);
+    vi.mocked(prisma.deployment.create).mockReset().mockResolvedValue({ id: "d1", publicSlug: "work", expiresAt: activeSpace.expiresAt } as never);
+    vi.mocked(saveDeploymentFiles).mockReset().mockResolvedValue("storage/test");
+  });
+  it.each([undefined, "", "  ", " 空间简介\n操作说明 "])("saves an optional description: %j", async description => {
+    let upload = request(createApp()).post("/api/spaces/s1/deployments").field("title", "作品");
+    if (description !== undefined) upload = upload.field("description", description);
+    const response = await upload.attach("files", Buffer.from("<h1>Work</h1>"), "index.html");
+    expect(response.status).toBe(201);
+    expect(prisma.deployment.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ description: description?.trim() ?? "" }) }));
+  });
+  it("rejects oversized descriptions before saving files", async () => {
+    const response = await request(createApp()).post("/api/spaces/s1/deployments")
+      .field("title", "作品").field("description", "简".repeat(2001))
+      .attach("files", Buffer.from("<h1>Work</h1>"), "index.html");
+    expect(response.status).toBe(400);
+    expect(saveDeploymentFiles).not.toHaveBeenCalled();
+    expect(prisma.deployment.create).not.toHaveBeenCalled();
+  });
+});
 
+describe("hidden work visibility in public card lists", () => {
+  it.each([
+    ["guest", false], ["unrelated", false], ["uploader", true],
+    ["owner", true], ["delegate", true], ["admin", true],
+  ])("returns hidden works only to permitted viewers: %s", async (actor, permitted) => {
+    vi.mocked(prisma.space.findUnique).mockResolvedValue({ ...activeSpace, ownerUserId: "owner" } as never);
+    vi.mocked(prisma.spaceAdministrator.findUnique).mockImplementation((async (args:any) => args.where.spaceId_userId.userId === "delegate" ? { userId: "delegate" } : null) as any);
+    vi.mocked(prisma.user.findUnique).mockImplementation((async (args:any) => ({ role: args.where.id === "admin" ? "ADMIN" : "USER" })) as any);
+    const work = { rootPath:"/private/source",previousRootPath:"/private/old",uploaderIp:"private-ip",uploaderAgent:"private-agent",id:"public",title:"Public",publicSlug:"public",ownerUserId:"uploader",owner:{username:"Teacher"},visibility:"visible",tags:[],deletedAt:null,expiresAt:new Date("2099-01-01") };
+    vi.mocked(prisma.deployment.findMany).mockResolvedValue([work,{...work,id:"hidden",title:"Hidden",publicSlug:"hidden",visibility:"hidden"},{...work,id:"other-hidden",title:"Other hidden",publicSlug:"other-hidden",ownerUserId:"other",visibility:"hidden"}] as never);
+    vi.mocked(prisma.spaceTag.findMany).mockResolvedValue([]);
+    let query = request(createApp()).get("/api/spaces/entry/portfolio");
+    if(actor!=="guest")query=query.set("x-test-user",actor);
+    const response=await query;
     expect(response.status).toBe(200);
-    expect(prisma.deployment.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ visibility: "visible" }),
-    }));
-    expect(response.body.deployments.map((work: { id: string }) => work.id)).toEqual(["visible-work"]);
-    expect(response.body.space.viewCount).toBe(7);
+    expect(response.headers["cache-control"]).toBe("private, no-store");
+    expect(response.headers.vary).toContain("Authorization");
+    expect(response.body.deployments.map((w:any)=>w.id)).toEqual(actor === "uploader" ? ["public","hidden"] : permitted ? ["public","hidden","other-hidden"] : ["public"]);
+    if(permitted)expect(response.body.deployments[1].visibility).toBe("hidden");
+    expect(JSON.stringify(response.body)).not.toContain("rootPath");
   });
 });

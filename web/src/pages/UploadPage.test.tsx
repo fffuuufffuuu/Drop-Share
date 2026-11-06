@@ -12,7 +12,6 @@ import { UploadPage } from "./UploadPage";
 afterEach(() => {
   cleanup();
   localStorage.clear();
-  sessionStorage.clear();
   vi.restoreAllMocks();
 });
 
@@ -116,32 +115,6 @@ describe("UploadPage file choices", () => {
     expect(target).toHaveValue("");
     expect(screen.getByRole("spinbutton", { name: "链接保留时长（天）" }))
       .toBeInTheDocument();
-  });
-
-  it("shows a clickable deploy link with copy after a successful deployment", async () => {
-    signIn();
-    mockSignedInGets();
-    const deployUrl = "https://drop.example/p/demo";
-    vi.spyOn(api, "post").mockResolvedValue({
-      data: {
-        url: deployUrl,
-        expiresAt: "2026-08-29T01:00:00.000Z",
-      },
-    });
-    const user = userEvent.setup();
-    const file = new File(["html"], "index.html", { type: "text/html" });
-
-    renderUploadPage();
-    fireEvent.change(screen.getByLabelText("选择 HTML 文件"), {
-      target: { files: [file] },
-    });
-    await user.click(screen.getByRole("button", { name: "部署" }));
-    await user.type(screen.getByRole("textbox", { name: "项目名称" }), "个人作品");
-    await user.click(screen.getByRole("button", { name: "确认部署" }));
-
-    expect(await screen.findByRole("link", { name: deployUrl })).toHaveAttribute("href", deployUrl);
-    expect(screen.getByRole("button", { name: "复制部署链接的分享链接" })).toBeInTheDocument();
-    expect(screen.getByText(/^到期：2026-/)).toBeInTheDocument();
   });
 
   it("submits durationDays for a signed-in personal upload", async () => {
@@ -332,38 +305,5 @@ describe("UploadPage file choices", () => {
     const formData = postSpy.mock.calls[0][1] as FormData;
     expect(formData.getAll("paths")).toEqual(["app.js", "index.html", "README.md", "style.css"]);
     expect(screen.queryByText("文件夹上传必须包含 index.html。")).not.toBeInTheDocument();
-  });
-
-  it("disables the space dropdown while spaces are loading", async () => {
-    signIn();
-    let resolveSpaces: ((value: { data: typeof activeSpace[] }) => void) | undefined;
-    const pendingSpaces = new Promise<{ data: typeof activeSpace[] }>((resolve) => {
-      resolveSpaces = resolve;
-    });
-    vi.spyOn(api, "get").mockImplementation(async (url) => {
-      if (url === "/spaces") return pendingSpaces;
-      if (url === "/deployments" || url === "/deployments/space-uploads") return { data: [] };
-      throw new Error(`Unexpected URL: ${url}`);
-    });
-
-    renderUploadPage();
-
-    const target = screen.getByRole("combobox", { name: "上传到空间" });
-    expect(target).toBeDisabled();
-    expect(target).toHaveAttribute("aria-busy", "true");
-    expect(screen.getByRole("option", { name: "加载空间…" })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "作品集" })).not.toBeInTheDocument();
-
-    resolveSpaces?.({ data: [activeSpace] });
-    await waitFor(() => expect(target).toBeEnabled());
-    expect(await screen.findByRole("option", { name: "作品集" })).toBeInTheDocument();
-  });
-
-  it("shows selected HTML filenames in the dropzone summary", () => {
-    renderUploadPage();
-    fireEvent.change(screen.getByLabelText("选择 HTML 文件"), {
-      target: { files: [new File(["html"], "demo.html", { type: "text/html" })] },
-    });
-    expect(screen.getByText("已选 demo.html")).toBeInTheDocument();
   });
 });

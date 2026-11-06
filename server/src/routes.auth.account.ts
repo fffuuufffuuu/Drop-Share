@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from "express";
+import { Prisma } from "@prisma/client";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { config } from "./config";
@@ -9,7 +10,7 @@ export const cloudbaseAccountRouter = Router();
 const methodSchema = z.enum(["sms", "email"]);
 const codeSchema = z.string().regex(/^\d{6}$/);
 const stringToken = z.string().min(1).max(8192);
-const contactSchema = z.object({ sub: z.string(), envId: z.string(), method: methodSchema, identity: z.string(), verificationId: z.string() });
+const contactSchema = z.object({ sub: z.string(), envId: z.string(), method: methodSchema, identity: z.string(), verificationId: z.string(), previousIdentity: z.string().optional() });
 const proofSchema = z.object({ sub: z.string(), envId: z.string(), sudoToken: stringToken });
 type Context = { token: string; profile: Awaited<ReturnType<typeof getCloudbaseUser>>; user: { id: string; username: string } };
 function sign(data: object, audience: string, expiresIn = 600) { return jwt.sign({ ...data, envId: config.cloudbaseEnvId }, config.jwtSecret, { audience, expiresIn }); }
@@ -41,6 +42,14 @@ function proofFor(req: Request, sub: string) { return proofSchema.parse(decode(r
 
 cloudbaseAccountRouter.get("/", protectedRoute(async (_req, res, { profile, user }) => {
   res.json({ username: user.username, loginUsername: profile.username ?? "", phone: profile.phone_number ?? "", email: profile.email ?? "" });
+}));
+cloudbaseAccountRouter.post("/nickname", protectedRoute(async (req, res, { user }) => {
+  const nickname = z.string().trim().min(2).max(32).regex(/^[^\p{Cc}]+$/u).parse(req.body.nickname);
+  const existing = await prisma.user.findUnique({ where: { username: nickname } });
+  if (existing && existing.id !== user.id) throw new AuthError("该昵称已被使用，请换一个", 409);
+  try {
+    res.json(await prisma.user.update({ where: { id: user.id }, data: { username: nickname }, select: { username: true } }));
+  } catch (error: any) { if (error?.code === "P2002") throw new AuthError("该昵称已被使用，请换一个", 409); throw error; }
 }));
 cloudbaseAccountRouter.post("/proof/code", protectedRoute(async (req, res, { token, profile }) => {
   const method = methodSchema.parse(req.body.method);
@@ -77,20 +86,25 @@ cloudbaseAccountRouter.post("/password", protectedRoute(async (req, res, { token
 cloudbaseAccountRouter.post("/contact/code", protectedRoute(async (req, res, { token, profile }) => {
   proofFor(req, profile.sub);
   const method = methodSchema.parse(req.body.method);
-  if (identityFor(profile, method)) throw new AuthError("此登录方式已绑定，无需重复绑定");
   const raw = z.string().trim().parse(req.body.identity);
   const identity = method === "email" ? z.string().email().max(254).parse(raw.toLowerCase()) : z.string().regex(/^\+861[3-9]\d{9}$/).parse(raw.replace(/\s/g, "").replace(/^(1\d{10})$/, "+86$1"));
+  if (identityFor(profile, method) === identity) throw new AuthError("请输入不同的手机号或邮箱", 409);
   const captchaToken = stringToken.optional().parse(req.body.captchaToken);
   const data = z.object({ verification_id: z.string().min(1), expires_in: z.number().positive() }).parse(await cloudbaseRequest("/verification", { ...target(method, identity), target: "ANY" }, token, captchaToken));
-  res.json({ challenge: sign({ sub: profile.sub, verificationId: data.verification_id, method, identity }, "cloudbase-contact-challenge", Math.min(data.expires_in, 600)) });
+  res.json({ challenge: sign({ sub: profile.sub, verificationId: data.verification_id, method, identity, previousIdentity: identityFor(profile, method) ?? "" }, "cloudbase-contact-challenge", Math.min(data.expires_in, 600)) });
 }));
-cloudbaseAccountRouter.post("/contact/verify", protectedRoute(async (req, res, { token, profile }) => {
+cloudbaseAccountRouter.post("/contact/verify", protectedRoute(async (req, res, { token, profile, user }) => {
   const proof = proofFor(req, profile.sub);
   const challenge = contactSchema.parse(decode(req.body.challenge, "cloudbase-contact-challenge", profile.sub));
-  if (identityFor(profile, challenge.method)) throw new AuthError("此登录方式已绑定，无需重复绑定");
-  const verification = z.object({ verification_token: stringToken }).parse(await cloudbaseRequest("/verification/verify", { verification_id: challenge.verificationId, verification_code: codeSchema.parse(req.body.code) }));
-  await cloudbaseRequest("/user/contact", { ...target(challenge.method, challenge.identity), verification_token: verification.verification_token, sudo_token: proof.sudoToken, conflict_resolution: "DEFAULT" }, token, undefined, "PATCH");
-  const updated = await getCloudbaseUser(token);
-  if (updated.sub !== profile.sub || identityFor(updated, challenge.method) !== challenge.identity) throw new AuthError("绑定结果未确认，请重新登录检查", 409);
+  await prisma.$transaction(async tx => {
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM User WHERE id = ${user.id} FOR UPDATE`);
+    const current = await getCloudbaseUser(token);
+    if (current.sub !== profile.sub) throw new AuthError("身份验证已失效", 401);
+    if ((identityFor(current, challenge.method) ?? "") !== (challenge.previousIdentity ?? "")) throw new AuthError("绑定信息已变化，请重新获取验证码", 409);
+    const verification = z.object({ verification_token: stringToken }).parse(await cloudbaseRequest("/verification/verify", { verification_id: challenge.verificationId, verification_code: codeSchema.parse(req.body.code) }));
+    await cloudbaseRequest("/user/contact", { ...target(challenge.method, challenge.identity), verification_token: verification.verification_token, sudo_token: proof.sudoToken, conflict_resolution: "DEFAULT" }, token, undefined, "PATCH");
+    const updated = await getCloudbaseUser(token);
+    if (updated.sub !== profile.sub || identityFor(updated, challenge.method) !== challenge.identity) throw new AuthError("绑定结果未确认，请重新登录检查", 409);
+  }, { timeout: 50_000 });
   res.json({ ok: true });
 }));

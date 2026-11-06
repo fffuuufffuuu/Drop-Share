@@ -7,8 +7,10 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../api";
-import { formatLocaleDateTime } from "../format-datetime";
+const formatLocaleDateTime = (value: string) => new Date(value).toLocaleString();
 import { DashboardPage } from "./DashboardPage";
+
+vi.mock("../components/WorkDiscussion", () => ({ WorkDiscussion: () => null }));
 import { downloadZip } from "../download";
 vi.mock("../download", () => ({ downloadZip: vi.fn() }));
 
@@ -80,6 +82,7 @@ describe("DashboardPage", () => {
     await user.click(screen.getByRole("button", {name:"个人首页的更多操作"}));
     await user.click(screen.getByRole("button", {name:"显示个人首页"}));
     await waitFor(() => expect(api.patch).toHaveBeenCalledWith("/deployments/d1", {visibility:"visible"}));
+    await user.click(screen.getByRole("button", { name: "展开个人首页" }));
     expect(await screen.findByTitle("个人首页预览")).toBeInTheDocument();
   });
   it("downloads, hides and deletes owned personal and space uploads through the owner routes", async () => {
@@ -94,6 +97,7 @@ describe("DashboardPage", () => {
     await user.click(screen.getByRole("button",{name:"隐藏个人首页"}));
     expect(api.patch).toHaveBeenCalledWith("/deployments/d1",{visibility:"hidden"});
     expect(await screen.findByText("已隐藏")).toBeInTheDocument();
+    await user.click(screen.getByRole("button",{name:"个人首页的更多操作"}));
     await user.click(screen.getByRole("button",{name:"删除个人首页"}));
     expect(api.delete).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button",{name:"删除个人首页"}));
@@ -104,27 +108,6 @@ describe("DashboardPage", () => {
     expect(screen.getByRole("button",{name:"隐藏空间作品"})).toBeInTheDocument();
     expect(screen.getByRole("button",{name:"删除空间作品"})).toBeInTheDocument();
   });
-  it("shows a loading state instead of empty uploads before deployments load", async () => {
-    let resolveDeployments: ((value: { data: typeof activeDeployment[] }) => void) | undefined;
-    const pendingDeployments = new Promise<{ data: typeof activeDeployment[] }>((resolve) => {
-      resolveDeployments = resolve;
-    });
-    vi.mocked(api.get).mockImplementation(async (url) => {
-      if (url === "/deployments") return pendingDeployments;
-      if (url === "/deployments/space-uploads") return { data: [] };
-      throw new Error(`unexpected GET ${url}`);
-    });
-
-    renderPage();
-
-    expect(screen.getAllByRole("status").some((node) => node.textContent === "正在加载作品…")).toBe(true);
-    expect(screen.queryByText("你还没有可访问的个人作品。")).not.toBeInTheDocument();
-
-    resolveDeployments?.({ data: [activeDeployment] });
-    expect(await screen.findByRole("heading", { name: "个人首页" })).toBeInTheDocument();
-    expect(screen.queryByText("你还没有可访问的个人作品。")).not.toBeInTheDocument();
-  });
-
   it("splits accessible personal and space uploads into two work sections", async () => {
     vi.mocked(api.get).mockImplementation(async (url) => {
       if (url === "/deployments") {
@@ -147,8 +130,8 @@ describe("DashboardPage", () => {
 
     renderPage();
 
-    expect(screen.getByRole("button", { name: "我的上传" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "空间管理" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "我的上传" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "空间管理" })).toBeInTheDocument();
     const personalSection = await screen.findByRole("region", { name: "个人作品" });
     const spaceSection = screen.getByRole("region", { name: "在空间里上传的作品" });
     expect(within(personalSection).getByRole("heading", { name: "个人首页" }))
@@ -159,7 +142,7 @@ describe("DashboardPage", () => {
     expect(within(spaceSection).getByRole("link", { name: "作品空间" }))
       .toHaveAttribute("href", "/s/portfolio");
     expect(within(spaceSection).queryByText("所在空间：")).not.toBeInTheDocument();
-    expect(within(spaceSection).getByRole("link", { name: "打开空间作品" }))
+    expect(within(spaceSection).getByRole("button", { name: "展开空间作品" }))
       .toHaveClass("work-preview-open-overlay");
     expect(api.get).toHaveBeenCalledWith("/deployments");
     expect(api.get).toHaveBeenCalledWith("/deployments/space-uploads");
@@ -200,7 +183,7 @@ describe("DashboardPage", () => {
 
     renderPage();
     await waitFor(() => expect(api.get).toHaveBeenCalledWith("/deployments"));
-    await user.click(screen.getByRole("button", { name: "空间管理" }));
+    await user.click(screen.getByRole("tab", { name: "空间管理" }));
 
     for (const heading of [
       "空间",
@@ -252,7 +235,7 @@ describe("DashboardPage", () => {
     });
     const user = userEvent.setup();
     renderPage();
-    await user.click(screen.getByRole("button", { name: "空间管理" }));
+    await user.click(screen.getByRole("tab", { name: "空间管理" }));
     expect(await screen.findByRole("button", { name: "进入作品空间管理" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "管理作品" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "作品空间的作品管理" })).not.toBeInTheDocument();
@@ -268,7 +251,7 @@ describe("DashboardPage", () => {
     const user = userEvent.setup();
 
     renderPage();
-    await user.click(screen.getByRole("button", { name: "空间管理" }));
+    await user.click(screen.getByRole("tab", { name: "空间管理" }));
 
     expect(screen.queryByLabelText("空间名称")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "新建空间" }));
@@ -309,7 +292,7 @@ describe("DashboardPage", () => {
     const user = userEvent.setup();
 
     renderPage();
-    await user.click(screen.getByRole("button", { name: "空间管理" }));
+    await user.click(screen.getByRole("tab", { name: "空间管理" }));
 
     const activeRow = (await screen.findByText("作品空间")).closest("tr")!;
     const expiredRow = screen.getByText("过期空间").closest("tr")!;
@@ -399,7 +382,7 @@ describe("DashboardPage", () => {
 it("keeps delegated spaces manageable while hiding owner-only changes and merge candidates", async () => {
   vi.mocked(api.get).mockImplementation(async url => ({ data: url === "/spaces" ? [{ id: "s-delegate", name: "协作空间", slug: "shared", expiresAt: "2099-01-01", createdAt: "2026-01-01", isOwner: false, canManage: true, deploymentCount: 1 }] : [] }));
   renderPage();
-  await userEvent.click(screen.getByRole("button", { name: "空间管理" }));
+  await userEvent.click(screen.getByRole("tab", { name: "空间管理" }));
   expect(await screen.findByRole("button", { name: "进入协作空间管理" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "为协作空间延长一年" })).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "修改协作空间名称" })).not.toBeInTheDocument();
@@ -417,13 +400,7 @@ it("opens permitted update from the card and leaves the preview link unchanged",
   await userEvent.upload(screen.getByLabelText("选择 HTML 文件"), new File(["new"], "index.html", { type: "text/html" }));
   await userEvent.click(screen.getByRole("button", { name: "确认替换" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  await userEvent.click(screen.getByRole("button", {name:"展开个人首页"}));
   expect(screen.getByTitle("个人首页预览").getAttribute("src")).toContain("revision=");
-  expect(screen.getByRole("link", { name: "打开个人首页" })).toHaveAttribute("href", "/p/personal-home/");
-});
-it("shows rollback for personal owners when the API grants it", async () => {
-  vi.mocked(api.get).mockImplementation(async url => ({ data: url === "/deployments" ? [{ ...activeDeployment, canUpdate: true, canRollback: true, hasPreviousVersion: true }] : [] }));
-  renderPage();
-  await screen.findByRole("heading", { name: "个人首页" });
-  await userEvent.click(screen.getByRole("button", { name: "个人首页的更多操作" }));
-  expect(screen.getByRole("button", { name: "退回个人首页上一版" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "打开个人首页的预览" })).toHaveAttribute("href", "/p/personal-home/");
 });

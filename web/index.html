@@ -3,6 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (() => {
+        let theme;
+        try { theme = localStorage.getItem('drop-share:theme'); } catch {}
+        document.documentElement.dataset.theme = theme === 'dark' || theme === 'light'
+          ? theme : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Drop &amp; Share - 一键部署，随时分享。</title>
   </head>

@@ -4,25 +4,6 @@ export type UploadEntry = {
   sourceFolderName?: string;
 };
 
-export function formatUploadSelectionSummary(entries: UploadEntry[]): string {
-  if (entries.length === 0) {
-    return "已选 0 个文件";
-  }
-  const folderName = entries[0]?.sourceFolderName;
-  if (folderName && entries.every((entry) => entry.sourceFolderName === folderName)) {
-    return `已选文件夹「${folderName}」，共 ${entries.length} 个文件`;
-  }
-  if (entries.length === 1) {
-    return `已选 ${entries[0].file.name}`;
-  }
-  const previewLimit = 3;
-  const names = entries.slice(0, previewLimit).map((entry) => entry.file.name);
-  if (entries.length <= previewLimit) {
-    return `已选 ${names.join("、")}（共 ${entries.length} 个文件）`;
-  }
-  return `已选 ${names.join("、")} 等共 ${entries.length} 个文件`;
-}
-
 export function suggestProjectName(entries: UploadEntry[]): string {
   const folderName = entries[0]?.sourceFolderName;
   if (folderName && entries.every((entry) => entry.sourceFolderName === folderName)) {

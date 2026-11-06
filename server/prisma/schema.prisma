@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -29,8 +30,25 @@ model User {
   spaces      Space[]
   deployments Deployment[] @relation("OwnerDeployments")
   administeredSpaces SpaceAdministrator[]
+  comments    DeploymentComment[]
+  notifications Notification[]
 
   @@unique([cloudbaseEnvId, cloudbaseSubject])
+}
+
+model Notification {
+  id          String @id @default(cuid())
+  recipientId String
+  recipient   User @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  kind        String @db.VarChar(32)
+  title       String @db.VarChar(255)
+  content     String @db.Text
+  href        String @db.VarChar(1024)
+  createdAt   DateTime @default(now())
+  readAt      DateTime?
+
+  @@index([recipientId, readAt, createdAt])
+  @@index([recipientId, createdAt, id])
 }
 
 model Space {
@@ -85,6 +103,8 @@ model DeploymentTag {
 model Deployment {
   id             String      @id @default(cuid())
   title          String
+  description    String      @default("") @db.VarChar(2000)
+  comments       DeploymentComment[]
   publicSlug     String      @unique
   viewCount      Int         @default(0)
   ownerUserId    String?
@@ -104,4 +124,17 @@ model Deployment {
   @@index([expiresAt])
   @@index([ownerUserId])
   @@index([spaceId])
+}
+
+model DeploymentComment {
+  id           String @id @default(cuid())
+  deploymentId String
+  authorId     String
+  content      String @db.Text
+  createdAt    DateTime @default(now())
+  deployment   Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  author       User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([deploymentId, createdAt])
+  @@index([authorId])
 }

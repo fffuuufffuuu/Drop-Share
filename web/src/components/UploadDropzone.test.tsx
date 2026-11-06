@@ -36,15 +36,13 @@ describe("UploadDropzone", () => {
   it("sends the newly selected files as a replacement list", () => {
     const onEntriesChange = vi.fn();
     const file = new File(["html"], "index.html", { type: "text/html" });
-    const { rerender } = render(<UploadDropzone entries={[]} onEntriesChange={onEntriesChange} />);
+    render(<UploadDropzone entries={[]} onEntriesChange={onEntriesChange} />);
 
     fireEvent.change(screen.getByLabelText("选择 HTML 文件"), {
       target: { files: [file] },
     });
 
     expect(onEntriesChange).toHaveBeenCalledWith([{ file, path: "index.html" }]);
-    rerender(<UploadDropzone entries={[{ file, path: "index.html" }]} onEntriesChange={onEntriesChange} />);
-    expect(screen.getByText("已选 index.html")).toBeInTheDocument();
   });
 
   it("highlights drag state and replaces entries with the dropped list", async () => {

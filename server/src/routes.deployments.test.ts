@@ -1,3 +1,5 @@
+import { scheduleThumbnail } from "./thumbnail-service";
+vi.mock("./thumbnail-service", () => ({ scheduleThumbnail: vi.fn(), readyThumbnailVersion: vi.fn().mockResolvedValue(undefined) }));
 import express from "express";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -6,6 +8,7 @@ import { prisma } from "./db";
 import { deploymentRouter } from "./routes.deployments";
 import { saveDeploymentFiles } from "./storage";
 import { sendZip } from "./space-downloads";
+
 vi.mock("./space-downloads", () => ({ sendZip: vi.fn(async (_deployment, res) => { res.type("application/zip").send("test-zip"); }) }));
 
 vi.mock("./db", () => ({
@@ -118,6 +121,7 @@ describe("personal deployment history", () => {
         id: true,
         ownerUserId:true,
         previousRootPath:true,
+        rootPath:true,
         title: true,
         publicSlug: true,
         viewCount: true,
@@ -166,6 +170,7 @@ describe("personal deployment history", () => {
         id: true,
         ownerUserId:true,
         previousRootPath:true,
+        rootPath:true,
         title: true,
         publicSlug: true,
         viewCount: true,
@@ -412,5 +417,42 @@ describe("deployment title updates", () => {
     expect(response.status).toBe(400);
     expect(response.body.message).toContain("同名");
     expect(prisma.deployment.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("optional descriptions on uploads", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(saveDeploymentFiles).mockReset().mockResolvedValue("storage/test");
+    vi.mocked(prisma.deployment.create).mockReset().mockResolvedValue({ id: "d1", publicSlug: "uploaded-demo" } as never);
+  });
+  for (const [url, authenticated] of [["/api/deployments/anonymous", false], ["/api/deployments", true]] as const) {
+    it.each([undefined, "", " \n ", " 实验简介\n使用说明 "])(`${url} saves an optional description: %j`, async description => {
+      let upload = request(createApp()).post(url).field("title", "作品");
+      if (authenticated) upload = upload.set("Authorization", "Bearer test").field("durationDays", "1");
+      if (description !== undefined) upload = upload.field("description", description);
+      const response = await upload.attach("files", Buffer.from("<h1>Work</h1>"), "index.html");
+      expect(response.status).toBe(201);
+      expect(prisma.deployment.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ description: description?.trim() ?? "" }) }));
+      expect(scheduleThumbnail).toHaveBeenCalledWith("uploaded-demo");
+    });
+    it(`${url} rejects oversized descriptions before saving files`, async () => {
+      let upload = request(createApp()).post(url).field("description", "简".repeat(2001));
+      if (authenticated) upload = upload.set("Authorization", "Bearer test").field("durationDays", "1");
+      const response = await upload.attach("files", Buffer.from("<h1>Work</h1>"), "index.html");
+      expect(response.status).toBe(400);
+      expect(saveDeploymentFiles).not.toHaveBeenCalled();
+      expect(prisma.deployment.create).not.toHaveBeenCalled();
+      expect(scheduleThumbnail).not.toHaveBeenCalled();
+    });
+  }
+  it("preserves the description when a signed-in manager uploads into a space", async () => {
+    vi.mocked(prisma.space.findUnique).mockResolvedValue({ id: "s1", ownerUserId: "user-1", expiresAt: new Date("2099-01-01") } as never);
+    vi.mocked(prisma.deployment.findFirst).mockResolvedValue(null);
+    const response = await request(createApp()).post("/api/deployments").set("Authorization", "Bearer test")
+      .field("spaceId", "s1").field("title", "作品").field("description", " 空间简介 ")
+      .attach("files", Buffer.from("<h1>Work</h1>"), "index.html");
+    expect(response.status).toBe(201);
+    expect(prisma.deployment.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ spaceId: "s1", description: "空间简介" }) }));
   });
 });

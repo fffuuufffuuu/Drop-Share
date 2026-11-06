@@ -2,6 +2,8 @@ type ProjectNameModalProps = {
   open: boolean;
   title?: string;
   value: string;
+  description?: string;
+  onDescriptionChange?: (value: string) => void;
   error?: string;
   hint?: string;
   confirmLabel: string;
@@ -14,6 +16,8 @@ export function ProjectNameModal({
   open,
   title = "为此项目起一个名称",
   value,
+  description = "",
+  onDescriptionChange,
   error,
   hint = "名称用于识别这个上传作品。",
   confirmLabel,
@@ -28,7 +32,7 @@ export function ProjectNameModal({
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
-        className="modal-card"
+        className={`modal-card${onDescriptionChange ? " upload-info-modal" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="project-name-modal-title"
@@ -48,6 +52,15 @@ export function ProjectNameModal({
             autoFocus
           />
         </label>
+        {onDescriptionChange && <div className="project-description-field">
+          <label htmlFor="project-description-input">
+            作品简介（选填）
+            <textarea id="project-description-input" value={description} aria-describedby="project-description-hint"
+              onChange={(event) => onDescriptionChange(event.target.value)} maxLength={2000} rows={4}
+              placeholder="简单介绍作品内容或使用方式，可留空" />
+          </label>
+          <p id="project-description-hint" className="hint">最多 2000 字，留空也可以上传。</p>
+        </div>}
         {error && <p className="message">{error}</p>}
         <div className="row">
           <button type="button" onClick={onClose}>

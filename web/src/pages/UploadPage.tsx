@@ -4,58 +4,25 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, setAuthToken } from "../api";
 import { getCurrentUser } from "../auth";
 import { CreateSpaceModal } from "../components/CreateSpaceModal";
-import { CopyShareLinkButton } from "../components/CopyShareLinkButton";
 import { ProjectNameModal } from "../components/ProjectNameModal";
 import { UploadDropzone } from "../components/UploadDropzone";
-import { formatLocaleDateTime } from "../format-datetime";
 import type { PersonalDeployment, Space, SpaceUploadDeployment } from "../types";
 import { suggestProjectName, type UploadEntry } from "../uploader";
-
-type DeployResult = {
-  url: string;
-  expiresAt: string;
-};
-
-const UPLOAD_SPACES_CACHE_KEY = "drop-share-upload-spaces";
-
-function readCachedSpaces(): Space[] {
-  try {
-    const raw = sessionStorage.getItem(UPLOAD_SPACES_CACHE_KEY);
-    if (!raw) {
-      return [];
-    }
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed as Space[] : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeCachedSpaces(spaces: Space[]) {
-  try {
-    sessionStorage.setItem(UPLOAD_SPACES_CACHE_KEY, JSON.stringify(spaces));
-  } catch {
-    // ignore quota or privacy mode errors
-  }
-}
 
 export function UploadPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [entries, setEntries] = useState<UploadEntry[]>([]);
   const [message, setMessage] = useState("");
-  const [deployResult, setDeployResult] = useState<DeployResult | null>(null);
   const [durationDays, setDurationDays] = useState(1);
   const [spaceId, setSpaceId] = useState("");
-  const [spaces, setSpaces] = useState<Space[]>(() => (getCurrentUser() ? readCachedSpaces() : []));
-  const [spacesLoading, setSpacesLoading] = useState(() => (
-    getCurrentUser() !== null && readCachedSpaces().length === 0
-  ));
+  const [spaces, setSpaces] = useState<Space[]>([]);
   const [submittedCount, setSubmittedCount] = useState<number | null>(null);
   const [overviewError, setOverviewError] = useState("");
   const [createSpaceOpen, setCreateSpaceOpen] = useState(false);
   const [projectNameOpen, setProjectNameOpen] = useState(false);
   const [projectName, setProjectName] = useState("");
+  const [projectDescription, setProjectDescription] = useState("");
   const [projectNameError, setProjectNameError] = useState("");
   const isLoggedIn = getCurrentUser() !== null;
   const selectedSpace = spaces.find((space) => space.id === spaceId);
@@ -75,27 +42,15 @@ export function UploadPage() {
 
   useEffect(() => {
     if (!isLoggedIn) {
-      setSpaces([]);
-      setSpacesLoading(false);
       return;
     }
 
     setAuthToken(localStorage.getItem("token") ?? undefined);
-    const cached = readCachedSpaces();
-    if (cached.length) {
-      setSpaces(cached);
-    } else {
-      setSpacesLoading(true);
-    }
     void api.get<Space[]>("/spaces")
-      .then(({ data }) => {
-        setSpaces(data);
-        writeCachedSpaces(data);
-      })
+      .then(({ data }) => setSpaces(data))
       .catch((error: any) => {
         setMessage(error.response?.data?.message || "空间列表加载失败");
-      })
-      .finally(() => setSpacesLoading(false));
+      });
     void loadSubmissionCount();
     if (searchParams.get("createSpace") === "1") {
       setCreateSpaceOpen(true);
@@ -119,6 +74,7 @@ export function UploadPage() {
       return;
     }
     setProjectName(suggestProjectName(entries));
+    setProjectDescription("");
     setProjectNameError("");
     setProjectNameOpen(true);
   }
@@ -132,6 +88,7 @@ export function UploadPage() {
 
     const formData = new FormData();
     formData.append("title", title);
+    formData.append("description", projectDescription.trim());
     entries.forEach((entry) => {
       formData.append("files", entry.file);
       formData.append("paths", entry.path);
@@ -146,8 +103,7 @@ export function UploadPage() {
       const url = isLoggedIn ? "/deployments" : "/deployments/anonymous";
       const { data } = await api.post(url, formData);
       setProjectNameOpen(false);
-      setDeployResult({ url: data.url, expiresAt: data.expiresAt });
-      setMessage("");
+      setMessage(`部署成功：${data.url}（到期：${new Date(data.expiresAt).toLocaleString()}）`);
       if (isLoggedIn) void loadSubmissionCount();
     } catch (error: any) {
       setProjectNameError(error.response?.data?.message || "部署失败");
@@ -177,7 +133,7 @@ export function UploadPage() {
             <>
               <span className="upload-setting-label">空间到期时间</span>
               <span className="retention-note retention-note--user">
-                空间内作品跟随空间到期：{formatLocaleDateTime(selectedSpace.expiresAt)}
+                空间内作品跟随空间到期：{new Date(selectedSpace.expiresAt).toLocaleString()}
               </span>
             </>
           ) : (
@@ -206,9 +162,7 @@ export function UploadPage() {
           <span className="space-field-note">在一个空间里分享所有人的作品</span>
           <select
             id="space-select"
-            value={spacesLoading ? "" : spaceId}
-            disabled={spacesLoading}
-            aria-busy={spacesLoading}
+            value={spaceId}
             onChange={(event) => {
               const nextValue = event.target.value;
               if (nextValue !== "__create_space__") {
@@ -222,17 +176,11 @@ export function UploadPage() {
               }
             }}
           >
-            {spacesLoading ? (
-              <option value="">加载空间…</option>
-            ) : (
-              <>
-                <option value="">仅个人上传（不加入空间）</option>
-                <option value="__create_space__">+ 新建空间</option>
-                {spaces.filter((space) => new Date(space.expiresAt) > new Date()).map((space) => (
-                  <option key={space.id} value={space.id}>{space.name}</option>
-                ))}
-              </>
-            )}
+            <option value="">仅个人上传（不加入空间）</option>
+            <option value="__create_space__">+ 新建空间</option>
+            {spaces.filter((space) => new Date(space.expiresAt) > new Date()).map((space) => (
+              <option key={space.id} value={space.id}>{space.name}</option>
+            ))}
           </select>
         </div>
       </div>
@@ -252,25 +200,6 @@ export function UploadPage() {
         )}
       </div>
 
-      {deployResult && (
-        <div className="deploy-success" role="status">
-          <p className="deploy-success-title">部署成功</p>
-          <p className="deploy-success-url-row">
-            <a
-              className="deploy-success-url"
-              href={deployResult.url}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {deployResult.url}
-            </a>
-            <CopyShareLinkButton title="部署链接" href={deployResult.url} />
-          </p>
-          <p className="deploy-success-expiry">
-            到期：{formatLocaleDateTime(deployResult.expiresAt)}
-          </p>
-        </div>
-      )}
       {message && <pre className="message">{message}</pre>}
       {isLoggedIn && (
         <section className="upload-overview" aria-labelledby="upload-overview-title">
@@ -314,6 +243,8 @@ export function UploadPage() {
       <ProjectNameModal
         open={projectNameOpen}
         value={projectName}
+        description={projectDescription}
+        onDescriptionChange={setProjectDescription}
         error={projectNameError}
         hint={selectedSpace
           ? "名称在该空间内不可与其他项目重复，仅用于显示。"
@@ -327,11 +258,7 @@ export function UploadPage() {
         open={createSpaceOpen}
         onClose={() => setCreateSpaceOpen(false)}
         onCreated={(space) => {
-          setSpaces((current) => {
-            const next = [...current, space];
-            writeCachedSpaces(next);
-            return next;
-          });
+          setSpaces((current) => [...current, space]);
           setSpaceId(space.id);
           setCreateSpaceOpen(false);
           if (searchParams.get("createSpace") === "1") {

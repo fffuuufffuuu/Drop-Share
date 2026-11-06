@@ -1,3 +1,4 @@
+import { scheduleThumbnail, readyThumbnailVersion } from "./thumbnail-service";
 import { Prisma, Visibility } from "@prisma/client";
 import { Router } from "express";
 import multer from "multer";
@@ -23,6 +24,7 @@ import {lockSpace} from "./space-contributors";
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 const createSchema = z.object({
   title: z.string().trim().min(1).max(80).optional(),
+  description: z.string().trim().max(2000, "简介最多 2000 字").optional().default(""),
   durationDays: z.coerce.number().int().min(1).max(MAX_PERSONAL_DAYS).optional(),
   spaceId: z.string().optional(),
 });
@@ -49,6 +51,7 @@ deploymentRouter.get("/", requireAuth, async (req, res) => {
       id: true,
       ownerUserId: true,
       previousRootPath: true,
+      rootPath: true,
       title: true,
       publicSlug: true,
       viewCount: true,
@@ -59,7 +62,7 @@ deploymentRouter.get("/", requireAuth, async (req, res) => {
     },
   });
 
-  res.json(await Promise.all(deployments.map(async({previousRootPath,...deployment})=>({...deployment,...await workCapabilities({...deployment,previousRootPath},req.authUser?.userId)}))));
+  res.json(await Promise.all(deployments.map(async({previousRootPath,rootPath,...deployment})=>({...deployment,thumbnailVersion:await readyThumbnailVersion({...deployment,rootPath,space: null}),...await workCapabilities({...deployment,previousRootPath},req.authUser?.userId)}))));
 });
 
 deploymentRouter.get("/space-uploads", requireAuth, async (req, res) => {
@@ -73,6 +76,7 @@ deploymentRouter.get("/space-uploads", requireAuth, async (req, res) => {
       id: true,
       ownerUserId: true,
       previousRootPath: true,
+      rootPath: true,
       title: true,
       publicSlug: true,
       viewCount: true,
@@ -92,13 +96,18 @@ deploymentRouter.get("/space-uploads", requireAuth, async (req, res) => {
     },
   });
 
-  res.json(await Promise.all(deployments.map(async({previousRootPath,...deployment})=>({...deployment,...await workCapabilities({...deployment,previousRootPath},req.authUser?.userId)}))));
+  res.json(await Promise.all(deployments.map(async({previousRootPath,rootPath,...deployment})=>({...deployment,thumbnailVersion:await readyThumbnailVersion({...deployment,rootPath,space: deployment.space}),...await workCapabilities({...deployment,previousRootPath},req.authUser?.userId)}))));
 });
 
 deploymentRouter.post("/anonymous", upload.array("files", 1000), async (req, res) => {
   const files = (req.files as Express.Multer.File[]) ?? [];
   if (!files.length) {
     res.status(400).json({ message: "No files uploaded" });
+    return;
+  }
+  const payload = createSchema.pick({ description: true }).safeParse(req.body);
+  if (!payload.success) {
+    res.status(400).json({ message: payload.error.issues[0]?.message ?? "Invalid payload" });
     return;
   }
   const publicSlug = randomSlug(10);
@@ -114,6 +123,7 @@ deploymentRouter.post("/anonymous", upload.array("files", 1000), async (req, res
     data: {
       id: deploymentId,
       title: req.body.title || `anonymous-${deploymentId.slice(0, 6)}`,
+      description: payload.data.description,
       publicSlug,
       rootPath,
       expiresAt,
@@ -122,6 +132,7 @@ deploymentRouter.post("/anonymous", upload.array("files", 1000), async (req, res
     },
   });
 
+  scheduleThumbnail(deployment.publicSlug);
   res.status(201).json({
     id: deployment.id,
     url: `${config.baseUrl}/p/${publicSlug}`,
@@ -188,6 +199,7 @@ deploymentRouter.post("/", requireAuth, upload.array("files", 1000), async (req,
     data: {
       id: deploymentId,
       title: payload.data.title || `site-${deploymentId.slice(0, 6)}`,
+      description: payload.data.description,
       ownerUserId: req.authUser?.userId,
       spaceId: payload.data.spaceId ?? null,
       publicSlug,
@@ -198,6 +210,7 @@ deploymentRouter.post("/", requireAuth, upload.array("files", 1000), async (req,
     },
   });
 
+  scheduleThumbnail(deployment.publicSlug);
   res.status(201).json({
     id: deployment.id,
     url: `${config.baseUrl}/p/${publicSlug}`,

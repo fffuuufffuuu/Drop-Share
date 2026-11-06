@@ -1,3 +1,5 @@
+import {scheduleThumbnail} from "./thumbnail-service";
+vi.mock("./thumbnail-service",()=>({scheduleThumbnail:vi.fn()}));
 import {beforeEach,expect,it,vi} from "vitest";
 import {prisma} from "./db";
 import {saveDeploymentFiles,removeDeploymentFolder} from "./storage";
@@ -14,11 +16,13 @@ beforeEach(()=>{vi.resetAllMocks();vi.mocked(prisma.deployment.findUnique).mockR
 it("only switches file paths, retaining the original URL, views and all metadata",async()=>{
   expect(await replaceWorkFiles("work","uploader",files)).toEqual({id:"work",publicSlug:"original-link",hasPreviousVersion:true});
   expect(prisma.deployment.updateMany).toHaveBeenCalledWith(expect.objectContaining({data:{rootPath:"new",previousRootPath:"old"},where:expect.objectContaining({rootPath:"old",previousRootPath:"older",deletedAt:null})}));
+  expect(scheduleThumbnail).toHaveBeenCalledWith("original-link");
   expect(removeDeploymentFolder).toHaveBeenCalledWith("older");expect(removeDeploymentFolder).not.toHaveBeenCalledWith("old");
 });
 it("retains the old work when staging fails",async()=>{
   vi.mocked(saveDeploymentFiles).mockRejectedValue(new Error("bad upload"));
   await expect(replaceWorkFiles("work","uploader",files)).rejects.toThrow("bad upload");
+  expect(scheduleThumbnail).not.toHaveBeenCalled();
   expect(prisma.deployment.updateMany).not.toHaveBeenCalled();expect(removeDeploymentFolder).not.toHaveBeenCalledWith("old");
 });
 it("rejects revoked permission and cleans the new files without deleting the previous work",async()=>{

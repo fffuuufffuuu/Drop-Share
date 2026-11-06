@@ -1,3 +1,4 @@
+import {scheduleThumbnail} from "./thumbnail-service";
 import {Prisma} from "@prisma/client";
 import type {Router,Request,Response,NextFunction} from "express";
 import multer from "multer";
@@ -37,9 +38,9 @@ async function commitRoots(snapshot:Awaited<ReturnType<typeof loadWork>>,userId:
     await tx.$queryRaw(Prisma.sql`SELECT id FROM Deployment WHERE id = ${snapshot.id} FOR UPDATE`);
     const current=await loadWork(snapshot.id,userId,rollback,tx);
     if(current.rootPath!==snapshot.rootPath||current.previousRootPath!==snapshot.previousRootPath||current.spaceId!==snapshot.spaceId)throw new VersionError(409,"作品已发生变化，请刷新后重试");
-    const changed=await tx.deployment.updateMany({where:{id:current.id,rootPath:snapshot.rootPath,previousRootPath:snapshot.previousRootPath,spaceId:snapshot.spaceId,deletedAt:null},data:{rootPath:newRoot,previousRootPath:current.rootPath}});
+    const changed=await tx.deployment.updateMany({where:{id:current.id,rootPath:snapshot.rootPath,previousRootPath:snapshot.previousRootPath,spaceId:snapshot.spaceId,deletedAt:null},data:{rootPath:newRoot,previousRootPath:current.spaceId?current.rootPath:null}});
     if(changed.count!==1)throw new VersionError(409,"作品已发生变化，请刷新后重试");
-    return {id:current.id,publicSlug:current.publicSlug,hasPreviousVersion:true};
+    return {id:current.id,publicSlug:current.publicSlug,hasPreviousVersion:!!current.spaceId};
   });
 }
 async function cleanupUnused(root:string|null|undefined){
@@ -56,14 +57,17 @@ export async function replaceWorkFiles(id:string,userId:string,items:UploadItem[
     stagedRoot=await saveDeploymentFiles(relative,items);
     result=await commitRoots(snapshot,userId,stagedRoot,false);
   }catch(error){await cleanupUnused(stagedRoot);throw error;}
-  await cleanupUnused(snapshot.previousRootPath);
+  await cleanupUnused(snapshot.spaceId?snapshot.previousRootPath:snapshot.rootPath);
+  scheduleThumbnail(result.publicSlug);
   return result;
 }
 export async function rollbackWorkFiles(id:string,userId:string){
   const snapshot=await loadWork(id,userId,true);
   // Verify that the retained version still exists before changing the live pointer.
   try{await fs.access(path.join(snapshot.previousRootPath!,"index.html"));}catch{throw new VersionError(409,"上一版文件不存在，无法回退");}
-  return commitRoots(snapshot,userId,snapshot.previousRootPath!,true);
+  const result=await commitRoots(snapshot,userId,snapshot.previousRootPath!,true);
+  scheduleThumbnail(result.publicSlug);
+  return result;
 }
 const upload=multer({dest:os.tmpdir(),limits:{fileSize:20*1024*1024,files:1000}});
 const fail=(res:Response,error:unknown)=>res.status(error instanceof VersionError?error.status:400).json({message:error instanceof VersionError?error.message:"文件更新失败，旧作品已保留"});

@@ -4,10 +4,11 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { config } from "./config";
 import { prisma } from "./db";
 import { cloudbaseAccountRouter } from "./routes.auth.account";
-vi.mock("./db", () => ({ prisma: { user: { findUnique: vi.fn() } } }));
+vi.mock("./db", () => ({ prisma: { user: { findUnique: vi.fn() }, $transaction: vi.fn(), $queryRaw: vi.fn() } }));
 const app = express(); app.use(express.json()); app.use(cloudbaseAccountRouter);
 beforeEach(() => {
   config.authProvider = "cloudbase"; config.cloudbaseEnvId = "test-env";
+  vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => fn(prisma));
   vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: "local", username: "teacher", cloudbaseSubject: "subject", cloudbaseEnvId: "test-env" } as any);
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -15,7 +16,7 @@ it.each(["password", "contact"])("runs the SDK HTTP proof chain and authenticate
   const profile = { sub: "subject", phone_number: "+86 13800138000" };
   const replies: object[] = [profile, { verification_id: "own-id", expires_in: 600 }, profile, { verification_token: "own-verified" }, { sudo_token: "sudo" }, profile];
   if (action === "password") replies.push({});
-  else replies.push({ verification_id: "new-id", expires_in: 600 }, profile, { verification_token: "new-verified" }, {}, { ...profile, email: "teacher@example.com" });
+  else replies.push({ verification_id: "new-id", expires_in: 600 }, profile, profile, { verification_token: "new-verified" }, {}, { ...profile, email: "teacher@example.com" });
   const calls: { url: string; init: RequestInit }[] = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => { calls.push({ url, init }); return new Response(JSON.stringify(replies.shift())); }));
   const post = (path: string, body: object) => request(app).post(path).set("Authorization", "Bearer access").send(body);

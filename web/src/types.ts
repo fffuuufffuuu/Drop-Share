@@ -23,6 +23,7 @@ export type Deployment = {
   id: string;
   title: string;
   publicSlug: string;
+  thumbnailVersion?: string;
   viewCount: number;
   expiresAt: string;
   visibility: "visible" | "hidden";
