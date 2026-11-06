@@ -12,6 +12,7 @@ import { UploadPage } from "./UploadPage";
 afterEach(() => {
   cleanup();
   localStorage.clear();
+  sessionStorage.clear();
   vi.restoreAllMocks();
 });
 
@@ -331,5 +332,38 @@ describe("UploadPage file choices", () => {
     const formData = postSpy.mock.calls[0][1] as FormData;
     expect(formData.getAll("paths")).toEqual(["app.js", "index.html", "README.md", "style.css"]);
     expect(screen.queryByText("文件夹上传必须包含 index.html。")).not.toBeInTheDocument();
+  });
+
+  it("disables the space dropdown while spaces are loading", async () => {
+    signIn();
+    let resolveSpaces: ((value: { data: typeof activeSpace[] }) => void) | undefined;
+    const pendingSpaces = new Promise<{ data: typeof activeSpace[] }>((resolve) => {
+      resolveSpaces = resolve;
+    });
+    vi.spyOn(api, "get").mockImplementation(async (url) => {
+      if (url === "/spaces") return pendingSpaces;
+      if (url === "/deployments" || url === "/deployments/space-uploads") return { data: [] };
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    renderUploadPage();
+
+    const target = screen.getByRole("combobox", { name: "上传到空间" });
+    expect(target).toBeDisabled();
+    expect(target).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("option", { name: "加载空间…" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "作品集" })).not.toBeInTheDocument();
+
+    resolveSpaces?.({ data: [activeSpace] });
+    await waitFor(() => expect(target).toBeEnabled());
+    expect(await screen.findByRole("option", { name: "作品集" })).toBeInTheDocument();
+  });
+
+  it("shows selected HTML filenames in the dropzone summary", () => {
+    renderUploadPage();
+    fireEvent.change(screen.getByLabelText("选择 HTML 文件"), {
+      target: { files: [new File(["html"], "demo.html", { type: "text/html" })] },
+    });
+    expect(screen.getByText("已选 demo.html")).toBeInTheDocument();
   });
 });

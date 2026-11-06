@@ -3,6 +3,7 @@ import { useState } from "react";
 import {
   collectDroppedEntries,
   collectUploadEntries,
+  formatUploadSelectionSummary,
   type UploadEntry,
 } from "../uploader";
 
@@ -78,7 +79,7 @@ export function UploadDropzone({
         </label>
       </div>
       <p className="upload-selection-status" aria-live="polite">
-        已选 {entries.length} 个文件
+        {formatUploadSelectionSummary(entries)}
       </p>
     </section>
   );
