@@ -13,6 +13,7 @@ import { SpaceContributors } from "../components/SpaceContributors";
 import { WorkActionIcon } from "../components/WorkActionIcon";
 import { SpaceTagControls, TagChips, TagFilter } from "../components/SpaceTagControls";
 import { downloadZip } from "../download";
+import { formatLocaleDateTime } from "../format-datetime";
 import { isDeadlineNear } from "../space-deadline";
 import type { SpaceDeployment, SpaceTag } from "../types";
 
@@ -199,7 +200,7 @@ export function SpacePage() {
             }}>修改空间名称</button>}
           </div>
           <p className={`retention-note retention-note--user${isDeadlineNear(detail.expiresAt) ? " deadline-near" : ""}`}>
-            空间内作品统一于 {new Date(detail.expiresAt).toLocaleString()} 到期
+            空间内作品统一于 {formatLocaleDateTime(detail.expiresAt)} 到期
           </p>
           <div className="space-batch-upload">
             <div className="space-batch-actions">
