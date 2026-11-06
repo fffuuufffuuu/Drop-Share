@@ -778,6 +778,42 @@ td {
   color: #1d4ed8;
 }
 
+.deploy-success {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #ecfdf3;
+  color: #065f46;
+}
+
+.deploy-success-title {
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+
+.deploy-success-url-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.deploy-success-url {
+  color: #1d4ed8;
+  overflow-wrap: anywhere;
+}
+
+.deploy-success-expiry {
+  margin: 0;
+  font-size: 12px;
+}
+
+.dashboard-loading {
+  margin: 0;
+  color: #4b5563;
+}
+
 .space-modal-overlay {
   position: fixed;
   z-index: 50;

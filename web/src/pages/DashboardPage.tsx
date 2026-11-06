@@ -14,6 +14,7 @@ import { WorkPreviewCard } from "../components/WorkPreviewCard";
 import { WorkActionIcon } from "../components/WorkActionIcon";
 import { downloadZip } from "../download";
 import type { PersonalDeployment, Space, SpaceUploadDeployment } from "../types";
+import { formatLocaleDateTime } from "../format-datetime";
 
 type DashboardPanel = "uploads" | "spaces";
 
@@ -35,6 +36,7 @@ export function DashboardPage() {
   const [spaceName, setSpaceName] = useState("");
   const [spaceError, setSpaceError] = useState("");
   const [message, setMessage] = useState("");
+  const [uploadsLoading, setUploadsLoading] = useState(true);
   const [busyWorkId, setBusyWorkId] = useState<string | null>(null);
   const navigate = useNavigate();
 
@@ -45,6 +47,7 @@ export function DashboardPage() {
       return;
     }
     setAuthToken(token);
+    setUploadsLoading(true);
     try {
       const [{ data: personalData }, { data: spaceData }] = await Promise.all([
         api.get<PersonalDeployment[]>("/deployments"),
@@ -59,6 +62,8 @@ export function DashboardPage() {
       setSpaceWorks(spaceData.filter(isAccessible));
     } catch (error: any) {
       setMessage(error.response?.data?.message || "加载我的上传失败");
+    } finally {
+      setUploadsLoading(false);
     }
   }
 
@@ -252,7 +257,9 @@ export function DashboardPage() {
               aria-labelledby="dashboard-personal-works-title"
             >
               <h3 id="dashboard-personal-works-title">个人作品</h3>
-              {personalWorks.length === 0 ? (
+              {uploadsLoading ? (
+                <p className="dashboard-loading" role="status">正在加载作品…</p>
+              ) : personalWorks.length === 0 ? (
                 <p className="empty-state">你还没有可访问的个人作品。</p>
               ) : (
                 <div className="work-card-grid">
@@ -267,7 +274,7 @@ export function DashboardPage() {
                       hidden={deployment.visibility === "hidden"}
                       tags={<span className={`work-visibility work-visibility-${deployment.visibility}`}>{deployment.visibility === "hidden" ? "已隐藏" : "显示中"}</span>}
                       actions={workActions(deployment)}
-                      meta={`到期时间：${new Date(deployment.expiresAt).toLocaleString()}`}
+                      meta={`到期时间：${formatLocaleDateTime(deployment.expiresAt)}`}
                       titleAction={<EditNameButton label={`重命名${deployment.title}`} onClick={() => openRename(deployment)} />}
                     />
                   ))}
@@ -279,7 +286,9 @@ export function DashboardPage() {
               aria-labelledby="dashboard-space-works-title"
             >
               <h3 id="dashboard-space-works-title">在空间里上传的作品</h3>
-              {spaceWorks.length === 0 ? (
+              {uploadsLoading ? (
+                <p className="dashboard-loading" role="status">正在加载作品…</p>
+              ) : spaceWorks.length === 0 ? (
                 <p className="empty-state">你还没有上传到空间的可访问作品。</p>
               ) : (
                 <div className="work-card-grid">
@@ -297,7 +306,7 @@ export function DashboardPage() {
                       titleAction={<EditNameButton label={`重命名${deployment.title}`} onClick={() => openRename(deployment)} />}
                       meta={(
                         <div className="space-work-meta">
-                          <span>到期时间：{new Date(deployment.expiresAt).toLocaleString()}</span>
+                          <span>到期时间：{formatLocaleDateTime(deployment.expiresAt)}</span>
                           <Link to={`/s/${deployment.space.slug}`}>
                             {deployment.space.name}
                           </Link>
@@ -358,7 +367,7 @@ export function DashboardPage() {
                         <td>/{space.slug}</td>
                         <td>{space.deploymentCount}</td>
                         <td><WorkViewCount count={space.viewCount} /></td>
-                        <td>{new Date(space.expiresAt).toLocaleString()}</td>
+                        <td>{formatLocaleDateTime(space.expiresAt)}</td>
                         <td>
                           <span
                             className={`dashboard-status dashboard-status-${

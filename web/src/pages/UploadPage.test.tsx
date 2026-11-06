@@ -117,6 +117,32 @@ describe("UploadPage file choices", () => {
       .toBeInTheDocument();
   });
 
+  it("shows a clickable deploy link with copy after a successful deployment", async () => {
+    signIn();
+    mockSignedInGets();
+    const deployUrl = "https://drop.example/p/demo";
+    vi.spyOn(api, "post").mockResolvedValue({
+      data: {
+        url: deployUrl,
+        expiresAt: "2026-08-29T01:00:00.000Z",
+      },
+    });
+    const user = userEvent.setup();
+    const file = new File(["html"], "index.html", { type: "text/html" });
+
+    renderUploadPage();
+    fireEvent.change(screen.getByLabelText("选择 HTML 文件"), {
+      target: { files: [file] },
+    });
+    await user.click(screen.getByRole("button", { name: "部署" }));
+    await user.type(screen.getByRole("textbox", { name: "项目名称" }), "个人作品");
+    await user.click(screen.getByRole("button", { name: "确认部署" }));
+
+    expect(await screen.findByRole("link", { name: deployUrl })).toHaveAttribute("href", deployUrl);
+    expect(screen.getByRole("button", { name: "复制部署链接的分享链接" })).toBeInTheDocument();
+    expect(screen.getByText(/^到期：2026-/)).toBeInTheDocument();
+  });
+
   it("submits durationDays for a signed-in personal upload", async () => {
     signIn();
     mockSignedInGets();

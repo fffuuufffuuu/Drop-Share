@@ -7,6 +7,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../api";
+import { formatLocaleDateTime } from "../format-datetime";
 import { SpaceEntryPage } from "./SpaceEntryPage";
 
 afterEach(() => {
@@ -134,7 +135,7 @@ describe("SpaceEntryPage upload selection", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "作品空间" }))
       .toBeInTheDocument();
     expect(screen.getByText(
-      `空间内作品统一于 ${new Date("2027-07-30T01:00:00.000Z").toLocaleString()} 到期`,
+      `空间内作品统一于 ${formatLocaleDateTime("2027-07-30T01:00:00.000Z")} 到期`,
     )).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "上传网页文件" })).toBeInTheDocument();
     expect(screen.getByLabelText("选择 HTML 文件")).toHaveAttribute("type", "file");

@@ -4,16 +4,24 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, setAuthToken } from "../api";
 import { getCurrentUser } from "../auth";
 import { CreateSpaceModal } from "../components/CreateSpaceModal";
+import { CopyShareLinkButton } from "../components/CopyShareLinkButton";
 import { ProjectNameModal } from "../components/ProjectNameModal";
 import { UploadDropzone } from "../components/UploadDropzone";
+import { formatLocaleDateTime } from "../format-datetime";
 import type { PersonalDeployment, Space, SpaceUploadDeployment } from "../types";
 import { suggestProjectName, type UploadEntry } from "../uploader";
+
+type DeployResult = {
+  url: string;
+  expiresAt: string;
+};
 
 export function UploadPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [entries, setEntries] = useState<UploadEntry[]>([]);
   const [message, setMessage] = useState("");
+  const [deployResult, setDeployResult] = useState<DeployResult | null>(null);
   const [durationDays, setDurationDays] = useState(1);
   const [spaceId, setSpaceId] = useState("");
   const [spaces, setSpaces] = useState<Space[]>([]);
@@ -100,7 +108,8 @@ export function UploadPage() {
       const url = isLoggedIn ? "/deployments" : "/deployments/anonymous";
       const { data } = await api.post(url, formData);
       setProjectNameOpen(false);
-      setMessage(`部署成功：${data.url}（到期：${new Date(data.expiresAt).toLocaleString()}）`);
+      setDeployResult({ url: data.url, expiresAt: data.expiresAt });
+      setMessage("");
       if (isLoggedIn) void loadSubmissionCount();
     } catch (error: any) {
       setProjectNameError(error.response?.data?.message || "部署失败");
@@ -130,7 +139,7 @@ export function UploadPage() {
             <>
               <span className="upload-setting-label">空间到期时间</span>
               <span className="retention-note retention-note--user">
-                空间内作品跟随空间到期：{new Date(selectedSpace.expiresAt).toLocaleString()}
+                空间内作品跟随空间到期：{formatLocaleDateTime(selectedSpace.expiresAt)}
               </span>
             </>
           ) : (
@@ -197,6 +206,25 @@ export function UploadPage() {
         )}
       </div>
 
+      {deployResult && (
+        <div className="deploy-success" role="status">
+          <p className="deploy-success-title">部署成功</p>
+          <p className="deploy-success-url-row">
+            <a
+              className="deploy-success-url"
+              href={deployResult.url}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {deployResult.url}
+            </a>
+            <CopyShareLinkButton title="部署链接" href={deployResult.url} />
+          </p>
+          <p className="deploy-success-expiry">
+            到期：{formatLocaleDateTime(deployResult.expiresAt)}
+          </p>
+        </div>
+      )}
       {message && <pre className="message">{message}</pre>}
       {isLoggedIn && (
         <section className="upload-overview" aria-labelledby="upload-overview-title">

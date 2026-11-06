@@ -7,6 +7,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../api";
+import { formatLocaleDateTime } from "../format-datetime";
 import { DashboardPage } from "./DashboardPage";
 import { downloadZip } from "../download";
 vi.mock("../download", () => ({ downloadZip: vi.fn() }));
@@ -103,6 +104,27 @@ describe("DashboardPage", () => {
     expect(screen.getByRole("button",{name:"隐藏空间作品"})).toBeInTheDocument();
     expect(screen.getByRole("button",{name:"删除空间作品"})).toBeInTheDocument();
   });
+  it("shows a loading state instead of empty uploads before deployments load", async () => {
+    let resolveDeployments: ((value: { data: typeof activeDeployment[] }) => void) | undefined;
+    const pendingDeployments = new Promise<{ data: typeof activeDeployment[] }>((resolve) => {
+      resolveDeployments = resolve;
+    });
+    vi.mocked(api.get).mockImplementation(async (url) => {
+      if (url === "/deployments") return pendingDeployments;
+      if (url === "/deployments/space-uploads") return { data: [] };
+      throw new Error(`unexpected GET ${url}`);
+    });
+
+    renderPage();
+
+    expect(screen.getAllByRole("status").some((node) => node.textContent === "正在加载作品…")).toBe(true);
+    expect(screen.queryByText("你还没有可访问的个人作品。")).not.toBeInTheDocument();
+
+    resolveDeployments?.({ data: [activeDeployment] });
+    expect(await screen.findByRole("heading", { name: "个人首页" })).toBeInTheDocument();
+    expect(screen.queryByText("你还没有可访问的个人作品。")).not.toBeInTheDocument();
+  });
+
   it("splits accessible personal and space uploads into two work sections", async () => {
     vi.mocked(api.get).mockImplementation(async (url) => {
       if (url === "/deployments") {
@@ -210,7 +232,7 @@ describe("DashboardPage", () => {
 
     await user.click(within(activeRow).getByRole("button", { name: "为作品空间延长一年" }));
     expect(api.post).toHaveBeenCalledWith("/spaces/s1/extend");
-    expect(await screen.findByText(new Date("2100-07-30T01:00:00.000Z").toLocaleString()))
+    expect(await screen.findByText(formatLocaleDateTime("2100-07-30T01:00:00.000Z")))
       .toBeInTheDocument();
   });
 
