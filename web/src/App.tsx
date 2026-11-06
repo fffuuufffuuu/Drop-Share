@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, Navigate, Route, Routes } from "react-router-dom";
 
 import { authChangedEvent, getCurrentUser } from "./auth";
+import { RequireAuth } from "./RequireAuth";
 import { AdminPage } from "./pages/AdminPage";
 import { AccountPage } from "./pages/AccountPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -68,7 +69,7 @@ export default function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/upload" element={<UploadPage />} />
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/dashboard" element={<RequireAuth><DashboardPage /></RequireAuth>} />
           <Route path="/account" element={<AccountPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/spaces/:spaceId" element={<SpacePage />} />

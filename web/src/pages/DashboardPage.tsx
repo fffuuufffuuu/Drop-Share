@@ -43,6 +43,7 @@ export function DashboardPage() {
   async function loadDeployments() {
     const token = localStorage.getItem("token");
     if (!token) {
+      setUploadsLoading(false);
       setMessage("请先登录。");
       return;
     }

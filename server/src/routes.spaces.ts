@@ -1,3 +1,4 @@
+import { Visibility } from "@prisma/client";
 import { Router } from "express";
 import { resolveAuthUser } from "./auth-identity";
 import { AuthError } from "./cloudbase";
@@ -442,6 +443,7 @@ spaceRouter.get("/entry/:slug", optionalAuth, async (req, res) => {
     where: {
       spaceId: space.id,
       deletedAt: null,
+      visibility: Visibility.visible,
     },
     include: {
       owner: {
@@ -452,7 +454,10 @@ spaceRouter.get("/entry/:slug", optionalAuth, async (req, res) => {
     orderBy: { createdAt: "desc" },
   });
 
-  const visible = deployments.filter((deployment) => deployment.visibility === "visible");
+  const viewCountDeployments = await prisma.deployment.findMany({
+    where: { spaceId: space.id, deletedAt: null },
+    select: { viewCount: true, visibility: true },
+  });
   const manager=await canManageSpace(space,req.authUser?.userId);
   const siteAdmin=await isSiteAdministrator(req.authUser?.userId);
   const tags = await prisma.spaceTag.findMany({
@@ -468,10 +473,10 @@ spaceRouter.get("/entry/:slug", optionalAuth, async (req, res) => {
       isOwner:space.ownerUserId===req.authUser?.userId,
       expiresAt: space.expiresAt,
       downloadsEnabled: space.downloadsEnabled,
-      viewCount: sumWorkViews(deployments),
+      viewCount: sumWorkViews(viewCountDeployments),
     },
     tags,
-    deployments: await Promise.all(visible.map(async (deployment) => ({
+    deployments: await Promise.all(deployments.map(async (deployment) => ({
       id: deployment.id,
       title: deployment.title,
       publicSlug: deployment.publicSlug,

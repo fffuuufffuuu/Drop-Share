@@ -420,3 +420,10 @@ it("opens permitted update from the card and leaves the preview link unchanged",
   expect(screen.getByTitle("个人首页预览").getAttribute("src")).toContain("revision=");
   expect(screen.getByRole("link", { name: "打开个人首页" })).toHaveAttribute("href", "/p/personal-home/");
 });
+it("shows rollback for personal owners when the API grants it", async () => {
+  vi.mocked(api.get).mockImplementation(async url => ({ data: url === "/deployments" ? [{ ...activeDeployment, canUpdate: true, canRollback: true, hasPreviousVersion: true }] : [] }));
+  renderPage();
+  await screen.findByRole("heading", { name: "个人首页" });
+  await userEvent.click(screen.getByRole("button", { name: "个人首页的更多操作" }));
+  expect(screen.getByRole("button", { name: "退回个人首页上一版" })).toBeInTheDocument();
+});

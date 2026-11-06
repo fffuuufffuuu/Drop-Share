@@ -39,3 +39,29 @@ export function getCurrentUser(): CurrentUser | null {
     return null;
   }
 }
+
+export function isAuthenticated(): boolean {
+  return getCurrentUser() !== null && !!localStorage.getItem("token");
+}
+
+const loginRedirectPaths = new Set(["/dashboard", "/account", "/upload"]);
+
+export function loginDestinationFromNext(next: string | null): string {
+  if (next === "/upload?createSpace=1") {
+    return next;
+  }
+  if (next && loginRedirectPaths.has(next.split("?")[0])) {
+    return next;
+  }
+  return "/upload";
+}
+
+export function loginPathWithNext(pathname: string): string {
+  if (pathname === "/login") {
+    return "/login";
+  }
+  if (!loginRedirectPaths.has(pathname.split("?")[0])) {
+    return "/login";
+  }
+  return `/login?next=${encodeURIComponent(pathname)}`;
+}
