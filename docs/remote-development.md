@@ -60,3 +60,11 @@ npm test -- --run --maxWorkers=1
 本机后端 build 与全部 263 项测试通过；前端 typecheck/build 与全部 168 项测试通过。后端最初在沙箱中因本机回环连接 `EACCES` 失败，允许本机测试连接后全部通过，无应用代码修正。
 
 本次不进行线上部署、生产数据库迁移或依赖版本升级。同步后的精确版本以 `git rev-parse HEAD` 和 GitHub `main` 为准。
+
+### 云端验收
+
+云端已按锁文件安装 Linux 依赖，并生成 Prisma Client 6.19.2。后端 build 和 33 个文件中的 263 项测试通过；前端 typecheck/build 和 28 个文件中的 168 项测试通过。两端均以一个 worker 顺序测试，安装和验证后 Git 工作区干净，lockfile 没有修改。
+
+服务器直接拉取 GitHub 本次未能完成，改用经 SHA-256 校验的 Git 增量包通过 SSH 传输，再快进到与 GitHub 相同的应用提交 `69a9854`。`origin` 保留 GitHub 地址；后续直接 fetch/push 仍取决于服务器的 GitHub 网络连通性和独立的 GitHub 写入授权。
+
+依赖和构建安装完成后的开发目录占用 649,818,112 字节（约 620 MiB），系统可用空间 16,696,696,832 字节（约 15.6 GiB，随业务写入变化）。旧版本恢复分支保留。线上前端入口和后端入口构建文件的 SHA-256 与同步前一致，公开 `/api/health` 返回 `{"ok":true}`。
