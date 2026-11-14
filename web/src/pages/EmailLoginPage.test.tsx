@@ -13,29 +13,29 @@ describe("email authentication", () => {
     render(<MemoryRouter><EmailLoginPage method="sms" /></MemoryRouter>);
     vi.mocked(api.post).mockResolvedValueOnce({ data: { challenge: "known-provider", requiresUsername: false } });
     fireEvent.change(screen.getByLabelText("手机号"), { target: { value: "13800138000" } });
-    fireEvent.change(screen.getByLabelText("用户名"), { target: { value: "无效" } });
+    fireEvent.change(screen.getByLabelText("昵称"), { target: { value: "无效" } });
     fireEvent.click(screen.getByRole("button", { name: "获取验证码" }));
-    await waitFor(() => expect(screen.queryByLabelText("用户名")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByLabelText("昵称")).not.toBeInTheDocument());
     vi.mocked(api.post).mockRejectedValueOnce({ response: { data: { usernameRequired: true, registrationToken: "verified-provider-session", message: "请填写用户名" } } });
     fireEvent.change(screen.getByLabelText("验证码"), { target: { value: "123456" } });
     fireEvent.click(screen.getByRole("button", { name: "验证并登录" }));
-    expect(await screen.findByLabelText("用户名")).toBeRequired();
+    expect(await screen.findByLabelText("昵称")).toBeRequired();
     expect(api.post).toHaveBeenCalledWith("/auth/sms/verify", { challenge: "known-provider", code: "123456" });
-    fireEvent.change(screen.getByLabelText("用户名"), { target: { value: "teacher" } });
+    fireEvent.change(screen.getByLabelText("昵称"), { target: { value: "物理老师" } });
     vi.mocked(api.post).mockRejectedValueOnce({ response: { data: { message: "用户名已占用" } } });
     fireEvent.click(screen.getByRole("button", { name: "完成注册" }));
-    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/auth/registration/complete", { registrationToken: "verified-provider-session", username: "teacher" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/auth/registration/complete", { registrationToken: "verified-provider-session", username: "物理老师" }));
     expect(api.post).toHaveBeenCalledTimes(3);
   });
   it("requires a registration username and hides it once an existing identity is recognized", async () => {
     render(<MemoryRouter><EmailLoginPage method="sms" /></MemoryRouter>);
-    expect(screen.getByLabelText("用户名")).toBeRequired();
+    expect(screen.getByLabelText("昵称")).toBeRequired();
     vi.mocked(api.post).mockResolvedValue({ data: { challenge: "existing", requiresUsername: false } });
     fireEvent.change(screen.getByLabelText("手机号"), { target: { value: "13800138000" } });
     fireEvent.click(screen.getByRole("button", { name: "获取验证码" }));
-    await waitFor(() => expect(screen.queryByLabelText("用户名")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByLabelText("昵称")).not.toBeInTheDocument());
     fireEvent.change(screen.getByLabelText("手机号"), { target: { value: "13900139000" } });
-    expect(screen.getByLabelText("用户名")).toBeRequired();
+    expect(screen.getByLabelText("昵称")).toBeRequired();
   });
   it("switches between SMS, email and CloudBase password login without reusing OTP challenges", async () => {
     vi.mocked(api.post).mockResolvedValue({ data: { challenge: "sms-proof" } });
@@ -46,12 +46,12 @@ describe("email authentication", () => {
     fireEvent.click(screen.getByRole("button", { name: "邮箱验证码" }));
     expect(screen.getByLabelText("邮箱")).toHaveValue("");
     expect(screen.getByRole("button", { name: "验证并登录" })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "账号密码" }));
-    fireEvent.change(screen.getByLabelText("登录账号"), { target: { value: "teacher" } });
+    fireEvent.click(screen.getByRole("button", { name: "密码登录" }));
+    fireEvent.change(screen.getByLabelText("手机号/邮箱"), { target: { value: "teacher@example.com" } });
     fireEvent.change(screen.getByLabelText("登录密码"), { target: { value: "Secret!123" } });
     vi.mocked(api.post).mockRejectedValue({ response: { data: { message: "用户名或密码错误" } } });
     fireEvent.click(screen.getByRole("button", { name: "登录" }));
-    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/auth/password/login", { username: "teacher", password: "Secret!123" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/auth/password/login", { username: "teacher@example.com", password: "Secret!123" }));
   });
   it("shows a CAPTCHA to the user when the provider requires one",async()=>{
     vi.mocked(api.post).mockRejectedValueOnce({response:{data:{message:"请完成图形验证",captchaRequired:true}}}).mockResolvedValueOnce({data:{data:"data:image/gif;base64,R0lGODlh",token:"human-challenge"}});
@@ -81,11 +81,11 @@ describe("email authentication", () => {
     fireEvent.change(screen.getByLabelText("邮箱"), { target: { value: "other@example.com" } });
     expect(screen.getByRole("button", { name: "验证并登录" })).toBeDisabled();
   });
-  it("explains that old accounts must be linked to retain their content", () => {
+  it("uses nickname registration and phone/email password login without legacy username controls", () => {
     render(<MemoryRouter><EmailLoginPage /></MemoryRouter>);
-    fireEvent.click(screen.getByRole("button", { name: "关联旧账号" }));
-    expect(screen.getByLabelText("原用户名")).toBeInTheDocument();
-    expect(screen.getByLabelText("原密码")).toBeInTheDocument();
-    expect(screen.getByText(/保留原有作品、空间和权限/)).toBeInTheDocument();
+    expect(screen.getByLabelText("昵称")).toHaveAttribute("minLength", "2");
+    expect(screen.queryByRole("button", { name: "关联旧账号" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "密码登录" }));
+    expect(screen.getByLabelText("手机号/邮箱")).toHaveAttribute("placeholder", "手机号 / 邮箱");
   });
 });

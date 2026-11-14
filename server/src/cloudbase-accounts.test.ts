@@ -46,3 +46,10 @@ describe("CloudBase account binding", () => {
     expect(prisma.user.create).toHaveBeenCalledWith({ data: { username: "new_user", passwordHash: null, role: "USER", cloudbaseEnvId: "test-env", cloudbaseSubject: "subject-1" } });
   });
 });
+
+it("creates a Chinese display nickname while keeping the CloudBase subject as identity", async () => {
+  config.cloudbaseEnvId = "test-env";
+  vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+  await resolveCloudbaseAccount({ sub: "subject-cn" }, { username: " 物理老师 " });
+  expect(prisma.user.create).toHaveBeenCalledWith({ data: { username: "物理老师", passwordHash: null, role: "USER", cloudbaseEnvId: "test-env", cloudbaseSubject: "subject-cn" } });
+});

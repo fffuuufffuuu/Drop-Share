@@ -16,7 +16,7 @@ export function AccountSettings() {
   const [method, setMethod] = useState<Method>("sms");
   const [challenge, setChallenge] = useState(""); const [code, setCode] = useState(""); const [proof, setProof] = useState("");
   const [identity, setIdentity] = useState(""); const [contactChallenge, setContactChallenge] = useState(""); const [contactCode, setContactCode] = useState("");
-  const [username, setUsername] = useState(""); const [nickname, setNickname] = useState("");
+  const [nickname, setNickname] = useState("");
   const [password, setPassword] = useState(""); const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false); const [message, setMessage] = useState(""); const [error, setError] = useState("");
   const [proofCooldown, setProofCooldown] = useState(0); const [contactCooldown, setContactCooldown] = useState(0);
@@ -30,7 +30,7 @@ export function AccountSettings() {
   useEffect(() => {
     let active = true;
     api.get<Account>("/auth/account").then(({ data }) => {
-      if (active) { setAccount(data); setUsername(data.loginUsername || ""); setNickname(data.username); setMethod(data.phone ? "sms" : "email"); }
+      if (active) { setAccount(data); setNickname(data.username); setMethod(data.phone ? "sms" : "email"); }
     }).catch((failure: any) => { if (active) setError(failure.response?.data?.message || "账号资料加载失败，请重新打开账号设置"); });
     return () => { active = false; };
   }, []);
@@ -107,7 +107,7 @@ export function AccountSettings() {
       {operation === "password" && <><form className="auth-form" onSubmit={event => { event.preventDefault(); if (password !== confirm) { setError("两次输入的密码不一致"); return; } void run(async () => {
         await api.post("/auth/account/password", { proof, password }); finish("密码已修改");
       }); }}><label>新密码<input type="password" required minLength={8} maxLength={64} pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).+" autoComplete="new-password" value={password} disabled={busy || !proof} onChange={event => setPassword(event.target.value)} /></label><p className="hint">8–64 位，包含大小写字母、数字和特殊字符。</p><label>确认新密码<input type="password" required autoComplete="new-password" value={confirm} disabled={busy || !proof} onChange={event => setConfirm(event.target.value)} /></label><button type="submit" disabled={busy || !proof}>保存新密码</button></form>
-        <details className="account-login-name-settings"><summary>设置登录用户名</summary><form className="auth-form" onSubmit={event => { event.preventDefault(); void run(async () => { const { data } = await api.post("/auth/account/username", { proof, username }); setAccount({ ...account, loginUsername: data.loginUsername }); setMessage("登录用户名已保存"); }); }}><label>新的登录用户名<input required minLength={3} maxLength={32} pattern="[a-zA-Z0-9_]+" value={username} disabled={busy || !proof} onChange={event => setUsername(event.target.value)} /></label><button type="submit" disabled={busy || !proof}>保存登录用户名</button></form></details></>}
+      </>}
     </section>}
 
   </section>;

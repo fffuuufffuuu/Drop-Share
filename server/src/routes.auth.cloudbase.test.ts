@@ -51,19 +51,19 @@ describe("CloudBase email routes", () => {
     vi.mocked(cloudbaseRequest).mockResolvedValue({ access_token: "access", refresh_token: "refresh", expires_in: 7200, sub: "subject" });
     vi.mocked(getCloudbaseUser).mockResolvedValue({ sub: "subject", username: "teacher" });
     vi.mocked(resolveCloudbaseAccount).mockResolvedValue({ id: "original", username: "teacher", role: "ADMIN", createdAt: new Date() } as any);
-    const response = await request(app).post("/password/login").send({ username: "teacher", password: "Secret!123" });
+    const response = await request(app).post("/password/login").send({ username: "teacher@example.com", password: "Secret!123" });
     expect(response.status).toBe(200);
-    expect(cloudbaseRequest).toHaveBeenCalledWith("/signin", { username: "teacher", password: "Secret!123" }, undefined, undefined);
+    expect(cloudbaseRequest).toHaveBeenCalledWith("/signin", { username: "teacher@example.com", password: "Secret!123" }, undefined, undefined);
     expect(response.body.user).toMatchObject({ id: "original", role: "ADMIN" });
-    expect(resolveCloudbaseAccount).toHaveBeenCalledWith({ sub: "subject", username: "teacher" }, { username: "teacher" });
+    expect(resolveCloudbaseAccount).toHaveBeenCalledWith({ sub: "subject", username: "teacher" }, {});
   });
   it("never resolves a local account when password authentication fails or the subject differs", async () => {
     vi.mocked(cloudbaseRequest).mockRejectedValueOnce(new AuthError("用户名或密码错误"));
-    expect((await request(app).post("/password/login").send({ username: "teacher", password: "wrong" })).status).toBe(400);
+    expect((await request(app).post("/password/login").send({ username: "teacher@example.com", password: "wrong" })).status).toBe(400);
     expect(resolveCloudbaseAccount).not.toHaveBeenCalled();
     vi.mocked(cloudbaseRequest).mockResolvedValue({ access_token: "access", refresh_token: "refresh", expires_in: 7200, sub: "subject" });
     vi.mocked(getCloudbaseUser).mockResolvedValue({ sub: "other" });
-    expect((await request(app).post("/password/login").send({ username: "teacher", password: "wrong" })).status).toBe(401);
+    expect((await request(app).post("/password/login").send({ username: "teacher@example.com", password: "wrong" })).status).toBe(401);
     expect(resolveCloudbaseAccount).not.toHaveBeenCalled();
   });
   it("reports a provider CAPTCHA challenge so the human can complete it",async()=>{
@@ -125,4 +125,17 @@ describe("CloudBase email routes", () => {
     expect(response.status).toBe(200); expect(response.body.token).toBe("access"); expect(response.body.user.passwordHash).toBeUndefined();
     expect(cloudbaseRequest).toHaveBeenCalledWith("/signup", { email: "teacher@example.com", verification_token: "proof" });
   });
+});
+
+it("rejects standalone username password login before contacting CloudBase", async () => {
+  const response = await request(app).post("/password/login").send({ username: "teacher", password: "Secret!123" });
+  expect(response.status).toBe(400); expect(cloudbaseRequest).not.toHaveBeenCalled();
+});
+
+it("accepts a Chinese nickname when completing verified registration", async () => {
+  const registrationToken = jwt.sign({ envId: "test-env", session: { access_token: "access", refresh_token: "refresh", expires_in: 7200, sub: "subject" } }, config.jwtSecret, { audience: "cloudbase-registration", expiresIn: 300 });
+  vi.mocked(getCloudbaseUser).mockResolvedValue({ sub: "subject" });
+  vi.mocked(resolveCloudbaseAccount).mockResolvedValue({ id: "local", username: "物理老师", role: "USER", createdAt: new Date() } as any);
+  expect((await request(app).post("/registration/complete").send({ registrationToken, username: "物理老师" })).status).toBe(200);
+  expect(resolveCloudbaseAccount).toHaveBeenCalledWith({ sub: "subject" }, { username: "物理老师" });
 });

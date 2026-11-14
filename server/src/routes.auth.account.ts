@@ -41,7 +41,7 @@ function identityFor(profile: Context["profile"], method: "sms" | "email") { ret
 function proofFor(req: Request, sub: string) { return proofSchema.parse(decode(req.body.proof, "cloudbase-account-proof", sub)); }
 
 cloudbaseAccountRouter.get("/", protectedRoute(async (_req, res, { profile, user }) => {
-  res.json({ username: user.username, loginUsername: profile.username ?? "", phone: profile.phone_number ?? "", email: profile.email ?? "" });
+  res.json({ username: user.username, phone: profile.phone_number ?? "", email: profile.email ?? "" });
 }));
 cloudbaseAccountRouter.post("/nickname", protectedRoute(async (req, res, { user }) => {
   const nickname = z.string().trim().min(2).max(32).regex(/^[^\p{Cc}]+$/u).parse(req.body.nickname);
@@ -65,17 +65,6 @@ cloudbaseAccountRouter.post("/proof/verify", protectedRoute(async (req, res, { t
   const verification = z.object({ verification_token: stringToken }).parse(await cloudbaseRequest("/verification/verify", { verification_id: challenge.verificationId, verification_code: codeSchema.parse(req.body.code) }));
   const data = z.object({ sudo_token: stringToken }).parse(await cloudbaseRequest("/user/sudo", verification, token));
   res.json({ proof: sign({ sub: profile.sub, sudoToken: data.sudo_token }, "cloudbase-account-proof") });
-}));
-cloudbaseAccountRouter.post("/username", protectedRoute(async (req, res, { token, profile, user }) => {
-  proofFor(req, profile.sub);
-  const username = z.string().min(3).max(32).regex(/^[a-zA-Z0-9_]+$/).parse(req.body.username);
-  const reserved = await prisma.user.findUnique({ where: { username } });
-  if (reserved && reserved.id !== user.id) throw new AuthError("该用户名已被其他账号使用，请更换", 409);
-  // The CloudBase login username and local display name are separate. Ownership stays on sub.
-  if (profile.username !== username) await cloudbaseRequest("/user/basic/edit", { username }, token);
-  const updated = await getCloudbaseUser(token);
-  if (updated.sub !== profile.sub || updated.username !== username) throw new AuthError("用户名修改结果未确认，请刷新账号信息后重试", 409);
-  res.json({ ok: true, loginUsername: username });
 }));
 cloudbaseAccountRouter.post("/password", protectedRoute(async (req, res, { token, profile }) => {
   const proof = proofFor(req, profile.sub);

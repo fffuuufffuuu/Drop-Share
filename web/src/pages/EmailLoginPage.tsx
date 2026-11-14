@@ -13,15 +13,14 @@ export function EmailLoginPage({ method: initialMethod = "email" }: { method?: "
   const [challenge, setChallenge] = useState(""); const [remaining, setRemaining] = useState(0);
   const [requiresUsername, setRequiresUsername] = useState(true);
   const [registrationToken, setRegistrationToken] = useState("");
-  const [mode, setMode] = useState<"login" | "link">("login");
-  const [username, setUsername] = useState(""); const [legacyUsername, setLegacyUsername] = useState(""); const [legacyPassword, setLegacyPassword] = useState("");
+  const [username, setUsername] = useState("");
   const [busy, setBusy] = useState(false); const [message, setMessage] = useState("");
   const [captcha,setCaptcha]=useState<{data:string;token:string}|null>(null);
   const [captchaAnswer,setCaptchaAnswer]=useState("");
   const version = useRef(0); const navigate = useNavigate(); const [params] = useSearchParams();
   useEffect(() => { if (remaining <= 0) return; const id = window.setTimeout(() => setRemaining(remaining - 1), 1000); return () => clearTimeout(id); }, [remaining]);
   function changeEmail(value: string) { version.current++; setEmail(value); setChallenge(""); setCode(""); setMessage("");setCaptcha(null);setCaptchaAnswer("");setRequiresUsername(true);setRegistrationToken(""); }
-  function changeMethod(value: typeof method) { if (busy) return; changeEmail(""); setMethod(value); setRemaining(0); setMode("login"); setPassword(""); setLegacyPassword(""); }
+  function changeMethod(value: typeof method) { if (busy) return; changeEmail(""); setMethod(value); setRemaining(0); setPassword(""); }
   async function sendCode() {
     const current = version.current; setBusy(true); setMessage(""); setChallenge("");
     try {
@@ -48,7 +47,7 @@ export function EmailLoginPage({ method: initialMethod = "email" }: { method?: "
       if (!registrationToken && method === "password" && captcha) captchaToken = (await api.post<{captchaToken:string}>("/auth/captcha/verify", {token:captcha.token,key:captchaAnswer})).data.captchaToken;
       const { data } = registrationToken ? await api.post<AuthResponse>("/auth/registration/complete", { registrationToken, username }) : method === "password"
         ? await api.post<AuthResponse>("/auth/password/login", { username: loginAccount, password, ...(captchaToken ? {captchaToken} : {}) })
-        : await api.post<AuthResponse>(`/auth/${method}/verify`, { challenge, code, ...(mode === "link" ? { legacyUsername, legacyPassword } : requiresUsername && username ? { username } : {}) });
+        : await api.post<AuthResponse>(`/auth/${method}/verify`, { challenge, code, ...(requiresUsername && username ? { username } : {}) });
       storeCloudbaseSession(data); setAuthToken(data.token);
       navigate(getLoginDestination(params.get("next")));
     } catch (error: any) {
@@ -76,26 +75,20 @@ export function EmailLoginPage({ method: initialMethod = "email" }: { method?: "
     <div className="auth-card">
     <header className="auth-card-heading"><h2>登录 Drop & Share</h2><p>选择熟悉的方式，继续你的创作。</p></header>
     <div className="auth-method-switch" role="group" aria-label="登录方式">
-      {([ ["sms", "手机验证码"], ["email", "邮箱验证码"], ["password", "账号密码"] ] as const).map(([value, text]) => <button key={value} type="button" aria-pressed={method === value} disabled={busy} onClick={() => changeMethod(value)}>{text}</button>)}
+      {([ ["sms", "手机验证码"], ["email", "邮箱验证码"], ["password", "密码登录"] ] as const).map(([value, text]) => <button key={value} type="button" aria-pressed={method === value} disabled={busy} onClick={() => changeMethod(value)}>{text}</button>)}
     </div>
-    {method !== "password" && !registrationToken && <><div className="auth-mode-switch" role="group" aria-label="登录或关联旧账号">
-      <button type="button" aria-pressed={mode === "login"} onClick={() => setMode("login")}>登录 / 注册</button>
-      <button type="button" aria-pressed={mode === "link"} onClick={() => setMode("link")}>关联旧账号</button>
-    </div>
-    <p className="auth-mode-note">{mode === "link" ? "验证原账号并绑定新登录身份，保留原有作品、空间和权限。" : "新用户须填写用户名，验证后注册。已有用户获取验证码后直接登录。已有作品？首次登录请选择“关联旧账号”。"}</p></>}
-    {method === "password" && <p className="auth-mode-note">使用 CloudBase 登录用户名、已绑定的手机号或邮箱及密码。首次使用或忘记密码？请先用验证码登录，在“账号设置”中设置密码。旧网站密码仅用于关联旧账号。</p>}
+    {method !== "password" && !registrationToken && <p className="auth-mode-note">新用户填写昵称，验证后注册。已有用户获取验证码后直接登录。</p>}
+    {method === "password" && <p className="auth-mode-note">使用已绑定的手机号或邮箱及密码。首次使用或忘记密码？请先用验证码登录，在“账号设置”中设置密码。</p>}
     <form className="auth-form" onSubmit={submit}>
-      {registrationToken ? <label>用户名<input required autoComplete="username" minLength={3} maxLength={32} pattern="[a-zA-Z0-9_]+" placeholder="3–32 位字母、数字或下划线，注册必填" value={username} onChange={e => setUsername(e.target.value)} /></label> : method === "password" ? <>
-        <label>登录账号<input autoComplete="username" required value={loginAccount} disabled={busy} onChange={e => setLoginAccount(e.target.value)} placeholder="登录用户名 / 手机号 / 邮箱" /></label>
+      {registrationToken ? <label>昵称<input required autoComplete="nickname" minLength={2} maxLength={32} placeholder="2–32 个字符，支持中文，注册必填" value={username} onChange={e => setUsername(e.target.value)} /></label> : method === "password" ? <>
+        <label>手机号/邮箱<input autoComplete="username" required value={loginAccount} disabled={busy} onChange={e => setLoginAccount(e.target.value)} placeholder="手机号 / 邮箱" /></label>
         <label>登录密码<input type="password" autoComplete="current-password" required value={password} disabled={busy} onChange={e => setPassword(e.target.value)} /></label>
       </> : <label>{label}<input type={sms ? "tel" : "email"} autoComplete={sms ? "tel" : "email"} placeholder={sms ? "中国大陆手机号" : undefined} required value={email} disabled={busy} onChange={e => changeEmail(e.target.value)} /></label>}
       {captcha&&<div className="auth-captcha"><img src={captcha.data} alt="请识别图中的验证码"/><label>图形验证码<input autoComplete="off" maxLength={32} value={captchaAnswer} onChange={e=>setCaptchaAnswer(e.target.value)}/></label></div>}
-      {method !== "password" && !registrationToken && <><div className="auth-code-field"><label>验证码<input placeholder="输入 6 位验证码" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={code} onChange={e => setCode(e.target.value)} /></label>
-      <button className="auth-send-code" type="button" disabled={busy || remaining > 0 || !email || !!captcha&&!captchaAnswer} onClick={() => void sendCode()}>{remaining > 0 ? `${remaining} 秒后重发` : "获取验证码"}</button></div>
-      {mode === "link" ? <>
-        <label>原用户名<input autoComplete="username" required value={legacyUsername} onChange={e => setLegacyUsername(e.target.value)} /></label>
-        <label>原密码<input type="password" autoComplete="current-password" required value={legacyPassword} onChange={e => setLegacyPassword(e.target.value)} /></label>
-      </> : requiresUsername && <label>用户名<input required autoComplete="username" minLength={3} maxLength={32} pattern="[a-zA-Z0-9_]+" placeholder="3–32 位字母、数字或下划线，注册必填" value={username} onChange={e => setUsername(e.target.value)} /></label>}</>}
+      {method !== "password" && !registrationToken && <>
+        <div className="auth-code-field"><label>验证码<input required pattern="[0-9]{6}" maxLength={6} autoComplete="one-time-code" inputMode="numeric" value={code} disabled={busy} onChange={e => setCode(e.target.value)} /></label><button type="button" disabled={busy || remaining > 0 || !email || !!captcha && !captchaAnswer} onClick={() => void sendCode()}>{remaining > 0 ? `${remaining} 秒后重发` : "获取验证码"}</button></div>
+        {requiresUsername && <label>昵称<input required autoComplete="nickname" minLength={2} maxLength={32} placeholder="2–32 个字符，支持中文，注册必填" value={username} onChange={e => setUsername(e.target.value)} /></label>}
+      </>}
       <button className="auth-submit" type="submit" disabled={busy || (registrationToken ? !username : method === "password" ? !loginAccount || !password || !!captcha && !captchaAnswer : !challenge)}>{busy ? "请稍候…" : registrationToken ? "完成注册" : method === "password" ? "登录" : "验证并登录"}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></button>
     </form>
     <p className="message" role="status">{message}</p>

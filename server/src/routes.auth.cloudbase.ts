@@ -12,11 +12,11 @@ export const cloudbaseAuthRouter = Router();
 const limits = rateLimit({ windowMs: 60000, limit: 30, standardHeaders: "draft-7", legacyHeaders: false, message: { message: "操作过于频繁，请稍后重试" } });
 const emailSchema = z.string().trim().toLowerCase().email().max(254);
 const phoneSchema = z.string().trim().transform(v => v.replace(/\s/g, "").replace(/^(1\d{10})$/, "+86$1")).pipe(z.string().regex(/^\+861[3-9]\d{9}$/));
-const usernameSchema = z.string().min(3).max(32).regex(/^[a-zA-Z0-9_]+$/);
+const usernameSchema = z.string().trim().min(2).max(32).regex(/^[^\p{Cc}]+$/u);
 const challengeSchema = z.object({ email: emailSchema.optional(), phone: phoneSchema.optional(), envId: z.string(), verificationId: z.string().min(1), isUser: z.boolean() });
 function replyError(res: import("express").Response, error: unknown) {
   if (error instanceof AuthError) { res.status(error.status).json({ message: error.message, captchaRequired:error.code==="captcha_required", usernameRequired:error.code==="username_required" }); return; }
-  if ((error as any)?.code === "P2002") { res.status(409).json({ message: "该用户名或邮箱身份已关联账号，请重新登录" }); return; }
+  if ((error as any)?.code === "P2002") { res.status(409).json({ message: "该昵称或邮箱身份已关联账号，请重新登录" }); return; }
   res.status(400).json({ message: "认证失败，请重新获取验证码后重试" });
 }
 function sessionReply(res: import("express").Response, session: z.infer<typeof cloudbaseSessionSchema>, user: { id: string; username: string; role: string; createdAt: Date }) {
@@ -27,7 +27,7 @@ async function finishLogin(res: import("express").Response, session: z.infer<typ
   catch (error) {
     if (!input?.legacyUsername && error instanceof AuthError && (error.code === "username_required" || error.status === 409)) {
       const registrationToken = jwt.sign({ session, envId: config.cloudbaseEnvId }, config.jwtSecret, { audience: "cloudbase-registration", expiresIn: 300 });
-      res.status(400).json({ message: error.code === "username_required" ? "请填写用户名完成注册，无需重新获取验证码" : error.message, usernameRequired: true, registrationToken });
+      res.status(400).json({ message: error.code === "username_required" ? "请填写昵称完成注册，无需重新获取验证码" : error.message, usernameRequired: true, registrationToken });
       return;
     }
     throw error;
@@ -44,11 +44,13 @@ cloudbaseAuthRouter.post("/password/login", async (req, res) => {
   try {
     const input = z.object({ username: z.string().trim().min(2).max(254), password: z.string().min(1).max(100), captchaToken: z.string().min(1).max(8192).optional() }).parse(req.body);
     const phone = phoneSchema.safeParse(input.username);
-    const username = phone.success ? cloudbasePhone(phone.data) : emailSchema.safeParse(input.username).success ? input.username.toLowerCase() : input.username;
+    const email = emailSchema.safeParse(input.username);
+    if (!phone.success && !email.success) throw new AuthError("请使用已绑定的手机号或邮箱登录", 400);
+    const username = phone.success ? cloudbasePhone(phone.data) : email.data!;
     const session = cloudbaseSessionSchema.parse(await cloudbaseRequest("/signin", { username, password: input.password }, undefined, input.captchaToken));
     const profile = await getCloudbaseUser(session.access_token);
     if (profile.sub !== session.sub) throw new AuthError("认证身份不匹配，请重新登录", 401);
-    await finishLogin(res, session, profile, { username: profile.username });
+    await finishLogin(res, session, profile, {});
   } catch (error) { replyError(res, error); }
 });
 cloudbaseAuthRouter.post("/registration/complete", async (req, res) => {
@@ -98,7 +100,7 @@ cloudbaseAuthRouter.post(["/email/verify", "/sms/verify"], async (req, res) => {
     const sms = req.path.startsWith("/sms/");
     const proof = challengeSchema.parse(jwt.verify(input.challenge, config.jwtSecret, { audience: sms ? "cloudbase-sms" : "cloudbase-email", algorithms: ["HS256"] }));
     if (proof.envId !== config.cloudbaseEnvId || !(sms ? proof.phone : proof.email)) throw new AuthError("验证码请求已失效，请重新获取");
-    if (!proof.isUser && !input.legacyUsername && !input.username) throw new AuthError("注册必须填写用户名", 400, "username_required");
+    if (!proof.isUser && !input.legacyUsername && !input.username) throw new AuthError("注册必须填写昵称", 400, "username_required");
     const verification = z.object({ verification_token: z.string().min(1) }).parse(await cloudbaseRequest("/verification/verify", { verification_id: proof.verificationId, verification_code: input.code }));
     const session = cloudbaseSessionSchema.parse(await cloudbaseRequest(proof.isUser ? "/signin" : "/signup", { ...(proof.isUser ? {} : sms ? { phone_number: cloudbasePhone(proof.phone!) } : { email: proof.email }), verification_token: verification.verification_token }));
     const profile = await getCloudbaseUser(session.access_token);

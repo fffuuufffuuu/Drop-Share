@@ -30,7 +30,7 @@ describe("homepage and account navigation", () => {
     vi.spyOn(api, "get").mockImplementation(async url => ({ data: url === "/auth/account" ? { username: "member", loginUsername: "login_name", phone: "", email: "teacher@example.com" } : url === "/notifications" ? { notifications: [], next: null } : [] }));
     renderApp("/account?bind=phone#account-binding");
     expect(await screen.findByRole("tab", { name: "账号设置" })).toHaveAttribute("aria-selected", "true");
-    expect(await screen.findByText("login_name")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "修改昵称" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "返回我的" })).not.toBeInTheDocument();
   });
   it("places an icon theme switch before upload and remembers the selected theme", async () => {
@@ -222,5 +222,28 @@ describe("administrator navigation", () => {
     });
     expect(within(screen.getByRole("contentinfo")).queryByRole("link", { name: "管理后台" }))
       .not.toBeInTheDocument();
+  });
+});
+
+describe("home entry by sign-in state", () => {
+  function signedIn() {
+    localStorage.setItem("token", "member-token");
+    localStorage.setItem("user", JSON.stringify({ id: "member", username: "member", role: "USER" }));
+    vi.spyOn(api, "get").mockResolvedValue({ data: [] });
+  }
+  it("takes signed-in root visitors to the uploader", async () => {
+    signedIn(); renderApp("/");
+    expect(await screen.findByRole("heading", { name: "上传并部署" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "一键部署，随时分享。" })).not.toBeInTheDocument();
+  });
+  it("keeps the introduction accessible to signed-in visitors through about", async () => {
+    signedIn(); renderApp("/about");
+    expect(screen.getByRole("heading", { name: "一键部署，随时分享。" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "关于" })).toHaveAttribute("href", "/about");
+  });
+  it("does not treat a cached profile without a token as signed in at root", () => {
+    localStorage.setItem("user", JSON.stringify({ id: "member", username: "member", role: "USER" }));
+    renderApp("/");
+    expect(screen.getByRole("heading", { name: "一键部署，随时分享。" })).toBeInTheDocument();
   });
 });

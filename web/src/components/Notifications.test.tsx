@@ -38,7 +38,7 @@ it("shows persisted unread counts and refreshes them when a notification is read
 it("shows account fields in columns and links missing bindings to the verification flow", async () => {
   vi.spyOn(api, "get").mockResolvedValue({ data: { username: "昵称", loginUsername: "login_name", phone: "13800000000", email: "" } });
   render(<MemoryRouter><AccountSettings /></MemoryRouter>);
-  await screen.findByText("login_name"); expect(screen.getByText("昵称", { selector: "dd span" })).toBeInTheDocument();
+  await screen.findByRole("button", { name: "修改昵称" }); expect(screen.getByText("昵称", { selector: "dd span" })).toBeInTheDocument();
   expect(screen.getByText("13800000000")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "绑定邮箱" })).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "绑定手机号" })).not.toBeInTheDocument();

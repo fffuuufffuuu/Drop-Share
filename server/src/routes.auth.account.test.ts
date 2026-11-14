@@ -81,9 +81,8 @@ it("uses SDK sudo_token semantics and never writes local password hashes", async
   expect(cloudbaseRequest).toHaveBeenCalledWith("/user/password", { new_password: "New!Password123", sudo_token: "sudo" }, "access", undefined, "PATCH");
   expect(cloudbaseRequest).not.toHaveBeenCalledWith("/user/basic/edit", expect.anything(), expect.anything());
 });
-it("prevents choosing another local user's reserved username", async () => {
-  vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({ id: "local", username: "teacher", cloudbaseSubject: "subject", cloudbaseEnvId: "test-env" } as any).mockResolvedValueOnce({ id: "other" } as any);
-  expect((await post("/username", { proof: proof(), username: "reserved" })).status).toBe(409);
+it("does not expose login username changes", async () => {
+  expect((await post("/username", { proof: proof(), username: "reserved" })).status).toBe(404);
   expect(cloudbaseRequest).not.toHaveBeenCalled();
 });
 it("obtains a sudo proof with the official SDK verification chain", async () => {

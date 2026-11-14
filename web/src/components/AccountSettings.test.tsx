@@ -46,3 +46,11 @@ it("opens rebind directly without a dialog and retains the bound contact", async
   expect(screen.getByText("+86 13800138000")).toBeInTheDocument();
   expect(api.post).not.toHaveBeenCalled();
 });
+
+it("keeps password independent and omits the login username settings", async () => {
+  render(<MemoryRouter><AccountSettings /></MemoryRouter>);
+  fireEvent.click(await screen.findByRole("button", { name: "修改密码" }));
+  expect(screen.queryByText("登录用户名")).not.toBeInTheDocument();
+  expect(screen.queryByText("设置登录用户名")).not.toBeInTheDocument();
+  expect(screen.getByText("密码", { selector: "dt" })).toBeInTheDocument();
+});

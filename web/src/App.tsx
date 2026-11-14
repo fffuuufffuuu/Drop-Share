@@ -34,6 +34,13 @@ function NavBar({ currentUser }: { currentUser: CurrentUser | null }) {
   );
 }
 
+function HomeEntry({ currentUser }: { currentUser: CurrentUser | null }) {
+  const location = useLocation();
+  return currentUser && localStorage.getItem("token")
+    ? <Navigate replace to={{ pathname: "/upload", search: location.search, hash: location.hash }} />
+    : <HomePage />;
+}
+
 function AccountRedirect() {
   const location = useLocation();
   const params = new URLSearchParams(location.search); params.set("tab", "account");
@@ -56,6 +63,7 @@ function SiteFooter() {
         <p>作者：<a className="site-footer-author" href="https://www.yaoguosir.com/" target="_blank" rel="noreferrer">CashewLab</a></p>
         <p className="site-footer-record">沪ICP备2025130631号-1</p>
         <div className="site-footer-links">
+          <Link to="/about">关于</Link>
           <a href="https://github.com/fffuuufffuuu/Drop-Share" target="_blank" rel="noreferrer">
             GitHub
           </a>
@@ -83,7 +91,8 @@ export default function App() {
       <NavBar currentUser={currentUser} />
       <main className="content">
         <Routes>
-          <Route path="/" element={<HomePage />} />
+          <Route path="/" element={<HomeEntry currentUser={currentUser} />} />
+          <Route path="/about" element={<HomePage />} />
           <Route path="/upload" element={<UploadPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/dashboard" element={<RequireAuth><DashboardPage /></RequireAuth>} />

@@ -2703,8 +2703,6 @@ td {
 .account-operation-heading button { border: 0; background: transparent; color: light-dark(#53657a, var(--night-muted)); }
 .account-operation .auth-form { max-width: 440px; }
 .account-action-error { color: light-dark(#b91c1c, var(--night-danger)); }
-.account-login-name-settings { margin-top: 24px; }
-.account-login-name-settings summary { cursor: pointer; color: light-dark(#53657a, var(--night-muted)); }
 /* Upload feedback remains readable for long folder paths and share URLs. */
 .upload-selected-files {
   max-height: 10rem;

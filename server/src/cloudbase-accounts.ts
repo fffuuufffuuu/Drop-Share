@@ -27,9 +27,9 @@ export async function resolveCloudbaseAccount(profile: { sub: string }, options:
     return bound;
   }
   if (existing) return existing;
-  const parsedUsername = z.string().min(3).max(32).regex(/^[a-zA-Z0-9_]+$/).safeParse(options.username);
-  if (!parsedUsername.success) throw new AuthError("注册必须填写用户名，请填写后重新获取验证码", 400, "username_required");
+  const parsedUsername = z.string().trim().min(2).max(32).regex(/^[^\p{Cc}]+$/u).safeParse(options.username);
+  if (!parsedUsername.success) throw new AuthError("注册必须填写昵称，请填写后重新获取验证码", 400, "username_required");
   const username = parsedUsername.data;
-  if (await prisma.user.findUnique({ where: { username } })) throw new AuthError("用户名已被占用；如为原账号，请选择关联旧账号", 409);
+  if (await prisma.user.findUnique({ where: { username } })) throw new AuthError("昵称已被使用，请换一个", 409);
   return prisma.user.create({ data: { username, passwordHash: null, role: "USER", ...identity } });
 }
