@@ -1,0 +1,17 @@
+const assert = require('node:assert/strict');
+const path = require('node:path');
+const { createRequire } = require('node:module');
+const requireServer = createRequire('/workspace/Drop-Share/server/package.json');
+requireServer('dotenv').config({ path: '/workspace/Drop-Share/server/.env', quiet: true });
+const url = new URL(process.env.DATABASE_URL);
+assert.equal(url.hostname, '127.0.0.1', 'Only the isolated local database is allowed');
+assert.equal(url.port, '3307');
+assert.equal(url.pathname, '/drop_share_dev');
+assert.equal(url.username, 'drop_dev');
+assert.equal(process.env.AUTH_PROVIDER, 'legacy');
+assert.equal(process.env.PORT, '4000');
+assert.equal(process.env.BASE_URL, 'http://localhost:4000');
+assert.equal(path.resolve('/workspace/Drop-Share/server', process.env.UPLOAD_ROOT), '/workspace/Drop-Share/server/storage');
+assert.ok(process.env.JWT_SECRET && process.env.JWT_SECRET.length >= 32, 'A separate development JWT secret is required');
+assert.equal(process.env.THUMBNAIL_BROWSER_PATH, '/workspace/.tools/chromium-headless/usr/lib/chromium/chromium-headless-shell');
+console.log('Isolated development configuration verified (no secrets printed).');
