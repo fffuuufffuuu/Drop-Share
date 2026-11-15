@@ -95,7 +95,7 @@ it("also preserves the intended destination with CloudBase password login", asyn
   vi.mocked(api.post).mockResolvedValue({ data: { token: "fake-access-token", refreshToken: "fake-refresh-token", expiresIn: 3600, user: { id: "owner", username: "teacher", role: "USER" } } });
   render(<MemoryRouter initialEntries={["/login?next=%2Fdashboard%3Ftab%3Dspaces"]}><App /><Location /></MemoryRouter>);
   await user.click(await screen.findByRole("button", { name: "密码登录" }));
-  await user.type(screen.getByLabelText("手机号/邮箱"), "teacher@example.com");
+  await user.type(screen.getByLabelText("用户名/邮箱"), "teacher@example.com");
   await user.type(screen.getByLabelText("登录密码"), "Secret!123");
   await user.click(screen.getByRole("button", { name: "登录" }));
   await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/dashboard?tab=spaces"));

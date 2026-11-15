@@ -1,37 +1,30 @@
 import express from "express";
 import request from "supertest";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { config } from "./config";
 import { resolveCloudbaseAccount } from "./cloudbase-accounts";
 import { cloudbaseAuthRouter } from "./routes.auth.cloudbase";
-
-vi.mock("./db", () => ({ prisma: { user: { findUnique: vi.fn() } } }));
+vi.mock("./db", () => ({ prisma: { user: { findUnique: vi.fn(async () => null) } } }));
 vi.mock("./cloudbase-accounts", () => ({ resolveCloudbaseAccount: vi.fn() }));
 const app = express(); app.use(express.json()); app.use(cloudbaseAuthRouter);
 beforeEach(() => { config.authProvider = "cloudbase"; config.cloudbaseEnvId = "test-env"; vi.clearAllMocks(); });
-afterEach(() => { vi.unstubAllGlobals(); });
-
-describe("SMS routes through the real CloudBase HTTP boundary", () => {
-  it.each([true, false])("accepts an authenticated PG profile without status (existing: %s)", async isUser => {
-    const replies = [
-      { verification_id: "provider-challenge", expires_in: 600, is_user: isUser },
-      { verification_token: "verified" },
-      { access_token: "access", refresh_token: "refresh", expires_in: 7200, sub: "subject" },
-      { sub: "subject", phone_number: "+86 13800138000" },
-    ];
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify(replies.shift())));
-    vi.stubGlobal("fetch", fetchMock);
-    vi.mocked(resolveCloudbaseAccount).mockResolvedValue({ id: "old-id", username: "teacher", role: "USER", createdAt: new Date() } as any);
-    const sent = await request(app).post("/sms/code").send({ phone: "13800138000" });
-    expect(sent.status).toBe(200);
-    expect(sent.body.requiresUsername).toBe(!isUser);
-    const verified = await request(app).post("/sms/verify").send({ challenge: sent.body.challenge, code: "123456", ...(!isUser ? {username: "teacher"} : {}) });
-    expect(verified.status).toBe(200);
-    expect(verified.body).toMatchObject({ token: "access", refreshToken: "refresh", user: { id: "old-id" } });
-    expect(resolveCloudbaseAccount).toHaveBeenCalledWith({ sub: "subject", phone_number: "+86 13800138000" }, expect.anything());
-    const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];
-    expect(JSON.parse(calls[0][1].body as string)).toEqual({ phone_number: "+86 13800138000", target: "ANY" });
-    expect(calls[2][0]).toMatch(isUser ? /\/signin$/ : /\/signup$/);
-    expect(calls[3][1].headers).toHaveProperty("Authorization", "Bearer access");
-  });
+afterEach(() => vi.unstubAllGlobals());
+it("registers verified email and credentials through the actual HTTP adapter, then logs in by username and email", async () => {
+  const session = { access_token: "access", refresh_token: "refresh", expires_in: 7200, sub: "subject" };
+  const profile = { sub: "subject", email: "teacher@example.com", username: "teacher" };
+  const replies = [{ verification_id: "provider-challenge", expires_in: 600, is_user: false }, { verification_token: "verified" }, session, profile, session, profile, session, profile];
+  const fetchMock = vi.fn(async () => new Response(JSON.stringify(replies.shift())));
+  vi.stubGlobal("fetch", fetchMock);
+  vi.mocked(resolveCloudbaseAccount).mockResolvedValue({ id: "local", username: "teacher", role: "USER", createdAt: new Date() } as any);
+  const sent = await request(app).post("/email/code").send({ email: "Teacher@example.com" });
+  const registered = await request(app).post("/email/verify").send({ challenge: sent.body.challenge, code: "123456", username: "teacher", password: "Secret!123" });
+  expect(registered.status).toBe(200);
+  expect(registered.body.user.id).toBe("local");
+  for (const username of ["teacher", "teacher@example.com"]) expect((await request(app).post("/password/login").send({ username, password: "Secret!123" })).status).toBe(200);
+  const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];
+  expect(JSON.parse(calls[0][1].body as string)).toEqual({ email: "teacher@example.com", target: "NON_USER" });
+  expect(calls[2][0]).toMatch(/\/signup$/);
+  expect(JSON.parse(calls[2][1].body as string)).toMatchObject({ username: "teacher", password: "Secret!123", verification_token: "verified" });
+  expect(calls[3][1].headers).toHaveProperty("Authorization", "Bearer access");
+  expect(calls.every(([, options]) => !String(options.body).includes("phone_number"))).toBe(true);
 });

@@ -7,14 +7,14 @@ import { api } from "../api";
 import { AccountSettings } from "./AccountSettings";
 vi.mock("../api", () => ({ api: { get: vi.fn(), post: vi.fn() } }));
 afterEach(cleanup);
-beforeEach(() => { vi.resetAllMocks(); vi.mocked(api.get).mockResolvedValue({ data: { username: "teacher", loginUsername: "", phone: "+86 13800138000", email: "" } }); });
+beforeEach(() => { vi.resetAllMocks(); vi.mocked(api.get).mockResolvedValue({ data: { username: "teacher", loginUsername: "teacher", phone: "+86 13800138000", email: "old@example.com" } }); });
 it("keeps credential changes disabled until the bound identity has passed step-up verification", async () => {
   render(<MemoryRouter><AccountSettings /></MemoryRouter>);
   fireEvent.click(await screen.findByRole("button", { name: "修改密码" }));
   expect(screen.getByLabelText("新密码")).toBeDisabled();
   vi.mocked(api.post).mockResolvedValueOnce({ data: { challenge: "current-sub-challenge" } }).mockResolvedValueOnce({ data: { proof: "step-up-proof" } });
   fireEvent.click(screen.getAllByRole("button", { name: "获取验证码" })[0]);
-  await waitFor(() => expect(api.post).toHaveBeenCalledWith("/auth/account/proof/code", { method: "sms" }));
+  await waitFor(() => expect(api.post).toHaveBeenCalledWith("/auth/account/proof/code", { method: "email" }));
   fireEvent.change(screen.getByLabelText("当前身份验证码"), { target: { value: "123456" } });
   fireEvent.click(screen.getByRole("button", { name: "验证身份" }));
   await waitFor(() => expect(screen.getByLabelText("新密码")).not.toBeDisabled());
@@ -39,18 +39,27 @@ it("shows only icon controls until an operation is selected and updates the nick
 });
 it("opens rebind directly without a dialog and retains the bound contact", async () => {
   render(<MemoryRouter><AccountSettings /></MemoryRouter>);
-  fireEvent.click(await screen.findByRole("button", { name: "重新绑定手机号" }));
+  fireEvent.click(await screen.findByRole("button", { name: "重新绑定邮箱" }));
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "解绑手机号" })).not.toBeInTheDocument();
-  expect(screen.getByLabelText("新手机号")).toBeDisabled();
+  expect(screen.queryByRole("button", { name: "解绑邮箱" })).not.toBeInTheDocument();
+  expect(screen.getByLabelText("新邮箱")).toBeDisabled();
   expect(screen.getByText("+86 13800138000")).toBeInTheDocument();
   expect(api.post).not.toHaveBeenCalled();
 });
 
-it("keeps password independent and omits the login username settings", async () => {
+it("displays the login username without changing it when editing the password", async () => {
   render(<MemoryRouter><AccountSettings /></MemoryRouter>);
   fireEvent.click(await screen.findByRole("button", { name: "修改密码" }));
-  expect(screen.queryByText("登录用户名")).not.toBeInTheDocument();
+  expect(screen.getByText("登录用户名")).toBeInTheDocument();
   expect(screen.queryByText("设置登录用户名")).not.toBeInTheDocument();
   expect(screen.getByText("密码", { selector: "dt" })).toBeInTheDocument();
+});
+
+it("guides phone-only users to migration instead of sending an SMS", async () => {
+  vi.mocked(api.get).mockResolvedValue({ data: { username: "teacher", phone: "+86 13800138000", email: "" } });
+  render(<MemoryRouter><AccountSettings /></MemoryRouter>);
+  fireEvent.click(await screen.findByRole("button", { name: "修改密码" }));
+  expect(screen.getByRole("link", { name: "关联旧账号并验证新邮箱" })).toHaveAttribute("href", "/login?mode=migrate");
+  expect(screen.queryByRole("button", { name: "获取验证码" })).not.toBeInTheDocument();
+  expect(api.post).not.toHaveBeenCalled();
 });

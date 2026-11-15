@@ -1,19 +1,19 @@
 import { useEffect, useState } from "react";
-import { useLocation, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { getCurrentUser, notifyAuthChanged } from "../auth";
 import { DashboardAccount, type Account, type AccountAction } from "./DashboardAccount";
 
 type Method = "sms" | "email";
-const actions: AccountAction[] = ["password", "nickname", "bind-phone", "bind-email", "rebind-phone", "rebind-email"];
+const actions: AccountAction[] = ["password", "nickname", "bind-email", "rebind-email"];
 export function AccountSettings() {
   const location = useLocation(); const [params, setParams] = useSearchParams();
   const requested = params.get("action");
   const operation: AccountAction | null = actions.includes(requested as AccountAction) ? requested as AccountAction
-    : params.get("bind") === "phone" ? "bind-phone" : params.get("bind") === "email" ? "bind-email"
+    : params.get("bind") === "email" ? "bind-email"
     : location.hash === "#account-password" ? "password" : null;
   const [account, setAccount] = useState<Account | null>(null);
-  const [method, setMethod] = useState<Method>("sms");
+  const [method, setMethod] = useState<Method>("email");
   const [challenge, setChallenge] = useState(""); const [code, setCode] = useState(""); const [proof, setProof] = useState("");
   const [identity, setIdentity] = useState(""); const [contactChallenge, setContactChallenge] = useState(""); const [contactCode, setContactCode] = useState("");
   const [nickname, setNickname] = useState("");
@@ -30,7 +30,7 @@ export function AccountSettings() {
   useEffect(() => {
     let active = true;
     api.get<Account>("/auth/account").then(({ data }) => {
-      if (active) { setAccount(data); setNickname(data.username); setMethod(data.phone ? "sms" : "email"); }
+      if (active) { setAccount(data); setNickname(data.username); setMethod("email"); }
     }).catch((failure: any) => { if (active) setError(failure.response?.data?.message || "账号资料加载失败，请重新打开账号设置"); });
     return () => { active = false; };
   }, []);
@@ -52,7 +52,7 @@ export function AccountSettings() {
     if (busy) return; setError(""); setMessage(""); if (action === "nickname" && account) setNickname(account.username);
     setParams(current => { const next = new URLSearchParams(current); next.set("tab", "account"); next.delete("bind"); next.delete("action"); if (action) next.set("action", action); return next; });
   }
-  async function refreshAccount() { const { data } = await api.get<Account>("/auth/account"); setAccount(data); setMethod(data.phone ? "sms" : "email"); }
+  async function refreshAccount() { const { data } = await api.get<Account>("/auth/account"); setAccount(data); setMethod("email"); }
   async function run(action: () => Promise<void>) {
     if (busy) return; setBusy(true); setError(""); setMessage("");
     try { await action(); } catch (failure: any) { setError(failure.response?.data?.message || "操作失败，请稍后重试"); }
@@ -77,11 +77,11 @@ export function AccountSettings() {
   const cooldown = (purpose: "proof" | "contact") => purpose === "proof" ? proofCooldown : contactCooldown;
   const sendDisabled = (purpose: "proof" | "contact") => busy || cooldown(purpose) > 0 || captcha?.purpose === purpose && !captchaAnswer;
   const feedback = <>{error && <p className="account-action-error" role="alert">{error}</p>}{message && <p className="message" role="status">{message}</p>}</>;
-  const verification = <section className="account-section"><h3>验证当前身份</h3>{proof ? <p className="account-verified">身份已验证</p> : <form className="auth-form" onSubmit={event => {
+  const verification = <section className="account-section"><h3>验证当前身份</h3>{proof ? <p className="account-verified">身份已验证</p> : !account?.email ? <p>短信验证已停用。请先<Link to="/login?mode=migrate">关联旧账号并验证新邮箱</Link>，再修改账号资料。</p> : <form className="auth-form" onSubmit={event => {
     event.preventDefault(); void run(async () => { const { data } = await api.post("/auth/account/proof/verify", { challenge, code }); setProof(data.proof); setCode(""); setMessage("身份验证成功"); });
   }}>
     <label>验证方式<select value={method} disabled={busy} onChange={event => { setMethod(event.target.value as Method); setChallenge(""); setCode(""); setCaptcha(null); }}>
-      {account?.phone && <option value="sms">已绑定手机号</option>}{account?.email && <option value="email">已绑定邮箱</option>}
+      {account?.email && <option value="email">已绑定邮箱</option>}
     </select></label>{captchaField("proof")}
     <div className="auth-code-field"><label>当前身份验证码<input required pattern="[0-9]{6}" maxLength={6} inputMode="numeric" autoComplete="one-time-code" value={code} disabled={busy} onChange={event => setCode(event.target.value)} /></label><button type="button" disabled={sendDisabled("proof")} onClick={() => void send("proof")}>{proofCooldown ? `${proofCooldown} 秒后重发` : "获取验证码"}</button></div>
     <button className="auth-submit" type="submit" disabled={busy || !challenge}>验证身份</button>

@@ -21,9 +21,12 @@ import { registerSpaceDownloadRoutes } from "./space-downloads";
 import { mergeSpacesHandler } from "./space-merge";
 import {workCapabilities,canManageSpace} from "./space-permissions";
 
+import { registerMigrationAdminRoutes } from "./account-migration";
+
 export const adminRouter = Router();
 
 adminRouter.use(requireAuth, requireAdmin);
+registerMigrationAdminRoutes(adminRouter);
 registerSpaceTagRoutes(adminRouter, "/spaces/:id", true);
 registerSpaceDownloadRoutes(adminRouter, "/spaces/:id", true);
 adminRouter.post("/spaces/merge", mergeSpacesHandler(true));

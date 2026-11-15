@@ -25,3 +25,11 @@ describe("business authentication",()=>{
     await expect(resolveAuthUser("provider-token")).rejects.toMatchObject({status:401});
   });
 });
+
+it("invalidates old phone sessions after migration while retaining the original local account", async () => {
+  const migrated = {id:"original", username:"teacher", cloudbaseSubject:"email-subject", cloudbaseEnvId:"test-env"};
+  vi.mocked(getCloudbaseUser).mockResolvedValueOnce({sub:"phone-subject"}).mockResolvedValueOnce({sub:"email-subject"});
+  vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(null).mockResolvedValueOnce(migrated as any);
+  await expect(resolveAuthUser("old-phone-session")).rejects.toMatchObject({status:401});
+  await expect(resolveAuthUser("new-email-session")).resolves.toEqual({userId:"original",username:"teacher"});
+});
