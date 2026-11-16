@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { Prisma } from "@prisma/client";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
+import { timingSafeEqual } from "node:crypto";
 import { config } from "./config";
 import { prisma } from "./db";
 import { AuthError, getCloudbaseUser } from "./cloudbase";
@@ -25,13 +26,30 @@ async function currentSource(source: Source) {
 }
 async function authorizeSource(req: Request, phone: string, email: string): Promise<Source> {
   if (req.body.recoveryToken) {
-    const source = decode(z.string().max(8192).parse(req.body.recoveryToken), "account-migration-approval");
+    const recoveryToken = z.string().min(1).max(8192).parse(req.body.recoveryToken);
+    const supplied = Buffer.from(recoveryToken), expected = Buffer.from(config.accountMigrationCode);
+    if (expected.length > 0 && supplied.length === expected.length && timingSafeEqual(supplied, expected)) {
+      const candidates = new Map<string, Awaited<ReturnType<typeof prisma.user.findUnique>>>();
+      for (const value of [phone, phone.slice(3), `+86 ${phone.slice(3)}`]) {
+        const user = await prisma.user.findUnique({ where: { phone: value } });
+        if (user) candidates.set(user.id, user);
+      }
+      if (candidates.size > 1) throw new AuthError("原手机号匹配到多个账号，请联系管理员核对", 409);
+      const user = [...candidates.values()][0];
+      if (!user) throw new AuthError("该手机号尚未匹配到原账号，请联系管理员核对手机号记录", 404);
+      if (user.phone && phoneSchema.safeParse(user.phone).data !== phone) throw new AuthError("原手机号与原账号记录不一致", 409);
+      if (user.cloudbaseEnvId !== config.cloudbaseEnvId || !user.cloudbaseSubject) throw new AuthError("原账号尚未关联当前 CloudBase 环境", 409);
+      return { userId: user.id, oldSubject: user.cloudbaseSubject, oldUsername: user.username, phone, email, envId: config.cloudbaseEnvId };
+    }
+    // Previously issued identity-bound approvals remain valid until their expiry.
+    if (recoveryToken.split(".").length !== 3) throw new AuthError("迁移码不正确，请检查大小写", 401);
+    const source = decode(recoveryToken, "account-migration-approval");
     if (source.phone !== phone || source.email !== email) throw new AuthError("手机号或新邮箱与迁移凭证不一致", 401);
     await currentSource(source);
     return source;
   }
   const accessToken = req.headers.authorization?.match(/^Bearer (\S+)$/)?.[1];
-  if (!accessToken) throw new AuthError("请使用原账号的登录状态，或向管理员申请迁移码；不能仅凭手机号关联账号", 401);
+  if (!accessToken) throw new AuthError("请填写迁移码或使用原账号的登录状态；不能仅凭手机号关联账号", 401);
   const profile = await getCloudbaseUser(accessToken);
   if (phoneSchema.safeParse(profile.phone_number).data !== phone) throw new AuthError("手机号与当前登录账号不一致", 401);
   const user = await prisma.user.findUnique({ where: { cloudbaseEnvId_cloudbaseSubject: { cloudbaseEnvId: config.cloudbaseEnvId, cloudbaseSubject: profile.sub } } });

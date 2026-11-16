@@ -1,4 +1,3 @@
-import { AccountMigrationAdmin } from "../components/AccountMigrationAdmin";
 import { formatDateTime } from "../format-datetime";
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -419,7 +418,6 @@ export function AdminPage() {
         <button type="button" onClick={logout}>退出登录</button>
       </header>
 
-      <AccountMigrationAdmin />
       <div className="admin-tabs" role="tablist" aria-label="后台板块">
         <button
           type="button"

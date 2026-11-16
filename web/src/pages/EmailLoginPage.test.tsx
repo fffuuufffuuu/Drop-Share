@@ -87,18 +87,42 @@ it("handles a human CAPTCHA for email registration", async () => {
 it("requires proof of the old account, not only a phone number, and supports old link URLs", () => {
   page("link"); expect(screen.getByLabelText("原手机号")).toBeRequired();
   expect(screen.getByLabelText("迁移码")).toBeRequired();
-  expect(screen.getByRole("button", { name: "获取验证码" })).toBeDisabled();
+  fireEvent.change(screen.getByLabelText("原手机号"), { target: { value: "13800138000" } });
+  fireEvent.change(screen.getByLabelText("新邮箱"), { target: { value: "new@example.com" } });
+  fireEvent.click(screen.getByRole("button", { name: "获取验证码" }));
+  expect(screen.getByText(/请先填写迁移码，再获取新邮箱验证码/)).toBeVisible();
+  expect(api.post).not.toHaveBeenCalled();
   expect(screen.getByRole("button", { name: "关联并登录" })).toBeDisabled();
+});
+it("explains a missing original session before trying to send a migration email", () => {
+  page("migrate");
+  fireEvent.change(screen.getByLabelText("原账号验证方式"), { target: { value: "session" } });
+  fireEvent.change(screen.getByLabelText("原手机号"), { target: { value: "13800138000" } });
+  fireEvent.change(screen.getByLabelText("新邮箱"), { target: { value: "new@example.com" } });
+  fireEvent.click(screen.getByRole("button", { name: "获取验证码" }));
+  expect(screen.getByText(/当前浏览器没有原账号的登录会话/)).toBeVisible();
+  expect(api.post).not.toHaveBeenCalled();
+});
+it("explains a missing registration email without issuing a request", () => {
+  page("register");
+  fireEvent.click(screen.getByRole("button", { name: "获取验证码" }));
+  expect(screen.getByText("请先填写邮箱，再获取验证码。")).toBeVisible();
+  expect(api.post).not.toHaveBeenCalled();
 });
 it.each([false, true])("migrates using an approval or the current original session (session: %s)", async loggedIn => {
   vi.mocked(hasCloudbaseSession).mockReturnValue(loggedIn);
   page("migrate"); fillCredentials(true);
   fireEvent.change(screen.getByLabelText("原手机号"), { target: { value: "13800138000" } });
   fireEvent.change(screen.getByLabelText("新邮箱"), { target: { value: "new@example.com" } });
-  if (!loggedIn) fireEvent.change(screen.getByLabelText("迁移码"), { target: { value: "approved" } });
+  if (!loggedIn) {
+    expect(screen.queryByLabelText("原账号昵称")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("迁移码"), { target: { value: "YaoGuo" } });
+    expect(screen.getByLabelText("迁移码")).toHaveAttribute("type","password");
+    expect(screen.queryByText(/管理员核实/)).not.toBeInTheDocument();
+  }
   vi.mocked(api.post).mockResolvedValueOnce({ data: { challenge: "migration-proof" } }).mockResolvedValueOnce({ data: auth });
   fireEvent.click(screen.getByRole("button", { name: "获取验证码" }));
-  await waitFor(() => expect(api.post).toHaveBeenCalledWith("/auth/migration/code", { email: "new@example.com", phone: "13800138000", ...(!loggedIn ? { recoveryToken: "approved" } : {}) }));
+  await waitFor(() => expect(api.post).toHaveBeenCalledWith("/auth/migration/code", { email: "new@example.com", phone: "13800138000", ...(!loggedIn ? { recoveryToken: "YaoGuo" } : {}) }));
   fireEvent.change(screen.getByLabelText("邮箱验证码"), { target: { value: "123456" } });
   fireEvent.click(screen.getByRole("button", { name: "关联并登录" }));
   await waitFor(() => expect(api.post).toHaveBeenLastCalledWith("/auth/migration/verify", { challenge: "migration-proof", code: "123456", username: "teacher", password: "Secret!123" }));

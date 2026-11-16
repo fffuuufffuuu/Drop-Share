@@ -1,7 +1,7 @@
 import express, { Router } from "express";
 import request from "supertest";
 import jwt from "jsonwebtoken";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { config } from "./config";
 import { prisma } from "./db";
 import { cloudbaseRequest, getCloudbaseUser } from "./cloudbase";
@@ -20,10 +20,14 @@ function source(overrides = {}) { return { userId: old.id, oldSubject: old.cloud
 function approval(overrides = {}, options: { audience?: string; expiresIn?: number } = {}) { return jwt.sign(source(overrides), config.jwtSecret, { audience: options.audience ?? "account-migration-approval", expiresIn: options.expiresIn ?? 900 }); }
 function emailProof(overrides = {}) { return jwt.sign({ ...source(), verificationId: "verification", ...overrides }, config.jwtSecret, { audience: "account-migration-email", expiresIn: 600 }); }
 const credentials = { username: "new_teacher", password: "Secret!123", code: "123456" };
+let testTime = Date.now();
 beforeEach(() => {
-  vi.resetAllMocks(); config.authProvider = "cloudbase"; config.cloudbaseEnvId = "test-env";
+  // Each independent scenario starts outside the previous rate-limit window.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(testTime += 61000);
+  vi.resetAllMocks(); config.authProvider = "cloudbase"; config.cloudbaseEnvId = "test-env"; config.accountMigrationCode = "YaoGuo";
   row = { ...old };
-  vi.mocked(prisma.user.findUnique).mockImplementation((async ({ where }: any) => where.id === "administrator" ? { ...old, id: "administrator", role: "ADMIN" } : where.id === row.id || where.username === row.username || where.cloudbaseEnvId_cloudbaseSubject?.cloudbaseSubject === row.cloudbaseSubject ? { ...row } : null) as any);
+  vi.mocked(prisma.user.findUnique).mockImplementation((async ({ where }: any) => where.id === "administrator" ? { ...old, id: "administrator", role: "ADMIN" } : where.id === row.id || where.username === row.username || where.phone && where.phone === row.phone || where.cloudbaseEnvId_cloudbaseSubject?.cloudbaseSubject === row.cloudbaseSubject ? { ...row } : null) as any);
   update = vi.fn(async ({ where, data }: any) => {
     if (row.id !== where.id || row.username !== where.username || row.cloudbaseSubject !== where.cloudbaseSubject || row.cloudbaseEnvId !== where.cloudbaseEnvId) return { count: 0 };
     Object.assign(row, data); return { count: 1 };
@@ -32,10 +36,56 @@ beforeEach(() => {
   vi.mocked(getCloudbaseUser).mockImplementation(async token => token === "original-access" ? { sub: "old-subject", phone_number: "+86 13800138000" } : { sub: "new-subject", email: "new@example.com", username: "new_teacher" });
   vi.mocked(cloudbaseRequest).mockImplementation(async path => path === "/verification" ? { verification_id: "verification", expires_in: 600, is_user: false } : path === "/verification/verify" ? { verification_token: "email-proof" } : { access_token: "new-access", refresh_token: "new-refresh", expires_in: 7200, sub: "new-subject" });
 });
+afterEach(() => vi.useRealTimers());
 it("does not let knowing a phone number reset another account or send an email", async () => {
   const result = await request(app).post("/auth/migration/code").send({ phone: "13800138000", email: "new@example.com" });
   expect(result.status).toBe(401); expect(result.body.message).toContain("不能仅凭手机号");
   expect(cloudbaseRequest).not.toHaveBeenCalled(); expect(prisma.$transaction).not.toHaveBeenCalled();
+});
+it.each(["yaoguo", "YAOGUO", "YaoGuo ", "wrong"])("rejects incorrect fixed code %s before looking up accounts or sending mail", async recoveryToken => {
+  const result = await request(app).post("/auth/migration/code").send({ phone: "13800138000", email: "new@example.com", oldUsername: old.username, recoveryToken });
+  expect(result.status).toBe(401); expect(result.body.message).toContain("迁移码不正确");
+  expect(prisma.user.findUnique).not.toHaveBeenCalled(); expect(cloudbaseRequest).not.toHaveBeenCalled();
+});
+it.each(["USER", "ADMIN"])("uses the fixed code and backfilled phone without an old session, preserving the %s account", async role => {
+  row.role = role; row.phone = "+8613800138000";
+  const sent = await request(app).post("/auth/migration/code").send({ phone: "13800138000", email: "NEW@example.com", recoveryToken: "YaoGuo" });
+  expect(sent.status).toBe(200);
+  expect(jwt.verify(sent.body.challenge, config.jwtSecret, { audience: "account-migration-email" })).toMatchObject(source());
+  const result = await request(app).post("/auth/migration/verify").send({ ...credentials, challenge: sent.body.challenge, role: "ADMIN" });
+  expect(result.status).toBe(200); expect(result.body.user).toMatchObject({id:old.id,role});
+  expect(update).toHaveBeenCalledWith({ where:{id:old.id,username:old.username,cloudbaseEnvId:"test-env",cloudbaseSubject:"old-subject"}, data:{username:"new_teacher",cloudbaseSubject:"new-subject"} });
+  expect((await request(app).post("/auth/migration/verify").send({...credentials,challenge:sent.body.challenge})).status).toBe(409);
+});
+it.each(["13800138000", "+8613800138000", "+86 13800138000"])("locates a stored phone %s without needing a nickname", async phone => {
+  row.phone = phone;
+  const sent = await request(app).post("/auth/migration/code").send({ phone:"13800138000",email:"new@example.com",recoveryToken:"YaoGuo" });
+  expect(sent.status).toBe(200);
+  expect(jwt.verify(sent.body.challenge,config.jwtSecret,{audience:"account-migration-email"})).toMatchObject({userId:old.id});
+});
+it("refuses unmapped phones even when a valid old nickname is supplied", async () => {
+  const sent=await request(app).post("/auth/migration/code").send({phone:"13800138000",email:"new@example.com",oldUsername:old.username,recoveryToken:"YaoGuo"});
+  expect(sent.status).toBe(404);expect(sent.body.message).toContain("手机号尚未匹配");expect(cloudbaseRequest).not.toHaveBeenCalled();
+});
+it("rejects ambiguous phone formats belonging to different users", async () => {
+  row.phone="13800138000";
+  const original=vi.mocked(prisma.user.findUnique).getMockImplementation()!;
+  vi.mocked(prisma.user.findUnique).mockImplementation((async (arg:any)=>arg.where.phone==="+8613800138000"?{...old,id:"different",phone:"+8613800138000"}:original(arg)) as any);
+  const sent=await request(app).post("/auth/migration/code").send({phone:"13800138000",email:"new@example.com",recoveryToken:"YaoGuo"});
+  expect(sent.status).toBe(409);expect(cloudbaseRequest).not.toHaveBeenCalled();
+});
+it("still requires a valid email OTP after accepting the fixed migration code", async () => {
+  row.phone="+8613800138000";
+  const sent=await request(app).post("/auth/migration/code").send({phone:"13800138000",email:"new@example.com",oldUsername:old.username,recoveryToken:"YaoGuo"});
+  expect(sent.status).toBe(200);
+  vi.mocked(cloudbaseRequest).mockRejectedValueOnce(new Error("Invalid OTP"));
+  const result=await request(app).post("/auth/migration/verify").send({...credentials,challenge:sent.body.challenge});
+  expect(result.status).toBe(400);expect(prisma.$transaction).not.toHaveBeenCalled();expect(row).toEqual({...old,phone:"+8613800138000"});
+});
+it("allows disabling fixed-code migration without accepting an empty code", async () => {
+  config.accountMigrationCode="";
+  const sent=await request(app).post("/auth/migration/code").send({phone:"13800138000",email:"new@example.com",oldUsername:old.username,recoveryToken:"YaoGuo"});
+  expect(sent.status).toBe(401);expect(cloudbaseRequest).not.toHaveBeenCalled();
 });
 it.each(["forged", "expired", "other-env", "other-phone", "other-email", "wrong-purpose"])("rejects %s approval before sending email", async kind => {
   const token = kind === "forged" ? "forged" : kind === "expired" ? approval({}, { expiresIn: -1 }) : kind === "wrong-purpose" ? approval({}, { audience: "cloudbase-registration" }) : approval(kind === "other-env" ? { envId: "different" } : kind === "other-phone" ? { phone: "+8613900139000" } : { email: "different@example.com" });
