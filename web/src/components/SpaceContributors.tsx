@@ -1,7 +1,9 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { api } from "../api";
 
-type Contributor = { userId: string | null; username: string; workCount: number; viewCount?: number; role: "creator" | "admin" | "contributor" };
+import { UserAvatar } from "./UserAvatar";
+
+type Contributor = { userId: string | null; username: string; avatarUrl?: string | null; workCount: number; viewCount?: number; role: "creator" | "admin" | "contributor" };
 export function SpaceContributors({ spaceId, drawer = false, refreshKey = 0, onChanged }: {
   spaceId: string; drawer?: boolean; refreshKey?: number; onChanged?: () => void | Promise<void>;
 }) {
@@ -63,7 +65,7 @@ export function SpaceContributors({ spaceId, drawer = false, refreshKey = 0, onC
     {loading && !contributors.length && <p role="status">正在加载贡献者…</p>}
     <ul>{contributors.map(person => <li key={person.userId ?? "anonymous"}>
       {drawer ? <div className="contributor-summary">
-        <div className="contributor-identity"><strong>{person.username}</strong><span className="contributor-role">{person.role === "creator" ? "创建者" : person.role === "admin" ? "管理员" : "贡献者"}</span></div>
+        <div className="contributor-identity"><strong><UserAvatar username={person.userId ? person.username : "匿名"} avatarUrl={person.userId ? person.avatarUrl : null} />{person.username}</strong><span className="contributor-role">{person.role === "creator" ? "创建者" : person.role === "admin" ? "管理员" : "贡献者"}</span></div>
         <div className="contributor-stats">
           <span aria-label={`${person.workCount} 个作品`} title="作品数">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z" /><path d="M14 3v6h6M8 13h8M8 17h5" /></svg>
@@ -74,7 +76,7 @@ export function SpaceContributors({ spaceId, drawer = false, refreshKey = 0, onC
             {(person.viewCount ?? 0).toLocaleString()}
           </span>
         </div>
-      </div> : <div><strong>{person.username}</strong><span>{person.role === "creator" ? "创建者" : person.role === "admin" ? "管理员" : "贡献者"} · {person.workCount} 个作品 · {(person.viewCount ?? 0).toLocaleString()} 次访问</span></div>}
+      </div> : <div><strong><UserAvatar username={person.userId ? person.username : "匿名"} avatarUrl={person.userId ? person.avatarUrl : null} />{person.username}</strong><span>{person.role === "creator" ? "创建者" : person.role === "admin" ? "管理员" : "贡献者"} · {person.workCount} 个作品 · {(person.viewCount ?? 0).toLocaleString()} 次访问</span></div>}
       {!drawer && canManageAdmins && person.userId && person.role !== "creator" && <button type="button" disabled={busy}
         aria-label={`${person.role === "admin" ? "撤销" : "授予"}${person.username}管理员`} onClick={() => void toggle(person)}>
         {person.role === "admin" ? "撤销管理员" : "授予管理员"}</button>}

@@ -80,6 +80,7 @@ describe("homepage and account navigation", () => {
       "href",
       "/dashboard",
     );
+    expect(navigation.getByRole("link", { name: "我的" }).querySelector(".user-avatar")).toHaveTextContent("M");
     expect(navigation.queryByText("member")).not.toBeInTheDocument();
     expect(navigation.queryByRole("link", { name: "登录/注册" })).not.toBeInTheDocument();
   });
@@ -246,4 +247,16 @@ describe("home entry by sign-in state", () => {
     renderApp("/");
     expect(screen.getByRole("heading", { name: "一键部署，随时分享。" })).toBeInTheDocument();
   });
+});
+
+it("keeps the avatar dashboard link and unread badge when a picture is set", async () => {
+  localStorage.setItem("token", "access");
+  localStorage.setItem("user", JSON.stringify({ id: "u", username: "member", role: "USER", avatarUrl: "https://example.com/avatar.webp" }));
+  vi.spyOn(api, "get").mockResolvedValue({ data: { unreadCount: 3 } });
+  renderApp("/login");
+  const link = within(screen.getByRole("navigation")).getByRole("link", { name: "我的" });
+  expect(link).toHaveAttribute("href", "/dashboard");
+  expect(link.querySelector(".user-avatar img")).toHaveAttribute("src", "https://example.com/avatar.webp");
+  await waitFor(() => expect(link).toHaveAttribute("title", "3 条未读消息"));
+  expect(link.querySelector(".notification-dot")).toBeInTheDocument();
 });

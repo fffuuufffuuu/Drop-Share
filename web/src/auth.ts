@@ -41,6 +41,7 @@ export function getCurrentUser(): CurrentUser | null {
     return {
       id: value.id,
       username: value.username,
+      avatarUrl: "avatarUrl" in value && typeof value.avatarUrl === "string" ? value.avatarUrl : null,
       role,
     };
   } catch {

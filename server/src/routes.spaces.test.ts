@@ -187,7 +187,7 @@ describe("space expiration", () => {
         visibility: "visible",
         createdAt: now,
         expiresAt: activeSpace.expiresAt,
-        owner: { username: "member" },
+        owner: { username: "member", avatarUrl: "https://example.com/member.webp" },
         tags: [],
       },
       {
@@ -208,11 +208,11 @@ describe("space expiration", () => {
     expect(prisma.deployment.findMany).toHaveBeenCalledWith({
       where: { spaceId: "s1", deletedAt: null },
       orderBy: { createdAt: "desc" },
-      include: { owner: { select: { username: true } }, tags: { select: { tagId: true } } },
+      include: { owner: { select: { username: true, avatarUrl: true } }, tags: { select: { tagId: true } } },
     });
     expect(response.body.deployments).toEqual([
-      expect.objectContaining({ id: "d1", uploaderName: "member" }),
-      expect.objectContaining({ id: "d2", uploaderName: "匿名" }),
+      expect.objectContaining({ id: "d1", uploaderName: "member", uploaderAvatarUrl: "https://example.com/member.webp" }),
+      expect.objectContaining({ id: "d2", uploaderName: "匿名", uploaderAvatarUrl: null }),
     ]);
   });
 
@@ -506,7 +506,7 @@ describe("space expiration", () => {
         publicSlug: "signed-work",
         ownerUserId: "user-1",
         visibility: "visible",
-        owner: { username: "member" },
+        owner: { username: "member", avatarUrl: "https://example.com/member.webp" },
         tags: [],
       },
       {
@@ -526,7 +526,7 @@ describe("space expiration", () => {
     expect(prisma.deployment.findMany).toHaveBeenCalledWith(expect.objectContaining({
       include: {
         owner: {
-          select: { username: true },
+          select: { username: true, avatarUrl: true },
         },
         tags: { select: { tagId: true } },
       },
@@ -540,7 +540,7 @@ describe("space expiration", () => {
         visibility: "visible",
         tagIds: [],
         ownerUserId: "user-1",
-        uploaderName: "member",
+        uploaderName: "member", uploaderAvatarUrl: "https://example.com/member.webp",
       },
       {
         canUpdate:false,canRollback:false,hasPreviousVersion:false,
@@ -550,7 +550,7 @@ describe("space expiration", () => {
         visibility: "visible",
         tagIds: [],
         ownerUserId: null,
-        uploaderName: "匿名",
+        uploaderName: "匿名", uploaderAvatarUrl: null,
       },
     ]);
     expect(response.body.deployments[0]).not.toHaveProperty("owner");

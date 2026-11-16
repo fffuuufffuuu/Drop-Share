@@ -1,3 +1,5 @@
+import { syncAvatar } from "./avatar-profile";
+import { saveAvatar } from "./user-avatars";
 import { Router, type Request, type Response } from "express";
 import { Prisma } from "@prisma/client";
 import jwt from "jsonwebtoken";
@@ -12,7 +14,7 @@ const codeSchema = z.string().regex(/^\d{6}$/);
 const stringToken = z.string().min(1).max(8192);
 const contactSchema = z.object({ sub: z.string(), envId: z.string(), method: methodSchema, identity: z.string(), verificationId: z.string(), previousIdentity: z.string().optional() });
 const proofSchema = z.object({ sub: z.string(), envId: z.string(), sudoToken: stringToken });
-type Context = { token: string; profile: Awaited<ReturnType<typeof getCloudbaseUser>>; user: { id: string; username: string } };
+type Context = { token: string; profile: Awaited<ReturnType<typeof getCloudbaseUser>>; user: { id: string; username: string; avatarUrl?: string | null } };
 function sign(data: object, audience: string, expiresIn = 600) { return jwt.sign({ ...data, envId: config.cloudbaseEnvId }, config.jwtSecret, { audience, expiresIn }); }
 function decode(value: unknown, audience: string, sub: string) {
   const claim = jwt.verify(stringToken.parse(value), config.jwtSecret, { audience, algorithms: ["HS256"] });
@@ -41,7 +43,11 @@ function identityFor(profile: Context["profile"], method: "sms" | "email") { ret
 function proofFor(req: Request, sub: string) { return proofSchema.parse(decode(req.body.proof, "cloudbase-account-proof", sub)); }
 
 cloudbaseAccountRouter.get("/", protectedRoute(async (_req, res, { profile, user }) => {
-  res.json({ username: user.username, loginUsername: profile.username ?? "", phone: profile.phone_number ?? "", email: profile.email ?? "" });
+  const synced = await syncAvatar(user, profile);
+  res.json({ avatarUrl: synced.avatarUrl ?? null, username: user.username, loginUsername: profile.username ?? "", phone: profile.phone_number ?? "", email: profile.email ?? "" });
+}));
+cloudbaseAccountRouter.post("/avatar", protectedRoute(async (req, res, { token, profile, user }) => {
+  res.json(await saveAvatar(req.body, token, profile.sub, user.id));
 }));
 cloudbaseAccountRouter.post("/nickname", protectedRoute(async (req, res, { user }) => {
   const nickname = z.string().trim().min(2).max(32).regex(/^[^\p{Cc}]+$/u).parse(req.body.nickname);

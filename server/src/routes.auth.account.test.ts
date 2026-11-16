@@ -124,3 +124,20 @@ it("rejects all SMS step-up and contact requests before sending any SMS", async 
   expect((await post("/proof/verify", { challenge, code: "123456" })).status).toBe(410);
   expect(cloudbaseRequest).not.toHaveBeenCalled();
 });
+
+it("returns the official profile avatar in account settings and reconciles the cache", async () => {
+  vi.mocked(getCloudbaseUser).mockResolvedValue({ sub: "subject", picture: "https://example.com/avatar.webp" });
+  const response = await request(app).get("/").set("Authorization", "Bearer access");
+  expect(response.status).toBe(200);
+  expect(response.body).toMatchObject({ username: "teacher", avatarUrl: "https://example.com/avatar.webp" });
+  expect(prisma.user.update).toHaveBeenCalledWith({ where: { id: "local" }, data: { avatarUrl: "https://example.com/avatar.webp" } });
+});
+it("rejects invalid avatars before contacting the profile update API, and requires CloudBase", async () => {
+  for (const body of [{ mimeType: "image/svg+xml", data: "PHN2Zz4=" }, { mimeType: "image/png", data: "bad!" }, { mimeType: "image/png", data: "aGVsbG8=" }]) {
+    expect((await post("/avatar", body)).status).toBe(400);
+  }
+  expect(cloudbaseRequest).not.toHaveBeenCalled();
+  expect(prisma.user.update).not.toHaveBeenCalled();
+  config.authProvider = "legacy";
+  expect((await post("/avatar", {})).status).toBe(404);
+});

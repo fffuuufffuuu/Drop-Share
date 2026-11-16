@@ -3,6 +3,7 @@ export type UserRole = "USER" | "ADMIN";
 export type CurrentUser = {
   id: string;
   username: string;
+  avatarUrl?: string | null;
   role: UserRole;
 };
 
@@ -44,6 +45,7 @@ export type SpaceUploadDeployment = PersonalDeployment & {
 
 export type SpaceDeployment = Deployment & {
   uploaderName: string;
+  uploaderAvatarUrl?: string | null;
   tagIds: string[];
 };
 

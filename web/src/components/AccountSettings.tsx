@@ -4,6 +4,8 @@ import { api } from "../api";
 import { getCurrentUser, notifyAuthChanged } from "../auth";
 import { DashboardAccount, type Account, type AccountAction } from "./DashboardAccount";
 
+import { UserAvatar } from "./UserAvatar";
+
 type Method = "sms" | "email";
 const actions: AccountAction[] = ["password", "nickname", "bind-email", "rebind-email"];
 export function AccountSettings() {
@@ -16,6 +18,7 @@ export function AccountSettings() {
   const [method, setMethod] = useState<Method>("email");
   const [challenge, setChallenge] = useState(""); const [code, setCode] = useState(""); const [proof, setProof] = useState("");
   const [identity, setIdentity] = useState(""); const [contactChallenge, setContactChallenge] = useState(""); const [contactCode, setContactCode] = useState("");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [nickname, setNickname] = useState("");
   const [password, setPassword] = useState(""); const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false); const [message, setMessage] = useState(""); const [error, setError] = useState("");
@@ -88,6 +91,19 @@ export function AccountSettings() {
   </form>}</section>;
   return <section className="account-settings-panel" aria-label="账号设置"><h2>账号设置</h2>
     {feedback}
+    {account && <form className="auth-form account-avatar" onSubmit={event => { event.preventDefault(); if (!avatarFile) return; void run(async () => {
+      if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(avatarFile.type) || avatarFile.size > 2 * 1024 * 1024) { setError("请选择不超过 2 MiB 的 PNG、JPEG、WebP 或 GIF 图片"); return; }
+      const data = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1]); reader.onerror = () => reject(new Error("图片读取失败")); reader.readAsDataURL(avatarFile); });
+      const response = await api.post<{ avatarUrl: string }>("/auth/account/avatar", { mimeType: avatarFile.type, data });
+      setAccount({ ...account, avatarUrl: response.data.avatarUrl });
+      const user = getCurrentUser(); if (user) { localStorage.setItem("user", JSON.stringify({ ...user, avatarUrl: response.data.avatarUrl })); notifyAuthChanged(); }
+      setMessage("头像已更新");
+    }); }}>
+      <UserAvatar username={account.username} avatarUrl={account.avatarUrl} label="当前头像" />
+      <label>选择头像<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={busy} onChange={event => setAvatarFile(event.target.files?.[0] ?? null)} /></label>
+      <button type="submit" disabled={busy || !avatarFile}>保存头像</button>
+      <span className="hint">PNG、JPEG、WebP 或 GIF，最大 2 MiB</span>
+    </form>}
     {account && <DashboardAccount account={account} onAction={choose} disabled={busy} />}
     {account && operation && <section className="account-operation" id="account-operation">
       <div className="account-operation-heading"><h3>{operation === "password" ? "修改密码" : operation === "nickname" ? "修改昵称" : `${existingContact ? "重新绑定" : "绑定"}${contactLabel}`}</h3><button type="button" disabled={busy} onClick={() => choose(null)}>收起</button></div>

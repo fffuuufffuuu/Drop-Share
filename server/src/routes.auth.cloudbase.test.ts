@@ -9,7 +9,7 @@ import { resolveCloudbaseAccount } from "./cloudbase-accounts";
 import { authRouter } from "./routes.auth";
 vi.mock("./cloudbase", async original => ({ ...await original<any>(), cloudbaseRequest: vi.fn(), getCloudbaseUser: vi.fn() }));
 vi.mock("./cloudbase-accounts", () => ({ resolveCloudbaseAccount: vi.fn() }));
-vi.mock("./db", () => ({ prisma: { user: { findUnique: vi.fn() } } }));
+vi.mock("./db", () => ({ prisma: { user: { findUnique: vi.fn(), update: vi.fn() } } }));
 const app = express(); app.use(express.json()); app.use(authRouter);
 const session = { access_token: "access", refresh_token: "refresh", expires_in: 7200, sub: "subject" };
 const user = { id: "local", username: "teacher", role: "USER", createdAt: new Date() };
@@ -100,4 +100,14 @@ it("rejects a password session whose immutable subject differs from its profile"
   vi.mocked(getCloudbaseUser).mockResolvedValue({ sub: "another" });
   expect((await request(app).post("/password/login").send({ username: "teacher", password: "Secret!123" })).status).toBe(401);
   expect(resolveCloudbaseAccount).not.toHaveBeenCalled();
+});
+
+it("refreshes the cached CloudBase picture and includes it in the session payload", async () => {
+  vi.mocked(cloudbaseRequest).mockResolvedValue(session);
+  vi.mocked(getCloudbaseUser).mockResolvedValue({ sub: "subject", picture: "https://example.com/new.webp" });
+  vi.mocked(prisma.user.findUnique).mockResolvedValue({ ...user, cloudbaseSubject: "subject", cloudbaseEnvId: "test-env", avatarUrl: "https://example.com/old.webp" } as any);
+  const response = await request(app).post("/refresh").send({ refreshToken: "refresh" });
+  expect(response.status).toBe(200);
+  expect(response.body.user).toMatchObject({ id: "local", avatarUrl: "https://example.com/new.webp" });
+  expect(prisma.user.update).toHaveBeenCalledWith({ where: { id: "local" }, data: { avatarUrl: "https://example.com/new.webp" } });
 });

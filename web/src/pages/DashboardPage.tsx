@@ -233,6 +233,7 @@ export function DashboardPage() {
       thumbnailVersion={deployment.thumbnailVersion}
       viewCount={deployment.viewCount}
       uploaderName={getCurrentUser()?.username}
+      uploaderAvatarUrl={getCurrentUser()?.avatarUrl}
       cardLink
       hidden={deployment.visibility === "hidden"}
       focusRequested={requestedWork === deployment.id}

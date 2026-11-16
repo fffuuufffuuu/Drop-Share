@@ -111,6 +111,16 @@ it("refreshes the preview after a version change while preserving the public lin
 it("includes the uploader with the title and view count in the floating information panel", () => {
   render(<WorkPreviewCard title="实验作品" publicSlug="lab" uploaderName="Teacher" viewCount={42} meta="到期时间：明天" cardLink />);
   const panel = screen.getByRole("heading", { name: "实验作品" }).closest(".work-preview-body")!;
-  expect(panel).toHaveTextContent("上传者：Teacher");
+  expect(panel).toHaveTextContent("上传者：TTeacher");
+  expect(panel.querySelector(".work-preview-uploader .user-avatar")).toHaveTextContent("T");
   expect(panel.querySelector('[aria-label="访问次数：42"]')).not.toBeNull();
+});
+
+it("renders uploader picture and name, with a neutral anonymous fallback", () => {
+  const { container, rerender } = render(<WorkPreviewCard title="作品" publicSlug="work" uploaderName="Teacher" uploaderAvatarUrl="https://example.com/t.webp" meta={null} />);
+  expect(screen.getByText("上传者：Teacher")).toBeInTheDocument();
+  expect(container.querySelector(".work-preview-uploader img")).toHaveAttribute("src", "https://example.com/t.webp");
+  rerender(<WorkPreviewCard title="作品" publicSlug="work" uploaderName="匿名" uploaderAvatarUrl="https://example.com/ignored.webp" meta={null} />);
+  expect(container.querySelector(".work-preview-uploader .user-avatar")).toHaveTextContent("匿");
+  expect(container.querySelector(".work-preview-uploader img")).toBeNull();
 });

@@ -89,7 +89,7 @@ export function registerMigrationRoutes(router: Router, replyError: (res: Respon
         return migrated;
       });
       console.info("[account-migration] completed", { userId: user.id });
-      res.json({ token: session.access_token, refreshToken: session.refresh_token, expiresIn: session.expires_in, user: { id: user.id, username: user.username, role: user.role, createdAt: user.createdAt } });
+      res.json({ token: session.access_token, refreshToken: session.refresh_token, expiresIn: session.expires_in, user: { id: user.id, username: user.username, avatarUrl: user.avatarUrl ?? null, role: user.role, createdAt: user.createdAt } });
     } catch (error) { replyError(res, error); }
   });
 }

@@ -29,10 +29,12 @@ it("only grants to current contributors, but allows revoking an admin after thei
 it("does not expose contact fields and combines anonymous contributions",async()=>{
   vi.mocked(prisma.deployment.groupBy).mockResolvedValue([{ownerUserId:"member",_count:{_all:2},_sum:{viewCount:42}},{ownerUserId:null,_count:{_all:3},_sum:{viewCount:17}}] as any);
   vi.mocked(prisma.spaceAdministrator.findMany).mockResolvedValue([]);
-  vi.mocked(prisma.user.findMany).mockResolvedValue([{id:"owner",username:"creator",phone:"private"},{id:"member",username:"student",email:"private"}] as any);
+  vi.mocked(prisma.user.findMany).mockResolvedValue([{id:"owner",username:"creator",phone:"private"},{id:"member",username:"student",avatarUrl:"https://example.com/student.webp",email:"private"}] as any);
   const response=await request(app).get("/s/contributors");
   expect(response.headers["cache-control"]).toBe("no-store");
-  expect(response.status).toBe(200);expect(response.body.contributors).toContainEqual({userId:null,username:"匿名",workCount:3,viewCount:17,role:"contributor"});
+  expect(response.status).toBe(200);expect(response.body.contributors).toContainEqual({userId:null,username:"匿名",avatarUrl:null,workCount:3,viewCount:17,role:"contributor"});
+  expect(response.body.contributors.find((p:any)=>p.userId==="member").avatarUrl).toBe("https://example.com/student.webp");
+  expect(prisma.user.findMany).toHaveBeenCalledWith({where:{id:{in:["owner","member"]}},select:{id:true,username:true,avatarUrl:true}});
   expect(response.body.contributors.find((p:any)=>p.userId==="member").viewCount).toBe(42);
   expect(response.body.contributors.find((p:any)=>p.userId==="owner").viewCount).toBe(0);
   expect(prisma.deployment.groupBy).toHaveBeenCalledWith(expect.objectContaining({_sum:{viewCount:true},where:{spaceId:"s",deletedAt:null}}));

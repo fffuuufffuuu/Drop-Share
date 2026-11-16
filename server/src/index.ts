@@ -1,4 +1,5 @@
 import { startThumbnailPreparation } from "./thumbnail-service";
+import { avatarRouter } from "./user-avatars";
 import cors from "cors";
 import express from "express";
 import rateLimit from "express-rate-limit";
@@ -67,6 +68,7 @@ async function bootstrap(): Promise<void> {
     res.json({ ok: true });
   });
 
+  app.use("/api/avatars", avatarRouter);
   app.use("/api/auth", authRouter);
   app.use("/api/admin", adminRouter);
   app.use("/api/deployments", deploymentRouter);
