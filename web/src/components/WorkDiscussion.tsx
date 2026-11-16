@@ -1,9 +1,11 @@
 import { formatDateTime } from "../format-datetime";
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { api } from "../api";
 import { getCurrentUser } from "../auth";
 
 import { UserAvatar } from "./UserAvatar";
+import { WorkActionIcon } from "./WorkActionIcon";
 
 type Comment = { id: string; authorName: string; authorAvatarUrl?: string | null; content: string; createdAt: string; canManage?: boolean };
 type Discussion = { description: string; comments: Comment[]; canEdit: boolean; canComment: boolean };
@@ -66,6 +68,21 @@ function CommentItem({ workId, comment, onUpdated, onDeleted }: { workId: string
   const [content, setContent] = useState(comment.content);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const titleId = useId();
+  const cancelDelete = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!confirmDelete) return;
+    cancelDelete.current?.focus({ preventScroll: true });
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || busy) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setConfirmDelete(false);
+      setError("");
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [confirmDelete, busy]);
   async function save(event: FormEvent) {
     event.preventDefault(); if (busy || !content.trim()) return;
     setBusy(true); setError("");
@@ -81,19 +98,41 @@ function CommentItem({ workId, comment, onUpdated, onDeleted }: { workId: string
     catch (failure: any) { setError(failure.response?.data?.message || "删除评论失败，请重试"); }
     finally { setBusy(false); }
   }
+  function closeDelete() {
+    if (busy) return;
+    setConfirmDelete(false);
+    setError("");
+  }
   return <div className="work-comment">
-    <div><strong><UserAvatar username={comment.authorName} avatarUrl={comment.authorAvatarUrl} />{comment.authorName}</strong><time dateTime={comment.createdAt}>{formatDateTime(comment.createdAt)}</time></div>
+    <div className="work-comment-heading">
+      <strong><UserAvatar username={comment.authorName} avatarUrl={comment.authorAvatarUrl} />{comment.authorName}</strong>
+      <div className="work-comment-meta">
+        <time dateTime={comment.createdAt}>{formatDateTime(comment.createdAt)}</time>
+        {comment.canManage && !editing && <div className="work-comment-actions">
+          <button type="button" className="work-icon-action" aria-label="编辑评论" title="编辑评论" onClick={() => { setContent(comment.content); setEditing(true); setError(""); }}>
+            <WorkActionIcon type="edit" />
+          </button>
+          <button type="button" className="work-icon-action work-icon-action-danger" aria-label="删除评论" title="删除评论" onClick={() => { setConfirmDelete(true); setError(""); }}>
+            <WorkActionIcon type="delete" />
+          </button>
+        </div>}
+      </div>
+    </div>
     {editing ? <form onSubmit={event => void save(event)}>
       <textarea aria-label="编辑评论" autoFocus maxLength={1000} required value={content} disabled={busy} onChange={event => setContent(event.target.value)} />
       <div className="work-detail-form-actions"><button disabled={busy || !content.trim()}>保存评论</button><button type="button" disabled={busy} onClick={() => { setEditing(false); setError(""); }}>取消</button></div>
     </form> : <p>{comment.content}</p>}
-    {comment.canManage && !editing && <div className="work-comment-actions">
-      {confirmDelete ? <><span>删除这条评论？</span><button type="button" disabled={busy} onClick={() => void remove()}>确认删除</button><button type="button" disabled={busy} onClick={() => { setConfirmDelete(false); setError(""); }}>取消删除</button></> : <>
-        <button type="button" onClick={() => { setContent(comment.content); setEditing(true); setError(""); }}>编辑评论</button>
-        <button type="button" onClick={() => { setConfirmDelete(true); setError(""); }}>删除评论</button>
-      </>}
-    </div>}
-    {error && <p role="alert" className="work-comment-error">{error}</p>}
+    {confirmDelete && createPortal(<div className="work-comment-delete-overlay" onClick={event => { if (event.target === event.currentTarget) closeDelete(); }}>
+      <div className="work-comment-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby={titleId}>
+        <p id={titleId}>删除这条评论？</p>
+        {error && <p role="alert" className="work-comment-error">{error}</p>}
+        <div className="work-comment-delete-actions">
+          <button type="button" disabled={busy} onClick={() => void remove()}>确认删除</button>
+          <button type="button" ref={cancelDelete} disabled={busy} onClick={closeDelete}>取消删除</button>
+        </div>
+      </div>
+    </div>, document.body)}
+    {error && !confirmDelete && <p role="alert" className="work-comment-error">{error}</p>}
   </div>;
 }
 

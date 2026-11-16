@@ -13,7 +13,10 @@ it("edits and deletes a permitted comment, preserving edits when a save fails", 
   const patch = vi.spyOn(api, "patch").mockRejectedValueOnce(new Error("failed")).mockResolvedValueOnce({ data: { ...discussion.comments[0], content: "修改评论", canManage: true } });
   const remove = vi.spyOn(api, "delete").mockResolvedValue({});
   render(<WorkDiscussion workId="work" />);
-  await userEvent.click(await screen.findByRole("button", { name: "编辑评论" }));
+  const edit = await screen.findByRole("button", { name: "编辑评论" });
+  expect(edit).toHaveClass("work-icon-action");
+  expect(screen.getByRole("button", { name: "删除评论" })).toHaveClass("work-icon-action", "work-icon-action-danger");
+  await userEvent.click(edit);
   const input = screen.getByRole("textbox", { name: "编辑评论" });
   await userEvent.clear(input); await userEvent.type(input, "修改评论");
   await userEvent.click(screen.getByRole("button", { name: "保存评论" }));
@@ -24,6 +27,7 @@ it("edits and deletes a permitted comment, preserving edits when a save fails", 
   expect(patch).toHaveBeenCalledWith("/deployments/work/comments/c1", { content: "修改评论" });
   await userEvent.click(screen.getByRole("button", { name: "删除评论" }));
   expect(remove).not.toHaveBeenCalled();
+  expect(screen.getByRole("alertdialog", { name: "删除这条评论？" })).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "确认删除" }));
   await screen.findByText("还没有评论");
   expect(remove).toHaveBeenCalledWith("/deployments/work/comments/c1");
@@ -43,6 +47,18 @@ it("keeps the comment visible when deletion fails and lets the user cancel", asy
   expect(screen.getByText("现有评论")).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "取消删除" }));
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+});
+it("opens a zooming delete dialog and closes it with Escape without deleting", async () => {
+  vi.mocked(api.get).mockResolvedValue({ data: { ...discussion, comments: [{ ...discussion.comments[0], canManage: true }] } });
+  const remove = vi.spyOn(api, "delete");
+  render(<WorkDiscussion workId="work" />);
+  await userEvent.click(await screen.findByRole("button", { name: "删除评论" }));
+  expect(screen.getByRole("alertdialog", { name: "删除这条评论？" })).toBeInTheDocument();
+  await userEvent.keyboard("{Escape}");
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  expect(remove).not.toHaveBeenCalled();
+  expect(screen.getByText("现有评论")).toBeInTheDocument();
 });
 it("shows existing comments immediately beneath the heading without an inline form", async () => {
   render(<WorkDiscussion workId="work" />);
