@@ -37,7 +37,7 @@ export async function cloudbaseRequest(path: string, body?: object, token?: stri
       unimplemented: "该认证方式尚未配置完成，请联系管理员",
       invalid_grant: "登录已过期，请重新登录",
       invalid_username_or_password: "账号或密码错误",
-      password_not_set: "尚未设置密码，请先用验证码登录，在账号设置中设置密码",
+      password_not_set: "尚未设置密码，请通过“关联旧账号”设置新的用户名和密码",
       invalid_password: "密码错误",
       weak_password: "密码强度不足，请使用 8–64 位大小写字母、数字和特殊字符的组合",
       username_already_exists: "登录用户名已被占用，请更换",

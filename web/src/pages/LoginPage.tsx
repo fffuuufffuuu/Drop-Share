@@ -11,7 +11,6 @@ type Mode = "login" | "register";
 
 export function LoginPage() {
   const [provider,setProvider]=useState<"legacy"|"cloudbase"|null>(null);
-  const [loginMethod,setLoginMethod]=useState<"sms"|"email">("sms");
   const [failed,setFailed]=useState(false);
   useEffect(()=>{
     let active=true;
@@ -19,11 +18,10 @@ export function LoginPage() {
       if(!active)return;
       if(data?.provider!=="legacy"&&data?.provider!=="cloudbase")throw new Error("Invalid auth config");
       setProvider(data.provider);
-      setLoginMethod(data.loginMethod==="email"?"email":"sms");
     }).catch(()=>{if(active)setFailed(true);});
     return()=>{active=false;};
   },[]);
-  if(provider==="cloudbase")return <EmailLoginPage method={loginMethod}/>;
+  if(provider==="cloudbase")return <EmailLoginPage/>;
   if(provider==="legacy")return <LegacyLoginPage/>;
   return <section className="card"><p role="status">{failed?"无法获取登录配置，请刷新页面重试":"正在加载登录方式…"}</p></section>;
 }

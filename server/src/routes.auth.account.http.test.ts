@@ -13,14 +13,14 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 it.each(["password", "contact"])("runs the SDK HTTP proof chain and authenticated PATCH for %s", async action => {
-  const profile = { sub: "subject", phone_number: "+86 13800138000" };
+  const profile = { sub: "subject", email: "old@example.com" };
   const replies: object[] = [profile, { verification_id: "own-id", expires_in: 600 }, profile, { verification_token: "own-verified" }, { sudo_token: "sudo" }, profile];
   if (action === "password") replies.push({});
   else replies.push({ verification_id: "new-id", expires_in: 600 }, profile, profile, { verification_token: "new-verified" }, {}, { ...profile, email: "teacher@example.com" });
   const calls: { url: string; init: RequestInit }[] = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => { calls.push({ url, init }); return new Response(JSON.stringify(replies.shift())); }));
   const post = (path: string, body: object) => request(app).post(path).set("Authorization", "Bearer access").send(body);
-  const sent = await post("/proof/code", { method: "sms" });
+  const sent = await post("/proof/code", { method: "email" });
   const verified = await post("/proof/verify", { challenge: sent.body.challenge, code: "123456" });
   expect(verified.status).toBe(200);
   const proof = verified.body.proof;

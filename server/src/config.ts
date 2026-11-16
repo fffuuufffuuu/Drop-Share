@@ -10,6 +10,7 @@ export const config = {
   authProvider: process.env.AUTH_PROVIDER ?? "legacy",
   cloudbaseEnvId: process.env.CLOUDBASE_ENV_ID ?? "",
   cloudbaseLoginMethod: process.env.CLOUDBASE_LOGIN_METHOD ?? "sms",
+  accountMigrationCode: process.env.ACCOUNT_MIGRATION_CODE ?? "YaoGuo",
   baseUrl: process.env.BASE_URL ?? "http://localhost:4000",
   defaultExpiresHours: Number(process.env.DEFAULT_EXPIRES_HOURS ?? 3),
   uploadRoot: path.resolve(process.cwd(), process.env.UPLOAD_ROOT ?? "./storage"),

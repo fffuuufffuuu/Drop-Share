@@ -646,6 +646,9 @@ button:disabled {
 .auth-form { display: grid; gap: 18px; }
 .auth-form label { gap: 8px; font-size: 13px; font-weight: 600; color: light-dark(#344762, var(--night-muted)); min-width: 0; }
 .auth-form input { width: 100%; min-width: 0; height: 46px; border-color: light-dark(#dce3ed, var(--night-edge)); border-radius: 9px; padding: 11px 13px; background: light-dark(#fbfcfe, var(--night-surface)); font: 400 15px "Microsoft YaHei", "PingFang SC", sans-serif; transition: border-color .15s, box-shadow .15s; }
+.auth-form select { width: 100%; min-width: 0; min-height: 46px; font: inherit; }
+.auth-form textarea, .account-migration-token textarea { box-sizing: border-box; width: 100%; min-width: 0; min-height: 96px; padding: 11px 13px; resize: vertical; overflow-wrap: anywhere; border: 1px solid light-dark(#dce3ed, var(--night-edge)); border-radius: 9px; background: light-dark(#fbfcfe, var(--night-surface)); color: inherit; font: inherit; }
+.auth-form input[type="checkbox"] { width: 16px; height: 16px; padding: 0; }
 .auth-form input::placeholder { color: light-dark(#9aa8ba, var(--night-muted)); font-size: 12px; }
 .auth-form input:focus { outline: 0; border-color: light-dark(#6985ab, var(--night-muted)); background: light-dark(#fff, var(--night-panel)); box-shadow: 0 0 0 3px #315c8c12; }
 .auth-code-field { display: grid; grid-template-columns: minmax(0, 1fr) 120px; align-items: end; gap: 10px; }

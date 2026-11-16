@@ -41,7 +41,7 @@ function identityFor(profile: Context["profile"], method: "sms" | "email") { ret
 function proofFor(req: Request, sub: string) { return proofSchema.parse(decode(req.body.proof, "cloudbase-account-proof", sub)); }
 
 cloudbaseAccountRouter.get("/", protectedRoute(async (_req, res, { profile, user }) => {
-  res.json({ username: user.username, phone: profile.phone_number ?? "", email: profile.email ?? "" });
+  res.json({ username: user.username, loginUsername: profile.username ?? "", phone: profile.phone_number ?? "", email: profile.email ?? "" });
 }));
 cloudbaseAccountRouter.post("/nickname", protectedRoute(async (req, res, { user }) => {
   const nickname = z.string().trim().min(2).max(32).regex(/^[^\p{Cc}]+$/u).parse(req.body.nickname);
@@ -53,6 +53,7 @@ cloudbaseAccountRouter.post("/nickname", protectedRoute(async (req, res, { user 
 }));
 cloudbaseAccountRouter.post("/proof/code", protectedRoute(async (req, res, { token, profile }) => {
   const method = methodSchema.parse(req.body.method);
+  if (method === "sms") throw new AuthError("短信验证已停用，请使用已绑定邮箱，或通过关联旧账号迁移", 410);
   const identity = identityFor(profile, method);
   if (!identity) throw new AuthError("请使用已绑定的手机号或邮箱验证");
   const captchaToken = stringToken.optional().parse(req.body.captchaToken);
@@ -61,6 +62,7 @@ cloudbaseAccountRouter.post("/proof/code", protectedRoute(async (req, res, { tok
 }));
 cloudbaseAccountRouter.post("/proof/verify", protectedRoute(async (req, res, { token, profile }) => {
   const challenge = contactSchema.parse(decode(req.body.challenge, "cloudbase-account-challenge", profile.sub));
+  if (challenge.method === "sms") throw new AuthError("短信验证已停用，请重新使用邮箱验证", 410);
   if (identityFor(profile, challenge.method) !== challenge.identity) throw new AuthError("绑定信息已变化，请重新验证");
   const verification = z.object({ verification_token: stringToken }).parse(await cloudbaseRequest("/verification/verify", { verification_id: challenge.verificationId, verification_code: codeSchema.parse(req.body.code) }));
   const data = z.object({ sudo_token: stringToken }).parse(await cloudbaseRequest("/user/sudo", verification, token));
@@ -75,6 +77,7 @@ cloudbaseAccountRouter.post("/password", protectedRoute(async (req, res, { token
 cloudbaseAccountRouter.post("/contact/code", protectedRoute(async (req, res, { token, profile }) => {
   proofFor(req, profile.sub);
   const method = methodSchema.parse(req.body.method);
+  if (method === "sms") throw new AuthError("短信验证已停用，请使用已绑定邮箱，或通过关联旧账号迁移", 410);
   const raw = z.string().trim().parse(req.body.identity);
   const identity = method === "email" ? z.string().email().max(254).parse(raw.toLowerCase()) : z.string().regex(/^\+861[3-9]\d{9}$/).parse(raw.replace(/\s/g, "").replace(/^(1\d{10})$/, "+86$1"));
   if (identityFor(profile, method) === identity) throw new AuthError("请输入不同的手机号或邮箱", 409);
@@ -85,6 +88,7 @@ cloudbaseAccountRouter.post("/contact/code", protectedRoute(async (req, res, { t
 cloudbaseAccountRouter.post("/contact/verify", protectedRoute(async (req, res, { token, profile, user }) => {
   const proof = proofFor(req, profile.sub);
   const challenge = contactSchema.parse(decode(req.body.challenge, "cloudbase-contact-challenge", profile.sub));
+  if (challenge.method === "sms") throw new AuthError("短信验证已停用，请重新使用邮箱验证", 410);
   await prisma.$transaction(async tx => {
     await tx.$queryRaw(Prisma.sql`SELECT id FROM User WHERE id = ${user.id} FOR UPDATE`);
     const current = await getCloudbaseUser(token);

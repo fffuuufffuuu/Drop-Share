@@ -62,11 +62,12 @@ it("requires a mapped authenticated identity", async () => {
   vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
   expect((await request(app).get("/").set("Authorization", "Bearer access")).status).toBe(401);
 });
-it("only sends step-up verification to the current user's bound contact", async () => {
+it("only sends step-up verification to the current user's bound email", async () => {
+  vi.mocked(getCloudbaseUser).mockResolvedValue({ sub: "subject", email: "bound@example.com" });
   vi.mocked(cloudbaseRequest).mockResolvedValue({ verification_id: "id", expires_in: 600 });
-  const response = await post("/proof/code", { method: "sms", phone: "13900139000" });
+  const response = await post("/proof/code", { method: "email", email: "attacker@example.com" });
   expect(response.status).toBe(200);
-  expect(cloudbaseRequest).toHaveBeenCalledWith("/verification", { phone_number: "+86 13800138000", target: "CUR_USER" }, "access", undefined);
+  expect(cloudbaseRequest).toHaveBeenCalledWith("/verification", { email: "bound@example.com", target: "CUR_USER" }, "access", undefined);
   const claim = jwt.verify(response.body.challenge, config.jwtSecret, { audience: "cloudbase-account-challenge" }) as any;
   expect(claim.sub).toBe("subject");
 });
@@ -86,7 +87,8 @@ it("does not expose login username changes", async () => {
   expect(cloudbaseRequest).not.toHaveBeenCalled();
 });
 it("obtains a sudo proof with the official SDK verification chain", async () => {
-  const challenge = jwt.sign({ sub: "subject", envId: "test-env", method: "sms", identity: "+8613800138000", verificationId: "id" }, config.jwtSecret, { audience: "cloudbase-account-challenge", expiresIn: 600 });
+  vi.mocked(getCloudbaseUser).mockResolvedValue({ sub: "subject", email: "bound@example.com" });
+  const challenge = jwt.sign({ sub: "subject", envId: "test-env", method: "email", identity: "bound@example.com", verificationId: "id" }, config.jwtSecret, { audience: "cloudbase-account-challenge", expiresIn: 600 });
   vi.mocked(cloudbaseRequest).mockResolvedValueOnce({ verification_token: "verified" }).mockResolvedValueOnce({ sudo_token: "sudo" });
   const response = await post("/proof/verify", { challenge, code: "123456" });
   expect(response.status).toBe(200);
@@ -113,4 +115,12 @@ it("binds a verified new email to the same subject without transferring other ac
   vi.mocked(getCloudbaseUser).mockResolvedValueOnce({ sub: "subject", phone_number: "+86 13800138000" }).mockResolvedValueOnce({ sub: "subject", phone_number: "+86 13800138000" }).mockResolvedValueOnce({ sub: "subject", phone_number: "+86 13800138000", email: "teacher@example.com" });
   expect((await post("/contact/verify", { proof: proof(), challenge, code: "123456" })).status).toBe(200);
   expect(cloudbaseRequest).toHaveBeenCalledWith("/user/contact", { email: "teacher@example.com", verification_token: "verified", sudo_token: "sudo", conflict_resolution: "DEFAULT" }, "access", undefined, "PATCH");
+});
+
+it("rejects all SMS step-up and contact requests before sending any SMS", async () => {
+  expect((await post("/proof/code", { method: "sms" })).status).toBe(410);
+  expect((await post("/contact/code", { method: "sms", proof: proof(), identity: "13900139000" })).status).toBe(410);
+  const challenge = jwt.sign({ sub: "subject", envId: "test-env", method: "sms", identity: "+8613800138000", verificationId: "id" }, config.jwtSecret, { audience: "cloudbase-account-challenge", expiresIn: 600 });
+  expect((await post("/proof/verify", { challenge, code: "123456" })).status).toBe(410);
+  expect(cloudbaseRequest).not.toHaveBeenCalled();
 });
