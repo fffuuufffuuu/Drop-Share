@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { api } from "../api";
@@ -64,28 +64,39 @@ it("guides phone-only users to migration instead of sending an SMS", async () =>
   expect(api.post).not.toHaveBeenCalled();
 });
 
+it("keeps avatar upload behind an icon until the dialog opens", async () => {
+  render(<MemoryRouter><AccountSettings /></MemoryRouter>);
+  expect(await screen.findByRole("button", { name: "修改头像" })).toBeInTheDocument();
+  expect(screen.queryByLabelText("选择头像")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "保存头像" })).not.toBeInTheDocument();
+});
 it("uploads a new avatar and updates the account and navbar session cache", async () => {
   localStorage.setItem("user", JSON.stringify({ id: "u", username: "teacher", role: "USER" }));
   vi.mocked(api.post).mockResolvedValue({ data: { avatarUrl: "https://example.com/avatar.webp" } });
   render(<MemoryRouter><AccountSettings /></MemoryRouter>);
-  const input = await screen.findByLabelText("选择头像");
+  fireEvent.click(await screen.findByRole("button", { name: "修改头像" }));
+  const dialog = await screen.findByRole("dialog", { name: "修改头像" });
+  const input = within(dialog).getByLabelText("选择头像");
   fireEvent.change(input, { target: { files: [new File(["image"], "avatar.png", { type: "image/png" })] } });
-  fireEvent.click(screen.getByRole("button", { name: "保存头像" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "保存头像" }));
   expect(await screen.findByText("头像已更新")).toBeInTheDocument();
   expect(api.post).toHaveBeenCalledWith("/auth/account/avatar", { mimeType: "image/png", data: "aW1hZ2U=" });
+  expect(screen.queryByRole("dialog", { name: "修改头像" })).not.toBeInTheDocument();
   expect(screen.getByAltText("当前头像")).toHaveAttribute("src", "https://example.com/avatar.webp");
   expect(JSON.parse(localStorage.getItem("user")!)).toHaveProperty("avatarUrl", "https://example.com/avatar.webp");
   localStorage.clear();
 });
 it("rejects unsupported files and displays profile update failures", async () => {
   render(<MemoryRouter><AccountSettings /></MemoryRouter>);
-  const input = await screen.findByLabelText("选择头像");
+  fireEvent.click(await screen.findByRole("button", { name: "修改头像" }));
+  const dialog = await screen.findByRole("dialog", { name: "修改头像" });
+  const input = within(dialog).getByLabelText("选择头像");
   fireEvent.change(input, { target: { files: [new File(["svg"], "a.svg", { type: "image/svg+xml" })] } });
-  fireEvent.click(screen.getByRole("button", { name: "保存头像" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("请选择不超过 2 MiB");
+  fireEvent.click(within(dialog).getByRole("button", { name: "保存头像" }));
+  expect(await within(dialog).findByRole("alert")).toHaveTextContent("请选择不超过 2 MiB");
   expect(api.post).not.toHaveBeenCalled();
   vi.mocked(api.post).mockRejectedValue({ response: { data: { message: "头像保存未确认" } } });
   fireEvent.change(input, { target: { files: [new File(["png"], "a.png", { type: "image/png" })] } });
-  fireEvent.click(screen.getByRole("button", { name: "保存头像" }));
-  await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("头像保存未确认"));
+  fireEvent.click(within(dialog).getByRole("button", { name: "保存头像" }));
+  await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent("头像保存未确认"));
 });

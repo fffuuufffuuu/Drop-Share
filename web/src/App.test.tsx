@@ -81,7 +81,8 @@ describe("homepage and account navigation", () => {
       "/dashboard",
     );
     expect(navigation.getByRole("link", { name: "我的" }).querySelector(".user-avatar")).toHaveTextContent("M");
-    expect(navigation.queryByText("member")).not.toBeInTheDocument();
+    expect(navigation.getByRole("link", { name: "我的" })).toHaveTextContent("member");
+    expect(navigation.getByText("member")).toBeInTheDocument();
     expect(navigation.queryByRole("link", { name: "登录/注册" })).not.toBeInTheDocument();
   });
 

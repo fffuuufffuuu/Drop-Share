@@ -2647,9 +2647,12 @@ td {
 }
 
 /* Personal overview and persistent inbox. */
-.navbar-my-works { position: relative; }
+.navbar-my-works { position: relative; display: inline-flex; align-items: center; }
+.navbar-account { display: inline-flex; align-items: center; gap: 10px; max-width: min(220px, 42vw); }
+.navbar-account-avatar { position: relative; display: inline-flex; flex: none; }
+.navbar-username { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e2e8f0; font-size: 14px; font-weight: 600; line-height: 1.2; }
 .notification-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #ef4444; flex: none; }
-.navbar-my-works > .notification-dot { position: absolute; top: -3px; right: -8px; box-shadow: 0 0 0 2px #0c172a; }
+.navbar-account-avatar > .notification-dot { position: absolute; top: -3px; right: -3px; box-shadow: 0 0 0 2px #0c172a; }
 .dashboard-account { margin: 24px 0 28px; padding: 22px 24px; border-top: 1px solid light-dark(#e1e7ee, var(--night-edge)); border-bottom: 1px solid light-dark(#e1e7ee, var(--night-edge)); }
 .dashboard-account dl { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; gap: 22px; }
 .dashboard-account dl > div { display: grid; align-content: start; justify-items: start; gap: 10px; min-width: 0; }
