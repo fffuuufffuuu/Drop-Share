@@ -1,3 +1,4 @@
+import { UserAvatar } from "../components/UserAvatar";
 import { formatDateTime } from "../format-datetime";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -267,7 +268,7 @@ export function SpacePage() {
                     <EditNameButton label={`重命名${deployment.title}`} onClick={() => openRename(deployment)} />
                   </span></td>
                   <td><TagChips tags={detail.tags ?? []} tagIds={deployment.tagIds ?? []} /></td>
-                  <td>{deployment.uploaderName}</td>
+                  <td><UserAvatar username={deployment.uploaderName} avatarUrl={deployment.ownerUserId ? deployment.uploaderAvatarUrl : null} />{deployment.uploaderName}</td>
                   <td><WorkViewCount count={deployment.viewCount} /></td>
                   <td>{deployment.visibility === "visible" ? "显示" : "隐藏"}</td>
                   <td className="space-work-actions-cell">

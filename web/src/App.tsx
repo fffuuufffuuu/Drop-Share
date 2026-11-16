@@ -13,6 +13,8 @@ import type { CurrentUser } from "./types";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { NotificationsProvider, UnreadDot, useNotifications } from "./components/Notifications";
 
+import { UserAvatar } from "./components/UserAvatar";
+
 function NavBar({ currentUser }: { currentUser: CurrentUser | null }) {
   const { unreadCount } = useNotifications();
   return (
@@ -25,7 +27,7 @@ function NavBar({ currentUser }: { currentUser: CurrentUser | null }) {
         <ThemeToggle />
         <Link to="/upload">{currentUser ? "上传" : "免费使用"}</Link>
         {currentUser ? (
-          <Link className="navbar-my-works" to="/dashboard" title={unreadCount ? `${unreadCount} 条未读消息` : undefined}>我的<UnreadDot count={unreadCount} /></Link>
+          <Link className="navbar-my-works" to="/dashboard" aria-label="我的" title={unreadCount ? `${unreadCount} 条未读消息` : undefined}><UserAvatar username={currentUser.username} avatarUrl={currentUser.avatarUrl} label={`${currentUser.username}的头像`} /><UnreadDot count={unreadCount} /></Link>
         ) : (
           <Link to="/login">登录/注册</Link>
         )}

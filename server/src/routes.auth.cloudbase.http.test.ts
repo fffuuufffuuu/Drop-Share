@@ -20,6 +20,7 @@ it("registers verified email and credentials through the actual HTTP adapter, th
   const registered = await request(app).post("/email/verify").send({ challenge: sent.body.challenge, code: "123456", username: "teacher", password: "Secret!123" });
   expect(registered.status).toBe(200);
   expect(registered.body.user.id).toBe("local");
+  expect(registered.body.user.avatarUrl).toBeNull();
   for (const username of ["teacher", "teacher@example.com"]) expect((await request(app).post("/password/login").send({ username, password: "Secret!123" })).status).toBe(200);
   const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];
   expect(JSON.parse(calls[0][1].body as string)).toEqual({ email: "teacher@example.com", target: "NON_USER" });

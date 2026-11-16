@@ -1,6 +1,7 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import jwt from "jsonwebtoken";
+import { syncAvatar } from "./avatar-profile";
 import { z } from "zod";
 import { config } from "./config";
 import { prisma } from "./db";
@@ -17,8 +18,8 @@ function replyError(res: import("express").Response, error: unknown) {
   if ((error as any)?.code === "P2002") { res.status(409).json({ message: "该昵称或邮箱身份已关联账号，请重新登录" }); return; }
   res.status(400).json({ message: error instanceof z.ZodError ? error.issues[0]?.message ?? "请检查输入" : "认证失败，请重新获取验证码后重试" });
 }
-function sessionReply(res: import("express").Response, session: z.infer<typeof cloudbaseSessionSchema>, user: { id: string; username: string; role: string; createdAt: Date }) {
-  res.json({ token: session.access_token, refreshToken: session.refresh_token, expiresIn: session.expires_in, user: { id: user.id, username: user.username, role: user.role, createdAt: user.createdAt } });
+function sessionReply(res: import("express").Response, session: z.infer<typeof cloudbaseSessionSchema>, user: { id: string; username: string; role: string; createdAt: Date; avatarUrl?: string | null }) {
+  res.json({ token: session.access_token, refreshToken: session.refresh_token, expiresIn: session.expires_in, user: { id: user.id, username: user.username, avatarUrl: user.avatarUrl ?? null, role: user.role, createdAt: user.createdAt } });
 }
 cloudbaseAuthRouter.use(["/email/code", "/email/verify", "/sms/code", "/sms/verify", "/captcha", "/captcha/verify", "/refresh", "/logout", "/password/login", "/registration/complete", "/migration", "/account"], (_req, res, next) => {
   res.set("Cache-Control", "no-store");
@@ -83,7 +84,7 @@ cloudbaseAuthRouter.post("/refresh", async (req, res) => {
     if (profile.sub !== session.sub) throw new AuthError("Invalid token", 401);
     const user = await prisma.user.findUnique({ where: { cloudbaseEnvId_cloudbaseSubject: { cloudbaseEnvId: config.cloudbaseEnvId, cloudbaseSubject: profile.sub } } });
     if (!user || user.cloudbaseSubject!==profile.sub || user.cloudbaseEnvId!==config.cloudbaseEnvId) throw new AuthError("请重新登录并关联账号", 401);
-    sessionReply(res, session, user);
+    sessionReply(res, session, await syncAvatar(user, profile));
   } catch (error) { replyError(res, error); }
 });
 

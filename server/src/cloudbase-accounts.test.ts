@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { config } from "./config";
 import { prisma } from "./db";
 import { resolveCloudbaseAccount } from "./cloudbase-accounts";
-vi.mock("./db", () => ({ prisma: { user: { findUnique: vi.fn(), create: vi.fn(), updateMany: vi.fn() } } }));
+vi.mock("./db", () => ({ prisma: { user: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() } } }));
 vi.mock("bcryptjs", () => ({ compare: vi.fn(async (password: string) => password === "correct-password") }));
 const old = { id: "old-user", username: "teacher", passwordHash: "hash", role: "ADMIN", cloudbaseSubject: null, cloudbaseEnvId: null };
 const identity = { sub: "subject-1", status: "ACTIVE" as const, email: "a@example.com" };
@@ -43,7 +43,7 @@ describe("CloudBase account binding", () => {
   it("creates a regular user without copying provider roles or maintaining a local password", async () => {
     vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
     await resolveCloudbaseAccount(identity, { username: "new_user" });
-    expect(prisma.user.create).toHaveBeenCalledWith({ data: { username: "new_user", passwordHash: null, role: "USER", cloudbaseEnvId: "test-env", cloudbaseSubject: "subject-1" } });
+    expect(prisma.user.create).toHaveBeenCalledWith({ data: { username: "new_user", passwordHash: null, role: "USER", avatarUrl: null, cloudbaseEnvId: "test-env", cloudbaseSubject: "subject-1" } });
   });
 });
 
@@ -51,5 +51,13 @@ it("creates a Chinese display nickname while keeping the CloudBase subject as id
   config.cloudbaseEnvId = "test-env";
   vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
   await resolveCloudbaseAccount({ sub: "subject-cn" }, { username: " 物理老师 " });
-  expect(prisma.user.create).toHaveBeenCalledWith({ data: { username: "物理老师", passwordHash: null, role: "USER", cloudbaseEnvId: "test-env", cloudbaseSubject: "subject-cn" } });
+  expect(prisma.user.create).toHaveBeenCalledWith({ data: { username: "物理老师", passwordHash: null, role: "USER", avatarUrl: null, cloudbaseEnvId: "test-env", cloudbaseSubject: "subject-cn" } });
+});
+
+it("synchronizes an existing CloudBase picture and clears stale cache when absent", async () => {
+  const mapped = { ...old, cloudbaseSubject: identity.sub, cloudbaseEnvId: "test-env", avatarUrl: "https://example.com/old.webp" };
+  vi.mocked(prisma.user.findUnique).mockResolvedValue(mapped as any);
+  expect(await resolveCloudbaseAccount({ ...identity, picture: "https://example.com/new.webp" })).toHaveProperty("avatarUrl", "https://example.com/new.webp");
+  expect(prisma.user.update).toHaveBeenCalledWith({ where: { id: old.id }, data: { avatarUrl: "https://example.com/new.webp" } });
+  expect(await resolveCloudbaseAccount(identity)).toHaveProperty("avatarUrl", null);
 });

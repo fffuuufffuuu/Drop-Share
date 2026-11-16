@@ -61,6 +61,7 @@ authRouter.post("/register", async (req, res) => {
       user: {
         id: user.id,
         username: user.username,
+        avatarUrl: user.avatarUrl ?? null,
         role: user.role,
         createdAt: user.createdAt,
       },
@@ -111,6 +112,7 @@ authRouter.post("/login", async (req, res) => {
     user: {
       id: user.id,
       username: user.username,
+      avatarUrl: user.avatarUrl ?? null,
       role: user.role,
       createdAt: user.createdAt,
     },

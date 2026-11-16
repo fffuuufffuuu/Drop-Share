@@ -29,6 +29,7 @@ describe("getCurrentUser", () => {
     }));
 
     expect(getCurrentUser()).toEqual({
+      avatarUrl: null,
       id: "u1",
       username: "fffuuu",
       role: "ADMIN",

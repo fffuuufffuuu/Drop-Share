@@ -25,13 +25,13 @@ beforeEach(() => {
   vi.mocked(prisma.deployment.findUnique).mockResolvedValue({ id: "d1", ownerUserId: "owner",
     description: "简介", visibility: "visible", deletedAt: null, expiresAt: new Date("2099-01-01"), space: null } as never);
   vi.mocked(prisma.deploymentComment.findMany).mockResolvedValue([]);
-  vi.mocked(prisma.deploymentComment.findFirst).mockResolvedValue({ id: "c1", deploymentId: "d1", authorId: "u1", content: "原评论", createdAt: new Date(), author: { username: "同学" } } as never);
+  vi.mocked(prisma.deploymentComment.findFirst).mockResolvedValue({ id: "c1", deploymentId: "d1", authorId: "u1", content: "原评论", createdAt: new Date(), author: { username: "同学", avatarUrl: "https://example.com/comment.webp" } } as never);
   vi.mocked(prisma.deploymentComment.updateMany).mockResolvedValue({ count: 1 });
   vi.mocked(prisma.deploymentComment.deleteMany).mockResolvedValue({ count: 1 });
 });
 it("reads public descriptions and comments, but denies hidden works to visitors", async () => {
-  vi.mocked(prisma.deploymentComment.findMany).mockResolvedValue([{ id: "c1", content: "已注册用户的评论", createdAt: new Date(), author: { username: "同学" } }] as never);
-  expect((await request(app).get("/d1/discussion")).body).toMatchObject({ description: "简介", comments: [{ id: "c1", content: "已注册用户的评论", authorName: "同学" }], canEdit: false, canComment: false });
+  vi.mocked(prisma.deploymentComment.findMany).mockResolvedValue([{ id: "c1", content: "已注册用户的评论", createdAt: new Date(), author: { username: "同学", avatarUrl: "https://example.com/comment.webp" } }] as never);
+  expect((await request(app).get("/d1/discussion")).body).toMatchObject({ description: "简介", comments: [{ id: "c1", content: "已注册用户的评论", authorName: "同学", authorAvatarUrl: "https://example.com/comment.webp" }], canEdit: false, canComment: false });
   vi.mocked(prisma.deployment.findUnique).mockResolvedValue({ visibility: "hidden", ownerUserId: "owner" } as never);
   expect((await request(app).get("/d1/discussion")).status).toBe(404);
 });
@@ -41,10 +41,10 @@ it("requires login to comment and rejects blank comments", async () => {
   expect(prisma.deploymentComment.create).not.toHaveBeenCalled();
 });
 it("persists a signed-in user's comment with the server-side identity", async () => {
-  vi.mocked(prisma.deploymentComment.create).mockResolvedValue({ id: "c1", content: "很好", createdAt: new Date(), author: { username: "同学" } } as never);
+  vi.mocked(prisma.deploymentComment.create).mockResolvedValue({ id: "c1", content: "很好", createdAt: new Date(), author: { username: "同学", avatarUrl: "https://example.com/comment.webp" } } as never);
   const response = await request(app).post("/d1/comments").set("Authorization", "Bearer test").send({ content: " 很好 ", authorId: "fake" });
   expect(response.status).toBe(201);
-  expect(response.body).toMatchObject({ content: "很好", authorName: "同学" });
+  expect(response.body).toMatchObject({ content: "很好", authorName: "同学", authorAvatarUrl: "https://example.com/comment.webp" });
   expect(prisma.deploymentComment.create).toHaveBeenCalledWith(expect.objectContaining({ data: { deploymentId: "d1", authorId: "u1", content: "很好" } }));
   expect(prisma.notification.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ recipientId: "owner", content: "同学：很好", href: "/dashboard?work=d1" }) }));
 });
@@ -107,7 +107,7 @@ it("requires authentication and scopes comment lookup to the requested work", as
   expect(prisma.deploymentComment.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "missing", deploymentId: "d1" } }));
 });
 it("returns per-comment permissions without caching identity-dependent discussion responses", async () => {
-  vi.mocked(prisma.deploymentComment.findMany).mockResolvedValue([{ id: "c1", authorId: "u1", content: "mine", createdAt: new Date(), author: { username: "同学" } }, { id: "c2", authorId: "other", content: "theirs", createdAt: new Date(), author: { username: "别人" } }] as never);
+  vi.mocked(prisma.deploymentComment.findMany).mockResolvedValue([{ id: "c1", authorId: "u1", content: "mine", createdAt: new Date(), author: { username: "同学", avatarUrl: "https://example.com/comment.webp" } }, { id: "c2", authorId: "other", content: "theirs", createdAt: new Date(), author: { username: "别人" } }] as never);
   const response = await request(app).get("/d1/discussion").set("Authorization", "token");
   expect(response.headers["cache-control"]).toBe("private, no-store");
   expect(response.body.comments.map((c: any) => c.canManage)).toEqual([true, false]);
@@ -123,11 +123,19 @@ it("does not modify comments on expired, deleted or unavailable hidden works", a
   expect(prisma.deploymentComment.deleteMany).not.toHaveBeenCalled();
 });
 it("links comment notifications to the exact space work and skips self-comments or anonymous ownership", async () => {
-  vi.mocked(prisma.deploymentComment.create).mockResolvedValue({ id: "c1", authorId: "u1", content: "评论内容", createdAt: new Date(), author: { username: "同学" } } as never);
+  vi.mocked(prisma.deploymentComment.create).mockResolvedValue({ id: "c1", authorId: "u1", content: "评论内容", createdAt: new Date(), author: { username: "同学", avatarUrl: "https://example.com/comment.webp" } } as never);
   for (const ownerUserId of ["owner", "u1", null]) {
     vi.mocked(prisma.deployment.findUnique).mockResolvedValue({ id: "d1", title: "圆周运动", ownerUserId, visibility: "visible", expiresAt: new Date("2099-01-01"), space: { id: "s1", slug: "physics", ownerUserId: "creator", expiresAt: new Date("2099-01-01") } } as never);
     expect((await request(app).post("/d1/comments").set("Authorization", "token").send({ content: "评论内容" })).status).toBe(201);
   }
   expect(prisma.notification.create).toHaveBeenCalledExactlyOnceWith({ data: { recipientId: "owner", kind: "comment", title: "《圆周运动》收到新评论", content: "同学：评论内容", href: "/s/physics?work=d1" } });
   expect(prisma.$transaction).toHaveBeenCalledTimes(3);
+});
+
+it("serializes a missing author avatar as null without extra user lookups", async () => {
+  vi.mocked(prisma.deploymentComment.findMany).mockResolvedValue([{ id: "c1", authorId: "u1", content: "无头像", createdAt: new Date(), author: { username: "同学", avatarUrl: null } }] as any);
+  const response = await request(app).get("/d1/discussion");
+  expect(response.body.comments[0]).toMatchObject({ authorName: "同学", authorAvatarUrl: null });
+  expect(prisma.deploymentComment.findMany).toHaveBeenCalledWith(expect.objectContaining({ select: expect.objectContaining({ author: { select: { username: true, avatarUrl: true } } }) }));
+  expect(prisma.user.findUnique).not.toHaveBeenCalled();
 });

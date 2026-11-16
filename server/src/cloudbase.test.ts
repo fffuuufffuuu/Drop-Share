@@ -50,3 +50,11 @@ describe("CloudBase authentication boundary", () => {
     await expect(getCloudbaseUser("valid-token")).rejects.toMatchObject({ status: 429 });
   });
 });
+
+it("reads an optional picture without making an unset picture required", async () => {
+  const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ sub: "subject", picture: "https://example.com/avatar.webp" })))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ sub: "subject" })));
+  vi.stubGlobal("fetch", fetchMock);
+  expect(await getCloudbaseUser("access")).toHaveProperty("picture", "https://example.com/avatar.webp");
+  expect(await getCloudbaseUser("access")).toMatchObject({ sub: "subject" });
+});

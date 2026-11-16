@@ -1,10 +1,11 @@
+import { profileAvatar, syncAvatar } from "./avatar-profile";
 import { z } from "zod";
 import { config } from "./config";
 import { prisma } from "./db";
 import { AuthError } from "./cloudbase";
 
 export type AccountOptions = { username?: string; legacyUsername?: string; legacyPassword?: string };
-export async function resolveCloudbaseAccount(profile: { sub: string }, options: AccountOptions = {}) {
+export async function resolveCloudbaseAccount(profile: { sub: string; picture?: string | null }, options: AccountOptions = {}) {
   const identity = { cloudbaseEnvId: config.cloudbaseEnvId, cloudbaseSubject: profile.sub };
   const existing = await prisma.user.findUnique({ where: { cloudbaseEnvId_cloudbaseSubject: identity } });
   if(existing && (existing.cloudbaseSubject!==profile.sub || existing.cloudbaseEnvId!==config.cloudbaseEnvId)) throw new AuthError("认证身份不匹配",401);
@@ -17,19 +18,19 @@ export async function resolveCloudbaseAccount(profile: { sub: string }, options:
     if (!legacy?.passwordHash || !valid) throw new AuthError("原用户名或密码错误");
     if (existing) {
       if (existing.id !== legacy.id) throw new AuthError("该登录身份已关联其他账号", 409);
-      return existing;
+      return syncAvatar(existing, profile);
     }
     if (legacy.cloudbaseSubject || legacy.cloudbaseEnvId) throw new AuthError("原账号已绑定登录身份", 409);
     const updated = await prisma.user.updateMany({ where: { id: legacy.id, cloudbaseSubject: null, cloudbaseEnvId: null }, data: identity });
     if (updated.count !== 1) throw new AuthError("账号绑定状态已变化，请重新登录", 409);
     const bound = await prisma.user.findUnique({ where: { id: legacy.id } });
     if (!bound) throw new AuthError("账号不存在", 401);
-    return bound;
+    return syncAvatar(bound, profile);
   }
-  if (existing) return existing;
+  if (existing) return syncAvatar(existing, profile);
   const parsedUsername = z.string().trim().min(2).max(32).regex(/^[^\p{Cc}]+$/u).safeParse(options.username);
   if (!parsedUsername.success) throw new AuthError("注册必须填写昵称，请填写后重新获取验证码", 400, "username_required");
   const username = parsedUsername.data;
   if (await prisma.user.findUnique({ where: { username } })) throw new AuthError("昵称已被使用，请换一个", 409);
-  return prisma.user.create({ data: { username, passwordHash: null, role: "USER", ...identity } });
+  return prisma.user.create({ data: { username, passwordHash: null, role: "USER", avatarUrl: profileAvatar(profile), ...identity } });
 }

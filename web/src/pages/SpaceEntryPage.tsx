@@ -30,6 +30,7 @@ type DeploymentItem = {
   viewCount: number;
   ownerUserId: string | null;
   uploaderName: string;
+  uploaderAvatarUrl?: string | null;
   tagIds: string[];
 };
 
@@ -205,7 +206,9 @@ export function SpaceEntryPage() {
       ) ? <EditNameButton label={`重命名${deployment.title}`} onClick={() => openRename(deployment)} /> : undefined}
       tags={(data.tags ?? []).some((tag) => (deployment.tagIds ?? []).includes(tag.id))
         ? <TagChips tags={data.tags ?? []} tagIds={deployment.tagIds ?? []} /> : undefined}
-      meta={<span className="space-work-card-uploader">上传者：{deployment.uploaderName}</span>}
+      uploaderName={deployment.uploaderName}
+      uploaderAvatarUrl={deployment.ownerUserId ? deployment.uploaderAvatarUrl : null}
+      meta={null}
       actions={<>
         {deployment.canUpdate === true && <WorkVersionActions work={deployment} action="update" onChanged={load} />}
         {deployment.canRollback === true && deployment.hasPreviousVersion === true && <WorkVersionActions work={deployment} action="rollback" onChanged={load} />}

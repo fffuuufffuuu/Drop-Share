@@ -5,6 +5,8 @@ import { WorkDiscussion } from "./WorkDiscussion";
 import { WorkThumbnail } from "./WorkThumbnail";
 import { CopyShareLinkButton } from "./CopyShareLinkButton";
 
+import { UserAvatar } from "./UserAvatar";
+
 type WorkPreviewCardProps = {
   workId?: string;
   title: string;
@@ -12,6 +14,7 @@ type WorkPreviewCardProps = {
   thumbnailVersion?: string;
   viewCount?: number;
   uploaderName?: string;
+  uploaderAvatarUrl?: string | null;
   meta: ReactNode;
   tags?: ReactNode;
   actions?: ReactNode;
@@ -31,7 +34,7 @@ function actionItems(nodes: ReactNode): ReactNode[] {
 }
 
 export function WorkPreviewCard({
-  workId, title, publicSlug, thumbnailVersion, viewCount, uploaderName, meta, tags, actions, titleAction, cardLink = false, hidden = false, focusRequested = false,
+  workId, title, publicSlug, thumbnailVersion, viewCount, uploaderName, uploaderAvatarUrl, meta, tags, actions, titleAction, cardLink = false, hidden = false, focusRequested = false,
 }: WorkPreviewCardProps) {
   const [revision, setRevision] = useState(0);
   useEffect(() => {
@@ -109,7 +112,7 @@ export function WorkPreviewCard({
           {tags && <div className="work-preview-tags">{tags}</div>}
           <div className="work-preview-footer">
             <div className={`work-preview-meta${uploaderName ? " work-preview-meta-with-uploader" : ""}`}>
-              {uploaderName && <span className="work-preview-uploader">上传者：{uploaderName}</span>}
+              {uploaderName && <span className="work-preview-uploader">上传者：<UserAvatar username={uploaderName} avatarUrl={uploaderName === "匿名" ? null : uploaderAvatarUrl} />{uploaderName}</span>}
               <div className="work-preview-context">{meta}</div>
             </div>
             <WorkViewCount count={viewCount} />

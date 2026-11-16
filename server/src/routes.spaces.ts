@@ -204,7 +204,7 @@ spaceRouter.get("/:id", requireAuth, async (req, res) => {
     orderBy: { createdAt: "desc" },
     include: {
       owner: {
-        select: { username: true },
+        select: { username: true, avatarUrl: true },
       },
       tags: { select: { tagId: true } },
     },
@@ -223,6 +223,7 @@ spaceRouter.get("/:id", requireAuth, async (req, res) => {
       thumbnailVersion: await readyThumbnailVersion({...deployment,rootPath,space}),
       tagIds: assignments.map(({ tagId }) => tagId),
       uploaderName: owner?.username ?? "匿名",
+      uploaderAvatarUrl: owner?.avatarUrl ?? null,
       ...await workCapabilities({...deployment,space,previousRootPath},req.authUser?.userId,prisma,{spaceManager:true}),
     }))),
   });
@@ -457,7 +458,7 @@ spaceRouter.get("/entry/:slug", optionalAuth, async (req, res) => {
     },
     include: {
       owner: {
-        select: { username: true },
+        select: { username: true, avatarUrl: true },
       },
       tags: { select: { tagId: true } },
     },
@@ -494,6 +495,7 @@ spaceRouter.get("/entry/:slug", optionalAuth, async (req, res) => {
       tagIds: deployment.tags.map(({ tagId }) => tagId),
       ownerUserId: deployment.ownerUserId,
       uploaderName: deployment.owner?.username ?? "匿名",
+      uploaderAvatarUrl: deployment.owner?.avatarUrl ?? null,
       ...await workCapabilities({...deployment,space},req.authUser?.userId,prisma,{spaceManager:manager,siteAdministrator:siteAdmin}),
     }))),
   });

@@ -20,16 +20,16 @@ export function registerSpaceContributorRoutes(router:Router){
       prisma.spaceAdministrator.findMany({where:{spaceId:space.id},select:{userId:true}}),
     ]);
     const ids=Array.from(new Set([space.ownerUserId,...admins.map(a=>a.userId),...groups.flatMap(g=>g.ownerUserId?[g.ownerUserId]:[])]));
-    const users=await prisma.user.findMany({where:{id:{in:ids}},select:{id:true,username:true}});
+    const users=await prisma.user.findMany({where:{id:{in:ids}},select:{id:true,username:true,avatarUrl:true}});
     const adminIds=new Set(admins.map(a=>a.userId));
-    const contributors:Array<{userId:string|null;username:string;workCount:number;viewCount:number;role:string}>=users.map(user=>({
-      userId:user.id,username:user.username,workCount:groups.find(g=>g.ownerUserId===user.id)?._count._all??0,
+    const contributors:Array<{userId:string|null;username:string;avatarUrl:string|null;workCount:number;viewCount:number;role:string}>=users.map(user=>({
+      userId:user.id,username:user.username,avatarUrl:user.avatarUrl??null,workCount:groups.find(g=>g.ownerUserId===user.id)?._count._all??0,
       viewCount:groups.find(g=>g.ownerUserId===user.id)?._sum?.viewCount??0,
       role:user.id===space.ownerUserId?"creator":adminIds.has(user.id)?"admin":"contributor",
     }));
     contributors.sort((a,b)=>(a.role==="creator"?-1:b.role==="creator"?1:a.role==="admin"&&b.role!=="admin"?-1:b.role==="admin"&&a.role!=="admin"?1:b.workCount-a.workCount));
     const anonymous=groups.find(g=>g.ownerUserId===null)?._count._all??0;
-    if(anonymous)contributors.push({userId:null,username:"匿名",workCount:anonymous,viewCount:groups.find(g=>g.ownerUserId===null)?._sum?.viewCount??0,role:"contributor"});
+    if(anonymous)contributors.push({userId:null,username:"匿名",avatarUrl:null,workCount:anonymous,viewCount:groups.find(g=>g.ownerUserId===null)?._sum?.viewCount??0,role:"contributor"});
     res.json({contributors});
   });
   router.get("/:id/permissions",requireAuth,async(req,res)=>{

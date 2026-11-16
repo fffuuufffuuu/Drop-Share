@@ -8,9 +8,9 @@ import { isExpired } from "./retention";
 
 const descriptionSchema = z.object({ description: z.string().trim().max(2000) });
 const commentSchema = z.object({ content: z.string().trim().min(1).max(1000) });
-const commentSelect = { id: true, authorId: true, content: true, createdAt: true, author: { select: { username: true } } } as const;
-function serializeComment(comment: { id: string; authorId: string; content: string; createdAt: Date; author: { username: string } }, canManage: boolean) {
-  return { id: comment.id, content: comment.content, createdAt: comment.createdAt, authorName: comment.author.username, canManage };
+const commentSelect = { id: true, authorId: true, content: true, createdAt: true, author: { select: { username: true, avatarUrl: true } } } as const;
+function serializeComment(comment: { id: string; authorId: string; content: string; createdAt: Date; author: { username: string; avatarUrl?: string | null } }, canManage: boolean) {
+  return { id: comment.id, content: comment.content, createdAt: comment.createdAt, authorName: comment.author.username, authorAvatarUrl: comment.author.avatarUrl ?? null, canManage };
 }
 
 export function registerWorkDiscussionRoutes(router: Router) {

@@ -59,6 +59,7 @@ const profileSchema = z.object({
   email: z.preprocess(value => value === "" ? undefined : value, z.string().email().optional()),
   phone_number: z.string().optional(),
   username: z.string().optional(),
+  picture: z.string().nullish(),
   // Official SDK profiles and PG responses can omit this field. Never invent ACTIVE.
   status: z.literal("ACTIVE").optional(),
 });

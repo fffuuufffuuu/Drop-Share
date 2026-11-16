@@ -28,3 +28,17 @@ it("supports focus and touch opening without moving admin controls out of manage
   await userEvent.keyboard("{Escape}");expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("button",{name:"查看空间贡献者"}));expect(await screen.findByText("Teacher")).toBeInTheDocument();
 });
+
+it("shows contributor pictures and names, initials without pictures, and neutral anonymous avatars", async () => {
+  vi.mocked(api.get).mockResolvedValue({ data: { contributors: [
+    { userId: "u", username: "Teacher", avatarUrl: "https://example.com/t.webp", workCount: 1, role: "creator" },
+    { userId: "v", username: "学生", workCount: 1, role: "contributor" },
+    { userId: null, username: "匿名", avatarUrl: "https://example.com/ignored.webp", workCount: 1, role: "contributor" },
+  ] } });
+  render(<SpaceContributors spaceId="s" />);
+  const teacher = await screen.findByText("Teacher");
+  expect(teacher.querySelector("img")).toHaveAttribute("src", "https://example.com/t.webp");
+  expect(screen.getByText("学生").querySelector(".user-avatar")).toHaveTextContent("学");
+  expect(screen.getByText("匿名").querySelector(".user-avatar")).toHaveTextContent("匿");
+  expect(screen.getByText("匿名").querySelector("img")).toBeNull();
+});

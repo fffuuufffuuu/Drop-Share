@@ -144,3 +144,13 @@ it("removes the cached draft only after a successful publication", async () => {
   await userEvent.click(await screen.findByRole("button", { name: "添加评论" }));
   expect(screen.getByRole("textbox", { name: "发表评论" })).toHaveValue("");
 });
+
+it("renders comment authors with pictures or username initials", async () => {
+  vi.mocked(api.get).mockResolvedValue({ data: { ...discussion, comments: [
+    { ...discussion.comments[0], authorAvatarUrl: "https://example.com/comment.webp" },
+    { ...discussion.comments[0], id: "c2", authorName: "alice" },
+  ] } });
+  render(<WorkDiscussion workId="work" />);
+  expect((await screen.findByText("同学")).querySelector("img")).toHaveAttribute("src", "https://example.com/comment.webp");
+  expect(screen.getByText("alice").querySelector(".user-avatar")).toHaveTextContent("A");
+});
