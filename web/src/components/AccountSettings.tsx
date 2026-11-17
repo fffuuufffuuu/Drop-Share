@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { getCurrentUser, notifyAuthChanged } from "../auth";
@@ -19,6 +20,7 @@ export function AccountSettings() {
   const [challenge, setChallenge] = useState(""); const [code, setCode] = useState(""); const [proof, setProof] = useState("");
   const [identity, setIdentity] = useState(""); const [contactChallenge, setContactChallenge] = useState(""); const [contactCode, setContactCode] = useState("");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarOpen, setAvatarOpen] = useState(false);
   const [nickname, setNickname] = useState("");
   const [password, setPassword] = useState(""); const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false); const [message, setMessage] = useState(""); const [error, setError] = useState("");
@@ -51,6 +53,12 @@ export function AccountSettings() {
     const timer = setTimeout(() => { setProof(""); setChallenge(""); setCode(""); setContactChallenge(""); setError("身份验证已过期，请重新验证"); }, 9 * 60000);
     return () => clearTimeout(timer);
   }, [proof]);
+  useEffect(() => {
+    if (!avatarOpen) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape" && !busy) closeAvatar(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [avatarOpen, busy]);
   function choose(action: AccountAction | null) {
     if (busy) return; setError(""); setMessage(""); if (action === "nickname" && account) setNickname(account.username);
     setParams(current => { const next = new URLSearchParams(current); next.set("tab", "account"); next.delete("bind"); next.delete("action"); if (action) next.set("action", action); return next; });
@@ -62,6 +70,43 @@ export function AccountSettings() {
     finally { setBusy(false); }
   }
   function finish(text: string) { setParams({ tab: "account" }); setMessage(text); }
+  function closeAvatar() {
+    if (busy) return;
+    setAvatarOpen(false);
+    setAvatarFile(null);
+  }
+  function openAvatar() {
+    if (busy) return;
+    setError("");
+    setMessage("");
+    setAvatarFile(null);
+    setAvatarOpen(true);
+  }
+  async function saveAvatar() {
+    if (!account || !avatarFile) return;
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(avatarFile.type) || avatarFile.size > 2 * 1024 * 1024) {
+      setError("请选择不超过 2 MiB 的 PNG、JPEG、WebP 或 GIF 图片");
+      return;
+    }
+    await run(async () => {
+      const data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(",")[1]);
+        reader.onerror = () => reject(new Error("图片读取失败"));
+        reader.readAsDataURL(avatarFile);
+      });
+      const response = await api.post<{ avatarUrl: string }>("/auth/account/avatar", { mimeType: avatarFile.type, data });
+      setAccount({ ...account, avatarUrl: response.data.avatarUrl });
+      const user = getCurrentUser();
+      if (user) {
+        localStorage.setItem("user", JSON.stringify({ ...user, avatarUrl: response.data.avatarUrl }));
+        notifyAuthChanged();
+      }
+      setAvatarOpen(false);
+      setAvatarFile(null);
+      setMessage("头像已更新");
+    });
+  }
   async function send(purpose: "proof" | "contact") {
     await run(async () => {
       try {
@@ -79,7 +124,7 @@ export function AccountSettings() {
   function captchaField(purpose: "proof" | "contact") { return captcha?.purpose === purpose && <div className="auth-captcha"><img src={captcha.data} alt="请识别图中的验证码" /><label>图形验证码<input value={captchaAnswer} onChange={event => setCaptchaAnswer(event.target.value)} /></label></div>; }
   const cooldown = (purpose: "proof" | "contact") => purpose === "proof" ? proofCooldown : contactCooldown;
   const sendDisabled = (purpose: "proof" | "contact") => busy || cooldown(purpose) > 0 || captcha?.purpose === purpose && !captchaAnswer;
-  const feedback = <>{error && <p className="account-action-error" role="alert">{error}</p>}{message && <p className="message" role="status">{message}</p>}</>;
+  const feedback = <>{!avatarOpen && error && <p className="account-action-error" role="alert">{error}</p>}{!avatarOpen && message && <p className="message" role="status">{message}</p>}</>;
   const verification = <section className="account-section"><h3>验证当前身份</h3>{proof ? <p className="account-verified">身份已验证</p> : !account?.email ? <p>短信验证已停用。请先<Link to="/login?mode=migrate">关联旧账号并验证新邮箱</Link>，再修改账号资料。</p> : <form className="auth-form" onSubmit={event => {
     event.preventDefault(); void run(async () => { const { data } = await api.post("/auth/account/proof/verify", { challenge, code }); setProof(data.proof); setCode(""); setMessage("身份验证成功"); });
   }}>
@@ -91,19 +136,31 @@ export function AccountSettings() {
   </form>}</section>;
   return <section className="account-settings-panel" aria-label="账号设置"><h2>账号设置</h2>
     {feedback}
-    {account && <form className="auth-form account-avatar" onSubmit={event => { event.preventDefault(); if (!avatarFile) return; void run(async () => {
-      if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(avatarFile.type) || avatarFile.size > 2 * 1024 * 1024) { setError("请选择不超过 2 MiB 的 PNG、JPEG、WebP 或 GIF 图片"); return; }
-      const data = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1]); reader.onerror = () => reject(new Error("图片读取失败")); reader.readAsDataURL(avatarFile); });
-      const response = await api.post<{ avatarUrl: string }>("/auth/account/avatar", { mimeType: avatarFile.type, data });
-      setAccount({ ...account, avatarUrl: response.data.avatarUrl });
-      const user = getCurrentUser(); if (user) { localStorage.setItem("user", JSON.stringify({ ...user, avatarUrl: response.data.avatarUrl })); notifyAuthChanged(); }
-      setMessage("头像已更新");
-    }); }}>
+    {account && <div className="account-avatar">
       <UserAvatar username={account.username} avatarUrl={account.avatarUrl} label="当前头像" />
-      <label>选择头像<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={busy} onChange={event => setAvatarFile(event.target.files?.[0] ?? null)} /></label>
-      <button type="submit" disabled={busy || !avatarFile}>保存头像</button>
-      <span className="hint">PNG、JPEG、WebP 或 GIF，最大 2 MiB</span>
-    </form>}
+      <button type="button" className="account-field-action" aria-label="修改头像" title="修改头像" disabled={busy} onClick={openAvatar}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L20 8l-4-4L4 16v4ZM13 7l4 4" /></svg>
+      </button>
+    </div>}
+    {avatarOpen && account && createPortal(
+      <div className="modal-overlay" onClick={event => { if (event.target === event.currentTarget) closeAvatar(); }}>
+        <div className="modal-card account-avatar-dialog" role="dialog" aria-modal="true" aria-labelledby="account-avatar-title">
+          <h3 id="account-avatar-title">修改头像</h3>
+          <form className="account-avatar-form" onSubmit={event => { event.preventDefault(); void saveAvatar(); }}>
+            <UserAvatar username={account.username} avatarUrl={account.avatarUrl} label="当前头像" />
+            <label className="account-avatar-file">选择头像<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={busy} onChange={event => setAvatarFile(event.target.files?.[0] ?? null)} /></label>
+            {avatarFile && <p className="account-avatar-filename">{avatarFile.name}</p>}
+            <p className="hint">PNG、JPEG、WebP 或 GIF，最大 2 MiB</p>
+            {error && <p className="account-action-error" role="alert">{error}</p>}
+            <div className="account-avatar-actions">
+              <button type="button" disabled={busy} onClick={closeAvatar}>取消</button>
+              <button type="submit" disabled={busy || !avatarFile}>保存头像</button>
+            </div>
+          </form>
+        </div>
+      </div>,
+      document.body
+    )}
     {account && <DashboardAccount account={account} onAction={choose} disabled={busy} />}
     {account && operation && <section className="account-operation" id="account-operation">
       <div className="account-operation-heading"><h3>{operation === "password" ? "修改密码" : operation === "nickname" ? "修改昵称" : `${existingContact ? "重新绑定" : "绑定"}${contactLabel}`}</h3><button type="button" disabled={busy} onClick={() => choose(null)}>收起</button></div>
