@@ -18,34 +18,57 @@ export function MergeSpacesModal({
   onClose: () => void;
   onMerged: (slug: string) => void;
 }) {
-  const [firstId, setFirstId] = useState("");
-  const [secondId, setSecondId] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
+  const [nameCustomized, setNameCustomized] = useState(false);
+  const [slugCustomized, setSlugCustomized] = useState(false);
   const [sourceDisposition, setSourceDisposition] = useState<"keep" | "remove">("keep");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const activeSpaces = spaces.filter((space) => new Date(space.expiresAt) > new Date());
-  const first = activeSpaces.find((space) => space.id === firstId);
-  const secondOptions = activeSpaces.filter((space) =>
-    space.id !== firstId && (!admin || !first || space.ownerUserId === first.ownerUserId));
+  const firstSelected = activeSpaces.find((space) => space.id === selectedIds[0]);
+  const selectableOwnerId = firstSelected?.ownerUserId;
+  const slugMatchesKeptSource = sourceDisposition === "keep"
+    && selectedIds.some((id) => activeSpaces.find((space) => space.id === id)?.slug === slug.trim());
 
   useEffect(() => {
     if (!open) return;
-    setFirstId("");
-    setSecondId("");
+    setSelectedIds([]);
     setName("");
     setSlug("");
+    setNameCustomized(false);
+    setSlugCustomized(false);
     setSourceDisposition("keep");
     setError("");
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    if (!firstSelected) {
+      setName("");
+      setSlug("");
+      setNameCustomized(false);
+      setSlugCustomized(false);
+      return;
+    }
+    if (!nameCustomized) setName(firstSelected.name);
+    if (!slugCustomized) setSlug(firstSelected.slug);
+  }, [open, firstSelected, nameCustomized, slugCustomized]);
+
   if (!open) return null;
+
+  function toggleSpace(id: string) {
+    setSelectedIds((current) => current.includes(id)
+      ? current.filter((item) => item !== id)
+      : [...current, id]);
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!firstId || !secondId || firstId === secondId) {
-      setError("请选择两个不同的有效空间");
+    const uniqueIds = [...new Set(selectedIds)];
+    if (uniqueIds.length < 2) {
+      setError("请选择至少两个不同的有效空间");
       return;
     }
     const trimmedName = name.trim();
@@ -58,7 +81,7 @@ export function MergeSpacesModal({
     setError("");
     try {
       const { data } = await api.post<{ slug: string }>(admin ? "/admin/spaces/merge" : "/spaces/merge", {
-        sourceIds: [firstId, secondId],
+        sourceIds: uniqueIds,
         name: trimmedName,
         ...(trimmedSlug ? { slug: trimmedSlug } : {}),
         sourceDisposition,
@@ -76,30 +99,38 @@ export function MergeSpacesModal({
       <form className="admin-modal merge-spaces-modal" role="dialog" aria-modal="true"
         aria-label="合并空间" onSubmit={(event) => void submit(event)}>
         <h3>合并空间</h3>
-        <p>两个原空间的作品会分别获得以原空间命名的标签。新空间的到期时间取两者中较晚的日期。</p>
-        <label htmlFor="merge-first-space">第一个空间</label>
-        <select id="merge-first-space" value={firstId} onChange={(event) => {
-          setFirstId(event.target.value);
-          setSecondId("");
-        }}>
-          <option value="">请选择空间</option>
-          {activeSpaces.map((space) => <option key={space.id} value={space.id}>
-            {space.name} (/{space.slug}){admin ? ` · ${space.ownerUsername}` : ""}
-          </option>)}
-        </select>
-        <label htmlFor="merge-second-space">第二个空间</label>
-        <select id="merge-second-space" value={secondId} onChange={(event) => setSecondId(event.target.value)}>
-          <option value="">请选择空间</option>
-          {secondOptions.map((space) => <option key={space.id} value={space.id}>
-            {space.name} (/{space.slug}){admin ? ` · ${space.ownerUsername}` : ""}
-          </option>)}
-        </select>
-        {admin && <p className="hint">仅能合并同一创建者的两个空间，新空间归该创建者。</p>}
+        <p>所选空间的作品会分别获得以原空间命名的标签。新空间的到期时间取其中最晚的日期。</p>
+        <span className="merge-space-options-label" id="merge-space-options-label">选择要合并的空间</span>
+        <div className="merge-space-options" role="group" aria-labelledby="merge-space-options-label">
+          {activeSpaces.map((space) => {
+            const checked = selectedIds.includes(space.id);
+            const disabled = Boolean(admin && selectableOwnerId && space.ownerUserId !== selectableOwnerId);
+            return (
+              <label key={space.id} className={`merge-space-option${checked ? " selected" : ""}${disabled ? " disabled" : ""}`}>
+                <input type="checkbox" checked={checked} disabled={disabled}
+                  onChange={() => toggleSpace(space.id)} />
+                <span className="space-tag-chip">
+                  {space.name} (/{space.slug}){admin ? ` · ${space.ownerUsername}` : ""}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+        {admin && <p className="hint">仅能合并同一创建者的空间，新空间归该创建者。</p>}
         <label htmlFor="merge-space-name">新空间名称</label>
-        <input id="merge-space-name" value={name} maxLength={80} onChange={(event) => setName(event.target.value)} />
+        <input id="merge-space-name" value={name} maxLength={80} onChange={(event) => {
+          setNameCustomized(true);
+          setName(event.target.value);
+        }} />
         <label htmlFor="merge-space-slug">网址后缀（可选）</label>
         <input id="merge-space-slug" value={slug} maxLength={40} placeholder="留空自动生成"
-          onChange={(event) => setSlug(event.target.value)} />
+          onChange={(event) => {
+            setSlugCustomized(true);
+            setSlug(event.target.value);
+          }} />
+        {slugMatchesKeptSource && (
+          <p className="hint">保留原空间时，该网址后缀仍归原空间使用，新空间将自动分配新的后缀。</p>
+        )}
         <label htmlFor="merge-source-disposition">原空间处理方式</label>
         <select id="merge-source-disposition" value={sourceDisposition}
           onChange={(event) => setSourceDisposition(event.target.value as "keep" | "remove")}>

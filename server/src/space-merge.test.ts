@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { config } from "./config";
 import { prisma } from "./db";
-import { mergeSpacesHandler } from "./space-merge";
+import { mergeSpacesHandler, sourceTagNames } from "./space-merge";
 
 vi.mock("./db", () => ({
   prisma: {
@@ -40,7 +40,7 @@ describe("space merge", () => {
   let tx: {
     $queryRaw: ReturnType<typeof vi.fn>;
     spaceAdministrator:{findMany:ReturnType<typeof vi.fn>;createMany:ReturnType<typeof vi.fn>};
-    space: { findMany: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn> };
+    space: { findMany: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn> };
     spaceTag: { findMany: ReturnType<typeof vi.fn>; createMany: ReturnType<typeof vi.fn> };
     deploymentTag: { createMany: ReturnType<typeof vi.fn> };
     deployment: {
@@ -59,6 +59,7 @@ describe("space merge", () => {
       space: {
         findMany: vi.fn().mockResolvedValue(sourceSpaces),
         create: vi.fn().mockImplementation(async ({ data }) => data),
+        update: vi.fn().mockImplementation(async ({ data }) => data),
         delete: vi.fn().mockResolvedValue({}),
       },
       spaceTag: { findMany: vi.fn().mockResolvedValue([]), createMany: vi.fn().mockResolvedValue({ count: 2 }) },
@@ -182,5 +183,112 @@ describe("space merge", () => {
     expect(response.status).toBe(500);
     await expect(access(createdRoot)).rejects.toThrow();
     expect(await readFile(path.join(sourceRoot, "index.html"), "utf8")).toBe("original page");
+  });
+
+  it("merges three spaces, tags works by source, and keeps the latest expiry", async () => {
+    const third = { id: "third", name: "生物", slug: "biology", ownerUserId: "owner", expiresAt: new Date("2099-03-01") };
+    const sources = [...sourceSpaces, third];
+    tx.space.findMany.mockResolvedValue(sources);
+    tx.deployment.findMany.mockResolvedValue([
+      { id: "d1", spaceId: "first", tags: [] },
+      { id: "d2", spaceId: "second", tags: [] },
+      { id: "d3", spaceId: "third", tags: [] },
+    ]);
+    const response = await request(app()).post("/merge").send({
+      sourceIds: ["first", "second", "third"], name: "科学", slug: "science", sourceDisposition: "remove",
+    });
+    expect(response.status).toBe(201);
+    expect(tx.space.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      name: "科学", ownerUserId: "owner", expiresAt: third.expiresAt, slug: "science",
+    }) });
+    expect(tx.spaceTag.createMany).toHaveBeenCalledWith({ data: expect.arrayContaining([
+      expect.objectContaining({ name: "物理" }),
+      expect.objectContaining({ name: "化学" }),
+      expect.objectContaining({ name: "生物" }),
+    ]) });
+    expect(tx.deployment.updateMany).toHaveBeenCalledTimes(3);
+    expect(tx.space.delete).toHaveBeenCalledTimes(3);
+  });
+
+  it("copies works from three spaces when originals are kept", async () => {
+    const third = { id: "third", name: "生物", slug: "biology", ownerUserId: "owner", expiresAt: new Date("2099-03-01") };
+    const sources = [...sourceSpaces, third];
+    const sourceRoot = path.join(tempRoot, "original");
+    await mkdir(sourceRoot);
+    await writeFile(path.join(sourceRoot, "index.html"), "original page");
+    vi.mocked(prisma.space.findMany).mockResolvedValue(sources as never);
+    vi.mocked(prisma.deployment.findMany).mockResolvedValue([
+      {
+        id: "work-1", spaceId: "first", rootPath: sourceRoot, previousRootPath: null, title: "轨道演示",
+        ownerUserId: "uploader", visibility: "visible", uploaderIp: null, uploaderAgent: null,
+        createdAt: new Date("2026-01-01"), tags: [],
+      },
+      {
+        id: "work-2", spaceId: "third", rootPath: sourceRoot, previousRootPath: null, title: "细胞",
+        ownerUserId: "uploader", visibility: "visible", uploaderIp: null, uploaderAgent: null,
+        createdAt: new Date("2026-01-02"), tags: [],
+      },
+    ] as never);
+    tx.space.findMany.mockResolvedValue(sources);
+    tx.deployment.findMany.mockResolvedValue([
+      { id: "work-1", rootPath: sourceRoot, previousRootPath: null },
+      { id: "work-2", rootPath: sourceRoot, previousRootPath: null },
+    ]);
+
+    const response = await request(app()).post("/merge").send({
+      sourceIds: ["first", "second", "third"], name: "科学", sourceDisposition: "keep",
+    });
+    expect(response.status).toBe(201);
+    expect(tx.space.delete).not.toHaveBeenCalled();
+    expect(tx.deployment.createMany).toHaveBeenCalledTimes(2);
+    const copiedIds = tx.deployment.createMany.mock.calls.flatMap(([arg]) => arg.data.map((item: { title: string }) => item.title));
+    expect(copiedIds).toEqual(["轨道演示", "细胞"]);
+  });
+
+  it("lets a removed source donate its suffix to the new space", async () => {
+    const response = await request(app()).post("/merge").send({
+      sourceIds: ["first", "second"], name: "物理", slug: "physics", sourceDisposition: "remove",
+    });
+    expect(response.status).toBe(201);
+    expect(tx.space.update).toHaveBeenCalledWith({
+      where: { id: "first" },
+      data: { slug: expect.stringMatching(/^[a-z0-9-]{2,40}$/) },
+    });
+    expect(tx.space.create).toHaveBeenCalledWith({ data: expect.objectContaining({ slug: "physics" }) });
+    expect(response.body.slug).toBe("physics");
+  });
+
+  it("allocates a new suffix when originals are kept and the requested suffix is already used", async () => {
+    vi.mocked(prisma.space.findMany).mockResolvedValue(sourceSpaces as never);
+    vi.mocked(prisma.deployment.findMany).mockResolvedValue([] as never);
+    const response = await request(app()).post("/merge").send({
+      sourceIds: ["first", "second"], name: "物理", slug: "physics", sourceDisposition: "keep",
+    });
+    expect(response.status).toBe(201);
+    expect(tx.space.update).not.toHaveBeenCalled();
+    expect(tx.space.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ name: "物理", slug: expect.not.stringMatching(/^physics$/) }),
+    });
+    expect(response.body.slug).not.toBe("physics");
+  });
+
+  it("rejects a single space or duplicate source ids", async () => {
+    const single = await request(app()).post("/merge").send({
+      sourceIds: ["first"], name: "科学", sourceDisposition: "remove",
+    });
+    expect(single.status).toBe(400);
+    const duplicates = await request(app()).post("/merge").send({
+      sourceIds: ["first", "first"], name: "科学", sourceDisposition: "remove",
+    });
+    expect(duplicates.status).toBe(400);
+    expect(tx.space.create).not.toHaveBeenCalled();
+  });
+
+  it("disambiguates identical source names with slugs", () => {
+    expect(sourceTagNames([
+      { name: "物理", slug: "physics" },
+      { name: "物理", slug: "physics-2" },
+      { name: "化学", slug: "chemistry" },
+    ])).toEqual(["物理 (physics)", "物理 (physics-2)", "化学"]);
   });
 });
