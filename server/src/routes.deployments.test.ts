@@ -213,13 +213,12 @@ describe("personal deployment retention", () => {
     vi.useRealTimers();
   });
 
-  it("always gives anonymous uploads exactly one day", async () => {
+  it("defaults anonymous uploads to one day when durationDays is omitted", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-30T01:00:00.000Z"));
 
     const response = await request(createApp())
       .post("/api/deployments/anonymous")
-      .field("durationDays", "30")
       .attach("files", Buffer.from("<html></html>"), "index.html");
 
     expect(response.status).toBe(201);
@@ -229,6 +228,39 @@ describe("personal deployment retention", () => {
       }),
     }));
   });
+
+  it.each([
+    ["1", "2026-07-31T01:00:00.000Z"],
+    ["3", "2026-08-02T01:00:00.000Z"],
+  ])("accepts anonymous durationDays=%s", async (durationDays, expectedExpiration) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-30T01:00:00.000Z"));
+
+    const response = await request(createApp())
+      .post("/api/deployments/anonymous")
+      .field("durationDays", durationDays)
+      .attach("files", Buffer.from("<html></html>"), "index.html");
+
+    expect(response.status).toBe(201);
+    expect(prisma.deployment.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        expiresAt: new Date(expectedExpiration),
+      }),
+    }));
+  });
+
+  it.each(["0", "4", "30", "1.5"])(
+    "rejects anonymous durationDays=%s",
+    async (durationDays) => {
+      const response = await request(createApp())
+        .post("/api/deployments/anonymous")
+        .field("durationDays", durationDays)
+        .attach("files", Buffer.from("<html></html>"), "index.html");
+
+      expect(response.status).toBe(400);
+      expect(prisma.deployment.create).not.toHaveBeenCalled();
+    },
+  );
 
   it.each(["0", "31", "1.5"])(
     "rejects personal durationDays=%s",

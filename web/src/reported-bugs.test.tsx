@@ -28,7 +28,7 @@ it("lets the author open and copy a successful deployment with a locale-independ
   const copy = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
   vi.mocked(api.post).mockResolvedValue({ data: { url: "https://drop.example/p/result", expiresAt: new Date(2099, 10, 13, 9, 5, 24).toISOString() } });
   render(<MemoryRouter><UploadPage /></MemoryRouter>);
-  await waitFor(() => expect(screen.getByRole("combobox", { name: "上传到空间" })).not.toBeDisabled());
+  await waitFor(() => expect(screen.getByRole("button", { name: "部署" })).not.toBeDisabled());
   fireEvent.change(screen.getByLabelText("选择 HTML 文件"), { target: { files: [new File(["html"], "index.html", { type: "text/html" })] } });
   await user.click(screen.getByRole("button", { name: "部署" }));
   await user.type(screen.getByRole("textbox", { name: "项目名称" }), "演示");
@@ -60,10 +60,13 @@ it("waits for both upload lists before displaying an empty state", async () => {
 
 it("disables destination selection and deployment until the spaces have loaded", async () => {
   signIn();
+  const user = userEvent.setup();
   let resolve!: (value: { data: any[] }) => void;
   vi.mocked(api.get).mockImplementation(async url => url === "/spaces" ? new Promise(done => { resolve = done; }) : { data: [] });
   render(<MemoryRouter><UploadPage /></MemoryRouter>);
-  const select = screen.getByRole("combobox", { name: "上传到空间" });
+  expect(screen.getByRole("button", { name: "部署" })).toBeDisabled();
+  await user.click(screen.getByRole("radio", { name: /上传到空间/ }));
+  const select = screen.getByRole("combobox", { name: "选择空间" });
   expect(select).toBeDisabled(); expect(select).toHaveAttribute("aria-busy", "true");
   expect(screen.getByRole("option", { name: "加载空间…" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "部署" })).toBeDisabled();
