@@ -2815,7 +2815,11 @@ td {
 .space-contributors ul { list-style: none; padding: 0; margin: 0; }
 .space-contributors li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid light-dark(#edf2f7, var(--night-edge)); }
 .space-contributors li:last-child { border: 0; }
-.space-contributors li span { display: block; color: light-dark(#64748b, var(--night-muted)); font-size: 13px; margin-top: 5px; }
+.contributor-identity { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.contributor-identity .user-avatar { flex-shrink: 0; margin-inline-end: 0; }
+.contributor-copy { min-width: 0; }
+.contributor-copy strong { display: block; overflow-wrap: anywhere; }
+.contributor-meta { display: block; color: light-dark(#64748b, var(--night-muted)); font-size: 13px; margin-top: 5px; }
 .space-contributors li button { flex-shrink: 0; }
 .space-contributors-hover {
   position: fixed; right: 0; top: 50%; z-index: 30; transform: translateY(-50%);
@@ -2842,11 +2846,11 @@ td {
   animation: space-contributors-enter 180ms ease 70ms both;
 }
 .space-contributors-drawer li > div { min-width: 0; }
-.space-contributors-drawer li strong { overflow-wrap: anywhere; }
 .space-contributors-drawer .space-contributors-heading { margin-bottom: 8px; }
 .space-contributors-drawer .contributor-summary { width: 100%; }
-.contributor-identity { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px 10px; }
-.space-contributors-drawer .contributor-role { margin: 0; font-size: 12px; white-space: nowrap; }
+.space-contributors-drawer .contributor-copy { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; }
+.space-contributors-drawer .contributor-copy strong { display: inline; }
+.space-contributors-drawer .contributor-role { margin: 0; color: light-dark(#64748b, var(--night-muted)); font-size: 12px; white-space: nowrap; }
 .contributor-stats { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 8px; }
 .space-contributors-drawer .contributor-stats > span { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-variant-numeric: tabular-nums; }
 .contributor-stats svg { width: 16px; height: 16px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
