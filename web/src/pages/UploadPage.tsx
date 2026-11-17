@@ -200,7 +200,7 @@ export function UploadPage() {
                 ) : null}
               </span>
               <span className="upload-destination-hint">
-                作品跟随空间到期（空间可设置 1–365 天）。
+                作品跟随空间到期（有效期 1 年，可续期延长）。
               </span>
             </label>
           </div>

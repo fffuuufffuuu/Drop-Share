@@ -83,7 +83,7 @@ describe("UploadPage file choices", () => {
     expect(screen.getByText(/登录后最长可保留 30 天/)).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /上传到空间/ })).toBeInTheDocument();
     expect(screen.getByText("登录用户专享")).toBeInTheDocument();
-    expect(screen.getByText(/作品跟随空间到期（空间可设置 1–365 天）/)).toBeInTheDocument();
+    expect(screen.getByText(/作品跟随空间到期（有效期 1 年，可续期延长）/)).toBeInTheDocument();
 
     const slider = screen.getByRole("slider", { name: "链接保留时长" });
     expect(slider).toHaveAttribute("aria-valuemin", "1");
