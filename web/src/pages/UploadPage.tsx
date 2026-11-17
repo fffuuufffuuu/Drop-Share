@@ -162,11 +162,10 @@ export function UploadPage() {
 
       <div className="upload-settings">
         <div className="upload-settings-section">
-          <p className="upload-settings-legend" id="upload-destination-label">上传去向</p>
           <div
             className="upload-destination"
             role="radiogroup"
-            aria-labelledby="upload-destination-label"
+            aria-label="选择个人上传或上传到空间"
           >
             <label className={`upload-destination-card${destination === "personal" ? " is-selected" : ""}`}>
               <input
@@ -194,7 +193,10 @@ export function UploadPage() {
                 checked={destination === "space"}
                 onChange={() => setDestination("space")}
               />
-              <span className="upload-destination-title">上传到空间</span>
+              <span className="upload-destination-title">
+                上传到空间
+                <span className="upload-destination-badge">登录用户专享</span>
+              </span>
               <span className="upload-destination-hint">
                 作品跟随空间到期（空间可设置 1–365 天）。
               </span>

@@ -77,10 +77,12 @@ describe("UploadPage file choices", () => {
 
     renderUploadPage();
 
+    expect(screen.queryByText("上传去向")).not.toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /个人上传/ })).toBeChecked();
     expect(screen.getByText(/可设 1–3 天/)).toBeInTheDocument();
     expect(screen.getByText(/登录后最长可保留 30 天/)).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /上传到空间/ })).toBeInTheDocument();
+    expect(screen.getByText("登录用户专享")).toBeInTheDocument();
     expect(screen.getByText(/作品跟随空间到期（空间可设置 1–365 天）/)).toBeInTheDocument();
 
     const slider = screen.getByRole("slider", { name: "链接保留时长" });

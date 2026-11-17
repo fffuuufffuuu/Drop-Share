@@ -11,9 +11,11 @@ import {
 } from "./retention-scale";
 
 describe("retention scale", () => {
-  it("maps the 1–3 day range to the first third of the track", () => {
+  it("maps days onto the track in proportion to the 1–30 range", () => {
     expect(daysToRatio(1)).toBe(0);
     expect(daysToRatio(MAX_ANONYMOUS_DAYS)).toBeCloseTo(ANONYMOUS_LIMIT_RATIO);
+    expect(daysToRatio(MAX_ANONYMOUS_DAYS)).toBeCloseTo(2 / 29);
+    expect(daysToRatio(16)).toBeCloseTo(15 / 29);
     expect(daysToRatio(MAX_PERSONAL_DAYS)).toBe(1);
   });
 

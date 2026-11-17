@@ -69,7 +69,7 @@ export function RetentionSlider({ value, maxDays, onChange }: RetentionSliderPro
     <div className="retention-slider">
       <div className="retention-slider-head">
         <span id={labelId}>链接保留时长</span>
-        <strong>保留 {value} 天</strong>
+        <strong aria-hidden="true">保留 {value} 天</strong>
       </div>
       <div
         className={`retention-slider-control${limited ? " is-limited" : ""}`}
