@@ -36,9 +36,55 @@ it("shows contributor pictures and names, initials without pictures, and neutral
     { userId: null, username: "匿名", avatarUrl: "https://example.com/ignored.webp", workCount: 1, role: "contributor" },
   ] } });
   render(<SpaceContributors spaceId="s" />);
-  const teacher = await screen.findByText("Teacher");
+  const teacher = (await screen.findByText("Teacher")).closest(".contributor-identity")!;
   expect(teacher.querySelector("img")).toHaveAttribute("src", "https://example.com/t.webp");
-  expect(screen.getByText("学生").querySelector(".user-avatar")).toHaveTextContent("学");
-  expect(screen.getByText("匿名").querySelector(".user-avatar")).toHaveTextContent("匿");
-  expect(screen.getByText("匿名").querySelector("img")).toBeNull();
+  expect(screen.getByText("学生").closest(".contributor-identity")!.querySelector(".user-avatar")).toHaveTextContent("学");
+  const anonymous = screen.getByText("匿名").closest(".contributor-identity")!;
+  expect(anonymous.querySelector(".user-avatar")).toHaveTextContent("匿");
+  expect(anonymous.querySelector("img")).toBeNull();
+});
+
+function expectAvatarBesideName(name: string, initial: string, meta: string) {
+  const row = screen.getByText(name).closest(".contributor-identity")!;
+  const avatar = row.querySelector(".user-avatar")!;
+  const copy = row.querySelector(".contributor-copy")!;
+  expect(avatar).toHaveTextContent(initial);
+  expect(avatar.compareDocumentPosition(copy) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  expect(copy.querySelector("strong")).toHaveTextContent(name);
+  expect(copy).toHaveTextContent(meta);
+  expect(screen.getByText(name).contains(avatar)).toBe(false);
+}
+
+it("keeps management-list avatars on one row with the name and meta, and action buttons on the right", async () => {
+  localStorage.setItem("token", "owner");
+  vi.spyOn(api, "get").mockImplementation(async (url) => ({ data: String(url).endsWith("permissions")
+    ? { canManageAdmins: true }
+    : { contributors: [
+      { userId: "a", username: "腰果先生", workCount: 2, viewCount: 10, role: "creator" },
+      { userId: "b", username: "Tinna", workCount: 1, viewCount: 4, role: "admin" },
+      { userId: "c", username: "Sophie", workCount: 1, viewCount: 3, role: "contributor" },
+    ] } }));
+  render(<SpaceContributors spaceId="s1" />);
+  await screen.findByText("腰果先生");
+  expectAvatarBesideName("腰果先生", "腰", "创建者 · 2 个作品 · 10 次访问");
+  expectAvatarBesideName("Tinna", "T", "管理员 · 1 个作品 · 4 次访问");
+  expectAvatarBesideName("Sophie", "S", "贡献者 · 1 个作品 · 3 次访问");
+  const sophieRow = screen.getByText("Sophie").closest("li")!;
+  expect(sophieRow.querySelector(".contributor-identity")!.compareDocumentPosition(screen.getByRole("button", { name: "授予Sophie管理员" })) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  expect(screen.getByRole("button", { name: "撤销Tinna管理员" })).toBeInTheDocument();
+});
+
+it("keeps hover-panel avatars on one row with the nickname and role", async () => {
+  vi.mocked(api.get).mockResolvedValue({ data: { contributors: [
+    { userId: "a", username: "腰果先生", workCount: 2, viewCount: 10, role: "creator" },
+    { userId: "b", username: "Tinna", workCount: 1, viewCount: 4, role: "admin" },
+    { userId: "c", username: "Sophie", workCount: 1, viewCount: 3, role: "contributor" },
+  ] } });
+  render(<SpaceContributors spaceId="s1" drawer />);
+  await userEvent.hover(screen.getByRole("button", { name: "查看空间贡献者" }));
+  await screen.findByText("腰果先生");
+  expectAvatarBesideName("腰果先生", "腰", "创建者");
+  expectAvatarBesideName("Tinna", "T", "管理员");
+  expectAvatarBesideName("Sophie", "S", "贡献者");
+  expect(screen.getByText("Sophie").closest(".contributor-summary")!.querySelector(".contributor-stats")).toHaveTextContent("1");
 });
