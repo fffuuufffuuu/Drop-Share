@@ -195,7 +195,9 @@ export function UploadPage() {
               />
               <span className="upload-destination-title">
                 上传到空间
-                <span className="upload-destination-badge">登录用户专享</span>
+                {!isLoggedIn ? (
+                  <span className="upload-destination-badge">登录用户专享</span>
+                ) : null}
               </span>
               <span className="upload-destination-hint">
                 作品跟随空间到期（空间可设置 1–365 天）。

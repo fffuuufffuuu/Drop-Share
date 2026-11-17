@@ -115,6 +115,7 @@ describe("UploadPage file choices", () => {
     expect(duration).toHaveAttribute("aria-valuemax", "30");
     expect(duration).toHaveAttribute("aria-valuenow", "1");
     expect(screen.getByText(/最长 30 天/)).toBeInTheDocument();
+    expect(screen.queryByText("登录用户专享")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "部署" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "匿名部署" })).not.toBeInTheDocument();
 
