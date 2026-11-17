@@ -71,21 +71,35 @@ describe("UploadPage file choices", () => {
     expect(screen.getByLabelText("选择整个文件夹")).toHaveAttribute("webkitdirectory", "true");
   });
 
-  it("shows visitors a fixed one-day term and registration action", () => {
+  it("shows visitors destination choices and a slider limited to 1–3 days", async () => {
     const getSpy = vi.spyOn(api, "get");
+    const user = userEvent.setup();
 
     renderUploadPage();
 
-    expect(screen.getByText("匿名上传固定保留 1 天")).toBeInTheDocument();
-    expect(screen.queryByRole("spinbutton", { name: "链接保留时长（天）" }))
-      .not.toBeInTheDocument();
+    expect(screen.queryByText("上传去向")).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /个人上传/ })).toBeChecked();
+    expect(screen.getByText(/可设 1–3 天/)).toBeInTheDocument();
+    expect(screen.getByText(/登录后最长可保留 30 天/)).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /上传到空间/ })).toBeInTheDocument();
+    expect(screen.getByText("登录用户专享")).toBeInTheDocument();
+    expect(screen.getByText(/作品跟随空间到期（有效期 1 年，可续期延长）/)).toBeInTheDocument();
+
+    const slider = screen.getByRole("slider", { name: "链接保留时长" });
+    expect(slider).toHaveAttribute("aria-valuemin", "1");
+    expect(slider).toHaveAttribute("aria-valuemax", "3");
+    expect(slider).toHaveAttribute("aria-valuenow", "1");
+    expect(screen.getByText("保留 1 天")).toBeInTheDocument();
+    expect(screen.getByText("30")).toBeInTheDocument();
+    expect(screen.getByText("登录后可延长至 30 天")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "匿名部署" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "登录/注册" })).toHaveAttribute("href", "/login");
-    expect(screen.getByRole("option", { name: "仅个人上传（不加入空间）" }))
-      .toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "+ 新建空间" })).toBeInTheDocument();
     expect(screen.queryByText("注册登录后，即可管理自己上传的所有作品。"))
       .not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: /上传到空间/ }));
+    expect(screen.queryByRole("slider", { name: "链接保留时长" })).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "+ 新建空间" })).toBeInTheDocument();
     expect(getSpy).not.toHaveBeenCalled();
   });
 
@@ -96,24 +110,26 @@ describe("UploadPage file choices", () => {
 
     renderUploadPage();
 
-    const duration = screen.getByRole("spinbutton", { name: "链接保留时长（天）" });
-    expect(duration).toHaveAttribute("min", "1");
-    expect(duration).toHaveAttribute("max", "30");
-    expect(screen.getByText("登录用户最长可保留 30 天")).toBeInTheDocument();
+    const duration = screen.getByRole("slider", { name: "链接保留时长" });
+    expect(duration).toHaveAttribute("aria-valuemin", "1");
+    expect(duration).toHaveAttribute("aria-valuemax", "30");
+    expect(duration).toHaveAttribute("aria-valuenow", "1");
+    expect(screen.getByText(/最长 30 天/)).toBeInTheDocument();
+    expect(screen.queryByText("登录用户专享")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "部署" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "匿名部署" })).not.toBeInTheDocument();
 
-    const target = screen.getByRole("combobox", { name: "上传到空间" });
+    await user.click(screen.getByRole("radio", { name: /上传到空间/ }));
+    const target = screen.getByRole("combobox", { name: "选择空间" });
     await screen.findByRole("option", { name: "作品集" });
     await user.selectOptions(target, "s1");
 
     expect(screen.getByText(/空间内作品跟随空间到期/)).toBeInTheDocument();
-    expect(screen.queryByRole("spinbutton", { name: "链接保留时长（天）" }))
+    expect(screen.queryByRole("slider", { name: "链接保留时长" }))
       .not.toBeInTheDocument();
 
-    await user.selectOptions(target, "");
-    expect(target).toHaveValue("");
-    expect(screen.getByRole("spinbutton", { name: "链接保留时长（天）" }))
+    await user.click(screen.getByRole("radio", { name: /个人上传/ }));
+    expect(screen.getByRole("slider", { name: "链接保留时长" }))
       .toBeInTheDocument();
   });
 
@@ -130,9 +146,8 @@ describe("UploadPage file choices", () => {
     const file = new File(["html"], "index.html", { type: "text/html" });
 
     renderUploadPage();
-    fireEvent.change(screen.getByRole("spinbutton", { name: "链接保留时长（天）" }), {
-      target: { value: "30" },
-    });
+    fireEvent.keyDown(screen.getByRole("slider", { name: "链接保留时长" }), { key: "End" });
+    expect(screen.getByRole("slider", { name: "链接保留时长" })).toHaveAttribute("aria-valuenow", "30");
     fireEvent.change(screen.getByLabelText("选择 HTML 文件"), {
       target: { files: [file] },
     });
@@ -187,9 +202,10 @@ describe("UploadPage file choices", () => {
     const file = new File(["html"], "index.html", { type: "text/html" });
 
     renderUploadPage();
+    await user.click(screen.getByRole("radio", { name: /上传到空间/ }));
     await screen.findByRole("option", { name: "作品集" });
     await user.selectOptions(
-      screen.getByRole("combobox", { name: "上传到空间" }),
+      screen.getByRole("combobox", { name: "选择空间" }),
       "s1",
     );
     fireEvent.change(screen.getByLabelText("选择 HTML 文件"), {
@@ -235,6 +251,67 @@ describe("UploadPage file choices", () => {
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith("/deployments/anonymous", expect.any(FormData));
     });
+    const formData = vi.mocked(api.post).mock.calls[0][1] as FormData;
+    expect(formData.get("durationDays")).toBe("1");
+    expect(formData.get("spaceId")).toBeNull();
+  });
+
+  it("lets a visitor keep a file for 3 days", async () => {
+    const postSpy = vi.spyOn(api, "post").mockResolvedValue({
+      data: {
+        url: "https://drop.example/p/demo",
+        expiresAt: "2026-08-02T01:00:00.000Z",
+      },
+    });
+    const user = userEvent.setup();
+    const file = new File(["html"], "index.html", { type: "text/html" });
+
+    renderUploadPage();
+    const slider = screen.getByRole("slider", { name: "链接保留时长" });
+    fireEvent.keyDown(slider, { key: "End" });
+    expect(slider).toHaveAttribute("aria-valuenow", "3");
+    expect(screen.getByText("保留 3 天")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("选择 HTML 文件"), {
+      target: { files: [file] },
+    });
+    await user.click(screen.getByRole("button", { name: "匿名部署" }));
+    await user.type(screen.getByRole("textbox", { name: "项目名称" }), "匿名作品");
+    await user.click(screen.getByRole("button", { name: "确认部署" }));
+
+    await waitFor(() => expect(postSpy).toHaveBeenCalled());
+    expect(postSpy.mock.calls[0][0]).toBe("/deployments/anonymous");
+    expect((postSpy.mock.calls[0][1] as FormData).get("durationDays")).toBe("3");
+  });
+
+  it("prevents visitors from choosing more than 3 days while still showing the 30-day scale", () => {
+    renderUploadPage();
+
+    const slider = screen.getByRole("slider", { name: "链接保留时长" });
+    const track = screen.getByTestId("retention-slider-track");
+    expect(screen.getByText("30")).toBeInTheDocument();
+    expect(slider).toHaveAttribute("aria-valuemax", "3");
+
+    fireEvent.keyDown(slider, { key: "End" });
+    expect(slider).toHaveAttribute("aria-valuenow", "3");
+    for (let i = 0; i < 10; i += 1) {
+      fireEvent.keyDown(slider, { key: "ArrowRight" });
+    }
+    expect(slider).toHaveAttribute("aria-valuenow", "3");
+
+    vi.spyOn(track, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      right: 300,
+      bottom: 8,
+      width: 300,
+      height: 8,
+      toJSON: () => ({}),
+    });
+    fireEvent.pointerDown(slider, { clientX: 300, button: 0, pointerId: 1 });
+    expect(slider).toHaveAttribute("aria-valuenow", "3");
   });
 
   it("shows an upload summary without work preview cards", async () => {
@@ -243,7 +320,7 @@ describe("UploadPage file choices", () => {
 
     renderUploadPage();
 
-    await screen.findByRole("option", { name: "作品集" });
+    await screen.findByRole("link", { name: "作品集" });
     await waitFor(() => expect(screen.getByRole("region", { name: "我的上传概览" }).querySelector(".upload-overview-summary p")).toHaveTextContent("累计提交作品 0 件"));
     expect(screen.getByRole("link", { name: "我的作品" })).toHaveAttribute("href", "/dashboard");
     expect(screen.getByRole("link", { name: "作品集" })).toHaveAttribute("href", "/s/portfolio");

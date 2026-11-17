@@ -12,6 +12,7 @@ import {
   addDays,
   ANONYMOUS_DAYS,
   isExpired,
+  MAX_ANONYMOUS_DAYS,
   MAX_PERSONAL_DAYS,
 } from "./retention";
 import { removeDeploymentFolder, saveDeploymentFiles } from "./storage";
@@ -27,6 +28,10 @@ const createSchema = z.object({
   description: z.string().trim().max(2000, "简介最多 2000 字").optional().default(""),
   durationDays: z.coerce.number().int().min(1).max(MAX_PERSONAL_DAYS).optional(),
   spaceId: z.string().optional(),
+});
+const anonymousCreateSchema = z.object({
+  description: z.string().trim().max(2000, "简介最多 2000 字").optional().default(""),
+  durationDays: z.coerce.number().int().min(1).max(MAX_ANONYMOUS_DAYS).optional(),
 });
 
 function buildUploadItems(files: Express.Multer.File[], paths: string[] | string | undefined) {
@@ -105,7 +110,7 @@ deploymentRouter.post("/anonymous", upload.array("files", 1000), async (req, res
     res.status(400).json({ message: "No files uploaded" });
     return;
   }
-  const payload = createSchema.pick({ description: true }).safeParse(req.body);
+  const payload = anonymousCreateSchema.safeParse(req.body);
   if (!payload.success) {
     res.status(400).json({ message: payload.error.issues[0]?.message ?? "Invalid payload" });
     return;
@@ -113,7 +118,7 @@ deploymentRouter.post("/anonymous", upload.array("files", 1000), async (req, res
   const publicSlug = randomSlug(10);
   const deploymentId = randomSlug(18);
   const now = new Date();
-  const expiresAt = addDays(now, ANONYMOUS_DAYS);
+  const expiresAt = addDays(now, payload.data.durationDays ?? ANONYMOUS_DAYS);
   const rootPath = await saveDeploymentFiles(
     path.join("anonymous", deploymentId),
     buildUploadItems(files, req.body.paths),

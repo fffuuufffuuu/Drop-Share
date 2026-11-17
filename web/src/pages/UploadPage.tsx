@@ -6,7 +6,14 @@ import { api, setAuthToken } from "../api";
 import { getCurrentUser } from "../auth";
 import { CreateSpaceModal } from "../components/CreateSpaceModal";
 import { ProjectNameModal } from "../components/ProjectNameModal";
+import { RetentionSlider } from "../components/RetentionSlider";
 import { UploadDropzone } from "../components/UploadDropzone";
+import {
+  clampDurationDays,
+  DEFAULT_DURATION_DAYS,
+  MAX_ANONYMOUS_DAYS,
+  MAX_PERSONAL_DAYS,
+} from "../retention-scale";
 import type { PersonalDeployment, Space, SpaceUploadDeployment } from "../types";
 import { suggestProjectName, type UploadEntry } from "../uploader";
 import { CopyShareLinkButton } from "../components/CopyShareLinkButton";
@@ -17,7 +24,8 @@ export function UploadPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [entries, setEntries] = useState<UploadEntry[]>([]);
   const [message, setMessage] = useState("");
-  const [durationDays, setDurationDays] = useState(1);
+  const [durationDays, setDurationDays] = useState(DEFAULT_DURATION_DAYS);
+  const [destination, setDestination] = useState<"personal" | "space">("personal");
   const [spaceId, setSpaceId] = useState("");
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [spacesStatus, setSpacesStatus] = useState<"loading" | "ready" | "error">(isLoggedIn ? "loading" : "ready");
@@ -31,6 +39,10 @@ export function UploadPage() {
   const [projectDescription, setProjectDescription] = useState("");
   const [projectNameError, setProjectNameError] = useState("");
   const selectedSpace = spaces.find((space) => space.id === spaceId);
+  const maxDurationDays = isLoggedIn ? MAX_PERSONAL_DAYS : MAX_ANONYMOUS_DAYS;
+  const deployDisabled = isLoggedIn
+    ? spacesStatus !== "ready" || (destination === "space" && !spaceId)
+    : destination === "space";
 
   async function loadSubmissionCount() {
     try {
@@ -64,6 +76,7 @@ export function UploadPage() {
       });
     void loadSubmissionCount();
     if (searchParams.get("createSpace") === "1") {
+      setDestination("space");
       setCreateSpaceOpen(true);
     }
     return () => { active = false; };
@@ -77,7 +90,7 @@ export function UploadPage() {
   );
 
   function openProjectNameModal() {
-    if (isLoggedIn && spacesStatus !== "ready") return;
+    if (deployDisabled) return;
     if (!entries.length) {
       setMessage("请先选择文件。");
       return;
@@ -106,10 +119,10 @@ export function UploadPage() {
       formData.append("files", entry.file);
       formData.append("paths", entry.path);
     });
-    if (spaceId.trim()) {
+    if (destination === "space" && spaceId.trim()) {
       formData.append("spaceId", spaceId.trim());
-    } else if (isLoggedIn) {
-      formData.append("durationDays", String(durationDays));
+    } else {
+      formData.append("durationDays", String(clampDurationDays(durationDays, maxDurationDays)));
     }
 
     try {
@@ -125,6 +138,18 @@ export function UploadPage() {
     }
   }
 
+  function chooseSpaceOption(nextValue: string) {
+    if (nextValue !== "__create_space__") {
+      setSpaceId(nextValue);
+      return;
+    }
+    if (isLoggedIn) {
+      setCreateSpaceOpen(true);
+    } else {
+      navigate("/login?mode=register&next=%2Fupload%3FcreateSpace%3D1");
+    }
+  }
+
   return (
     <section className="card">
       <h2>上传并部署</h2>
@@ -136,88 +161,109 @@ export function UploadPage() {
       />
 
       <div className="upload-settings">
-        <div className="retention-field upload-setting-field">
-          {!isLoggedIn ? (
-            <>
-              <span className="upload-setting-label">链接保留时长</span>
-              <span className="retention-note retention-note--visitor">
-                匿名上传固定保留 1 天
+        <div className="upload-settings-section">
+          <div
+            className="upload-destination"
+            role="radiogroup"
+            aria-label="选择个人上传或上传到空间"
+          >
+            <label className={`upload-destination-card${destination === "personal" ? " is-selected" : ""}`}>
+              <input
+                type="radio"
+                name="upload-destination"
+                value="personal"
+                checked={destination === "personal"}
+                onChange={() => {
+                  setDestination("personal");
+                  setSpaceId("");
+                }}
+              />
+              <span className="upload-destination-title">个人上传</span>
+              <span className="upload-destination-hint">
+                {isLoggedIn
+                  ? "由你选择链接保留时长，最长 30 天。"
+                  : "由你选择链接保留时长，可设 1–3 天。登录后最长可保留 30 天。"}
               </span>
-            </>
-          ) : selectedSpace ? (
-            <>
-              <span className="upload-setting-label">空间到期时间</span>
+            </label>
+            <label className={`upload-destination-card${destination === "space" ? " is-selected" : ""}`}>
+              <input
+                type="radio"
+                name="upload-destination"
+                value="space"
+                checked={destination === "space"}
+                onChange={() => setDestination("space")}
+              />
+              <span className="upload-destination-title">
+                上传到空间
+                {!isLoggedIn ? (
+                  <span className="upload-destination-badge">登录用户专享</span>
+                ) : null}
+              </span>
+              <span className="upload-destination-hint">
+                作品跟随空间到期（有效期 1 年，可续期延长）。
+              </span>
+            </label>
+          </div>
+        </div>
+
+        {destination === "personal" ? (
+          <RetentionSlider
+            value={durationDays}
+            maxDays={maxDurationDays}
+            onChange={setDurationDays}
+          />
+        ) : (
+          <div className="upload-space-picker">
+            <label htmlFor="space-select">选择空间</label>
+            <span className="space-field-note">在一个空间里分享所有人的作品</span>
+            <select
+              id="space-select"
+              value={spaceId}
+              disabled={isLoggedIn && spacesStatus !== "ready"}
+              aria-busy={spacesStatus === "loading"}
+              onChange={(event) => chooseSpaceOption(event.target.value)}
+            >
+              {spacesStatus !== "ready" ? <option value="">{spacesStatus === "loading" ? "加载空间…" : "空间加载失败"}</option> : <>
+              <option value="">请选择空间</option>
+              <option value="__create_space__">+ 新建空间</option>
+              {spaces.filter((space) => new Date(space.expiresAt) > new Date()).map((space) => (
+                <option key={space.id} value={space.id}>{space.name}</option>
+              ))}
+              </>}
+            </select>
+            {spacesStatus === "error" && <button type="button" onClick={() => { setMessage(""); setSpacesReload(value => value + 1); }}>重新加载空间</button>}
+            {selectedSpace && (
               <span className="retention-note retention-note--user">
                 空间内作品跟随空间到期：{formatDateTime(selectedSpace.expiresAt)}
               </span>
-            </>
+            )}
+          </div>
+        )}
+
+        <div className="upload-settings-actions">
+          {isLoggedIn ? (
+            <button
+              type="button"
+              className="upload-deploy-button"
+              disabled={deployDisabled}
+              onClick={openProjectNameModal}
+            >
+              部署
+            </button>
           ) : (
             <>
-              <label htmlFor="duration-days">链接保留时长（天）</label>
-              <span id="retention-note" className="retention-note retention-note--user">
-                登录用户最长可保留 30 天
-              </span>
-              <input
-                id="duration-days"
-                type="number"
-                min={1}
-                max={30}
-                value={durationDays}
-                aria-describedby="retention-note"
-                onChange={(event) => {
-                  const nextValue = Number(event.target.value);
-                  setDurationDays(Math.min(30, Math.max(1, nextValue)));
-                }}
-              />
+              <button
+                type="button"
+                className="upload-deploy-button"
+                disabled={deployDisabled}
+                onClick={openProjectNameModal}
+              >
+                匿名部署
+              </button>
+              <Link className="button-link" to="/login">登录/注册</Link>
             </>
           )}
         </div>
-        <div className="upload-setting-field">
-          <label htmlFor="space-select">上传到空间</label>
-          <span className="space-field-note">在一个空间里分享所有人的作品</span>
-          <select
-            id="space-select"
-            value={spaceId}
-            disabled={isLoggedIn && spacesStatus !== "ready"}
-            aria-busy={spacesStatus === "loading"}
-            onChange={(event) => {
-              const nextValue = event.target.value;
-              if (nextValue !== "__create_space__") {
-                setSpaceId(nextValue);
-                return;
-              }
-              if (isLoggedIn) {
-                setCreateSpaceOpen(true);
-              } else {
-                navigate("/login?mode=register&next=%2Fupload%3FcreateSpace%3D1");
-              }
-            }}
-          >
-            {spacesStatus !== "ready" ? <option value="">{spacesStatus === "loading" ? "加载空间…" : "空间加载失败"}</option> : <>
-            <option value="">仅个人上传（不加入空间）</option>
-            <option value="__create_space__">+ 新建空间</option>
-            {spaces.filter((space) => new Date(space.expiresAt) > new Date()).map((space) => (
-              <option key={space.id} value={space.id}>{space.name}</option>
-            ))}
-            </>}
-          </select>
-          {spacesStatus === "error" && <button type="button" onClick={() => { setMessage(""); setSpacesReload(value => value + 1); }}>重新加载空间</button>}
-        </div>
-      </div>
-
-      <div className="row">
-        {isLoggedIn ? (
-          <button type="button" disabled={spacesStatus !== "ready"} onClick={openProjectNameModal}>
-            部署
-          </button>
-        ) : (
-          <>
-            <button type="button" onClick={openProjectNameModal}>
-              匿名部署
-            </button>
-            <Link className="button-link" to="/login">登录/注册</Link>
-          </>
-        )}
       </div>
 
       {message && <pre className="message">{message}</pre>}
@@ -287,6 +333,7 @@ export function UploadPage() {
         onClose={() => setCreateSpaceOpen(false)}
         onCreated={(space) => {
           setSpaces((current) => [...current, space]);
+          setDestination("space");
           setSpaceId(space.id);
           setCreateSpaceOpen(false);
           if (searchParams.get("createSpace") === "1") {

@@ -1,4 +1,5 @@
 export const ANONYMOUS_DAYS = 1;
+export const MAX_ANONYMOUS_DAYS = 3;
 export const MAX_PERSONAL_DAYS = 30;
 export const MAX_SPACE_DAYS = 365;
 export const SPACE_EXTENSION_DAYS = 365;
