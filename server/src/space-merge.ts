@@ -11,7 +11,7 @@ import { randomSlug } from "./utils";
 import {lockSpace} from "./space-contributors";
 
 const mergeSchema = z.object({
-  sourceIds: z.array(z.string().min(1)).length(2),
+  sourceIds: z.array(z.string().min(1)).min(2),
   name: z.string().trim().min(1).max(80),
   slug: z.string().regex(/^[a-z0-9-]{2,40}$/).optional(),
   sourceDisposition: z.enum(["keep", "remove"]),
@@ -23,19 +23,33 @@ class MergeError extends Error {
   }
 }
 
-function sourceTagNames(spaces: { name: string; slug: string }[]): [string, string] {
-  if (spaces[0].name !== spaces[1].name) return [spaces[0].name, spaces[1].name];
+export function sourceTagNames(spaces: { name: string; slug: string }[]): string[] {
+  const counts = new Map<string, number>();
+  for (const space of spaces) {
+    counts.set(space.name, (counts.get(space.name) ?? 0) + 1);
+  }
   return spaces.map((space) => {
+    if ((counts.get(space.name) ?? 0) === 1) return space.name;
     const suffix = ` (${space.slug})`;
     return `${space.name.slice(0, 80 - suffix.length)}${suffix}`;
-  }) as [string, string];
+  });
+}
+
+function temporarySlug(): string {
+  return `z${randomSlug(18).replace(/_/g, "a")}`;
+}
+
+function assertSameOwner(spaces: { ownerUserId: string }[]) {
+  if (spaces.some((space) => space.ownerUserId !== spaces[0].ownerUserId)) {
+    throw new MergeError(403, "只能合并同一创建者的空间");
+  }
 }
 
 export function mergeSpacesHandler(admin: boolean) {
   return async (req: Request, res: Response, next: NextFunction) => {
     const parsed = mergeSchema.safeParse(req.body);
-    if (!parsed.success || (parsed.success && parsed.data.sourceIds[0] === parsed.data.sourceIds[1])) {
-      res.status(400).json({ message: "请选择两个不同的空间，并填写有效的新空间名称和网址后缀" });
+    if (!parsed.success || new Set(parsed.data.sourceIds).size !== parsed.data.sourceIds.length) {
+      res.status(400).json({ message: "请选择至少两个不同的空间，并填写有效的新空间名称和网址后缀" });
       return;
     }
     const { sourceIds, name, sourceDisposition } = parsed.data;
@@ -55,10 +69,8 @@ export function mergeSpacesHandler(admin: boolean) {
       }[] = [];
       if (sourceDisposition === "keep") {
         const sources = await prisma.space.findMany({ where: { id: { in: sourceIds } } });
-        if (sources.length !== 2) throw new MergeError(404, "原空间不存在或已被删除");
-        if (sources[0].ownerUserId !== sources[1].ownerUserId) {
-          throw new MergeError(403, "只能合并同一创建者的空间");
-        }
+        if (sources.length !== sourceIds.length) throw new MergeError(404, "原空间不存在或已被删除");
+        assertSameOwner(sources);
         if (!admin && sources[0].ownerUserId !== req.authUser?.userId) {
           throw new MergeError(403, "只能合并自己创建的空间");
         }
@@ -87,11 +99,9 @@ export function mergeSpacesHandler(admin: boolean) {
       const merged = await prisma.$transaction(async (tx) => {
         for(const sourceId of [...sourceIds].sort())await lockSpace(tx,sourceId);
         const found = await tx.space.findMany({ where: { id: { in: sourceIds } } });
-        if (found.length !== 2) throw new MergeError(404, "原空间不存在或已被删除");
+        if (found.length !== sourceIds.length) throw new MergeError(404, "原空间不存在或已被删除");
         const spaces = sourceIds.map((id) => found.find((space) => space.id === id)!);
-        if (spaces[0].ownerUserId !== spaces[1].ownerUserId) {
-          throw new MergeError(403, "只能合并同一创建者的空间");
-        }
+        assertSameOwner(spaces);
         if (!admin && spaces.some((space) => space.ownerUserId !== req.authUser?.userId)) {
           throw new MergeError(403, "只能合并自己创建的空间");
         }
@@ -119,11 +129,23 @@ export function mergeSpacesHandler(admin: boolean) {
           : [];
         const oldTags = await tx.spaceTag.findMany({ where: { spaceId: { in: sourceIds } } });
         const expiresAt = new Date(Math.max(...spaces.map((space) => space.expiresAt.getTime())));
+        let slug = parsed.data.slug ?? randomSlug(8);
+        const slugSource = spaces.find((space) => space.slug === slug);
+        if (slugSource) {
+          if (sourceDisposition === "remove") {
+            await tx.space.update({
+              where: { id: slugSource.id },
+              data: { slug: temporarySlug() },
+            });
+          } else {
+            slug = randomSlug(8);
+          }
+        }
         const space = await tx.space.create({
           data: {
             id: newSpaceId,
             name,
-            slug: parsed.data.slug ?? randomSlug(8),
+            slug,
             ownerUserId: spaces[0].ownerUserId,
             expiresAt,
           },

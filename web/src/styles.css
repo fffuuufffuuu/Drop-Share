@@ -2403,11 +2403,62 @@ td {
   font-weight: 700;
 }
 
-.merge-spaces-modal input,
+.merge-spaces-modal input:not([type="checkbox"]),
 .merge-spaces-modal select {
   width: 100%;
   box-sizing: border-box;
   margin-top: 5px;
+}
+
+.merge-space-options-label {
+  display: block;
+  margin-top: 12px;
+  font-weight: 700;
+}
+
+.merge-space-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 220px;
+  margin-top: 8px;
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid light-dark(#dce4f2, var(--night-edge));
+  border-radius: 12px;
+  background: light-dark(#f8faff, var(--night-surface));
+}
+
+.merge-spaces-modal label.merge-space-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.merge-spaces-modal .merge-space-option input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  flex: none;
+}
+
+.merge-space-option .space-tag-chip {
+  padding: 6px 10px;
+  font-size: 0.85rem;
+}
+
+.merge-space-option.selected .space-tag-chip {
+  border: 1px solid #315cff;
+  background: light-dark(#dce8ff, var(--night-surface));
+}
+
+.merge-space-option.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .dashboard-space-header-actions,
