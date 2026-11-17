@@ -90,6 +90,7 @@ describe("UploadPage file choices", () => {
     expect(slider).toHaveAttribute("aria-valuemax", "3");
     expect(slider).toHaveAttribute("aria-valuenow", "1");
     expect(screen.getByText("保留 1 天")).toBeInTheDocument();
+    expect([...document.querySelectorAll(".retention-slider-scale span")].map(node => node.textContent)).toEqual(["1", "3", "7", "14", "21", "30"]);
     expect(screen.getByText("30")).toBeInTheDocument();
     expect(screen.getByText("登录后可延长至 30 天")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "匿名部署" })).toBeInTheDocument();

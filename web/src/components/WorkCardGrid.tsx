@@ -67,13 +67,13 @@ export function WorkCardGrid({ children }: { children: ReactNode }) {
     if (!focused) return;
     const outside = (event: PointerEvent) => {
       const target = event.target as Element;
-      if (target.closest('[role="dialog"], .space-modal-overlay')) return;
+      if (target.closest('[role="dialog"], [role="alertdialog"], .space-modal-overlay, .work-comment-delete-overlay')) return;
       if (grid.current?.contains(target) && target.closest(".work-preview-card")) return;
       focus(null);
     };
     const escape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      if ((event.target as Element).closest('[role="dialog"]')) return;
+      if ((event.target as Element).closest('[role="dialog"], [role="alertdialog"]')) return;
       const card = grid.current?.querySelector<HTMLElement>('[data-expanded="true"]');
       focus(null);
       requestAnimationFrame(() => card?.querySelector<HTMLButtonElement>(".work-preview-open-overlay")?.focus());

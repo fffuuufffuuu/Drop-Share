@@ -122,7 +122,7 @@ function CommentItem({ workId, comment, onUpdated, onDeleted }: { workId: string
       <textarea aria-label="编辑评论" autoFocus maxLength={1000} required value={content} disabled={busy} onChange={event => setContent(event.target.value)} />
       <div className="work-detail-form-actions"><button disabled={busy || !content.trim()}>保存评论</button><button type="button" disabled={busy} onClick={() => { setEditing(false); setError(""); }}>取消</button></div>
     </form> : <p>{comment.content}</p>}
-    {confirmDelete && createPortal(<div className="work-comment-delete-overlay" onClick={event => { if (event.target === event.currentTarget) closeDelete(); }}>
+    {confirmDelete && createPortal(<div className="work-comment-delete-overlay" onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); if (event.target === event.currentTarget) closeDelete(); }}>
       <div className="work-comment-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby={titleId}>
         <p id={titleId}>删除这条评论？</p>
         {error && <p role="alert" className="work-comment-error">{error}</p>}

@@ -4,9 +4,9 @@ import {
   ANONYMOUS_LIMIT_RATIO,
   clampDurationDays,
   daysToRatio,
-  MAX_ANONYMOUS_DAYS,
   MAX_PERSONAL_DAYS,
   ratioToDays,
+  RETENTION_SCALE_TICKS,
 } from "../retention-scale";
 
 type RetentionSliderProps = {
@@ -100,13 +100,19 @@ export function RetentionSlider({ value, maxDays, onChange }: RetentionSliderPro
           </div>
         </div>
         <div className="retention-slider-scale" aria-hidden="true">
-          <span style={{ left: "0%" }}>1</span>
-          <span className="retention-slider-scale-mid" style={{ left: barrierPercent }}>
-            {MAX_ANONYMOUS_DAYS}
-          </span>
-          <span className="retention-slider-scale-end" style={{ left: "100%" }}>
-            {MAX_PERSONAL_DAYS}
-          </span>
+          {RETENTION_SCALE_TICKS.map((days) => {
+            const atStart = days === 1;
+            const atEnd = days === MAX_PERSONAL_DAYS;
+            return (
+              <span
+                key={days}
+                className={atEnd ? "retention-slider-scale-end" : undefined}
+                style={{ left: atStart ? "0%" : atEnd ? "100%" : `${daysToRatio(days) * 100}%` }}
+              >
+                {days}
+              </span>
+            );
+          })}
         </div>
       </div>
       {limited && (

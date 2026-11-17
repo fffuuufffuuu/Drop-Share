@@ -8,9 +8,22 @@ import {
   MAX_ANONYMOUS_DAYS,
   MAX_PERSONAL_DAYS,
   ratioToDays,
+  RETENTION_SCALE_TICKS,
 } from "./retention-scale";
 
 describe("retention scale", () => {
+  it("exposes readable tick marks at actual day positions", () => {
+    expect([...RETENTION_SCALE_TICKS]).toEqual([1, 3, 7, 14, 21, 30]);
+    expect(RETENTION_SCALE_TICKS.map(daysToRatio)).toEqual([
+      0,
+      2 / 29,
+      6 / 29,
+      13 / 29,
+      20 / 29,
+      1,
+    ]);
+  });
+
   it("maps days onto the track in proportion to the 1–30 range", () => {
     expect(daysToRatio(1)).toBe(0);
     expect(daysToRatio(MAX_ANONYMOUS_DAYS)).toBeCloseTo(ANONYMOUS_LIMIT_RATIO);

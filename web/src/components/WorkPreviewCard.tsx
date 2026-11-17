@@ -91,7 +91,7 @@ export function WorkPreviewCard({
         }
       }}
       onKeyDown={(event) => {
-        if ((event.target as Element).closest('[role="dialog"]')) return;
+        if ((event.target as Element).closest('[role="dialog"], [role="alertdialog"]')) return;
         if (event.key === "Escape") {
           event.preventDefault(); setPinned(false); setKeyboardFocus(false); setDismissed(true);
           focus?.focus(null);

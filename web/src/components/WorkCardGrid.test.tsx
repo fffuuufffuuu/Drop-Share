@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { WorkCardGrid } from "./WorkCardGrid";
@@ -71,6 +71,45 @@ it("keeps the focused card alive while operating its upload dialog", async () =>
   await userEvent.keyboard("{Escape}");
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "甲" }).closest("article")).toHaveAttribute("data-expanded", "true");
+});
+
+it("deletes a comment from the portaled confirm dialog without collapsing the focused card", async () => {
+  vi.spyOn(api, "get").mockResolvedValue({ data: { description: "简介", comments: [
+    { id: "c1", authorName: "同学", content: "现有评论", createdAt: "2026-11-04T12:00:00Z", canManage: true },
+  ], canEdit: false, canComment: true } });
+  const remove = vi.spyOn(api, "delete").mockResolvedValue({});
+  render(<WorkCardGrid><WorkPreviewCard workId="work" title="甲" publicSlug="a" cardLink meta="" /></WorkCardGrid>);
+  await userEvent.click(screen.getByRole("button", { name: "展开甲" }));
+  const card = screen.getByRole("heading", { name: "甲" }).closest("article")!;
+  await userEvent.click(await screen.findByRole("button", { name: "删除评论" }));
+  expect(screen.getByRole("alertdialog", { name: "删除这条评论？" })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "确认删除" }));
+  await screen.findByText("还没有评论");
+  expect(remove).toHaveBeenCalledWith("/deployments/work/comments/c1");
+  expect(card).toHaveAttribute("data-expanded", "true");
+});
+
+it("closes the comment delete dialog from the backdrop or Escape without collapsing the card or deleting", async () => {
+  vi.spyOn(api, "get").mockResolvedValue({ data: { description: "简介", comments: [
+    { id: "c1", authorName: "同学", content: "现有评论", createdAt: "2026-11-04T12:00:00Z", canManage: true },
+  ], canEdit: false, canComment: true } });
+  const remove = vi.spyOn(api, "delete");
+  render(<WorkCardGrid><WorkPreviewCard workId="work" title="甲" publicSlug="a" cardLink meta="" /></WorkCardGrid>);
+  await userEvent.click(screen.getByRole("button", { name: "展开甲" }));
+  const card = screen.getByRole("heading", { name: "甲" }).closest("article")!;
+  await userEvent.click(await screen.findByRole("button", { name: "删除评论" }));
+  const overlay = document.querySelector(".work-comment-delete-overlay")!;
+  fireEvent.pointerDown(overlay);
+  fireEvent.click(overlay);
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  expect(remove).not.toHaveBeenCalled();
+  expect(card).toHaveAttribute("data-expanded", "true");
+  expect(screen.getByText("现有评论")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "删除评论" }));
+  await userEvent.keyboard("{Escape}");
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  expect(remove).not.toHaveBeenCalled();
+  expect(card).toHaveAttribute("data-expanded", "true");
 });
 
 it("allows only one live preview across separate grids and unloads it in a background tab", async () => {
