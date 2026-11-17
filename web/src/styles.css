@@ -2503,7 +2503,8 @@ td {
 .work-detail-form-actions { display: flex; gap: 10px; }
 .work-comment-list { max-height: 320px; overflow-y: auto; overscroll-behavior: contain; margin-top: 16px; }
 .work-comment { padding: 14px 0; border-top: 1px solid light-dark(#edf0f4, var(--night-edge)); font-size: .88rem; }
-.work-comment > div { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.work-comment-heading { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.work-comment-meta { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .work-comment time { font-size: .75rem; color: light-dark(#748091, var(--night-muted)); }
 .work-comment p { margin-bottom: 0; }
 .work-comment-posted { color: light-dark(#3153ac, var(--night-muted)); font-size: .82rem; margin: 10px 0 0; }
@@ -2634,9 +2635,30 @@ td {
 .theme-toggle:hover { background: #26354b; }
 .theme-toggle:focus-visible { outline: 2px solid #79a8ff; outline-offset: 3px; }
 .theme-toggle svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.work-comment .work-comment-actions { justify-content: flex-start; align-items: center; gap: 12px; margin: 8px 0 0; font-size: .78rem; }
-.work-comment-actions button { background: transparent; border: 0; padding: 2px 0; color: light-dark(#405773, var(--night-muted)); font-size: inherit; }
-.work-comment-actions button:hover { text-decoration: underline; }
+.work-comment .work-comment-actions { display: flex; justify-content: flex-end; align-items: center; gap: 4px; margin: 0; }
+.work-comment-delete-overlay {
+  position: fixed; inset: 0; z-index: 1100;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(16, 27, 53, .35);
+  animation: work-comment-delete-backdrop-in 160ms ease;
+}
+.work-comment-delete-dialog {
+  width: min(300px, calc(100vw - 40px));
+  padding: 18px 18px 16px;
+  border-radius: 14px;
+  background: light-dark(#fff, var(--night-panel));
+  box-shadow: 0 12px 32px rgba(25, 43, 65, .22);
+  animation: work-comment-delete-pop 200ms cubic-bezier(.22, .8, .25, 1);
+}
+.work-comment-delete-dialog p { margin: 0 0 14px; font-size: .95rem; color: light-dark(#101b35, var(--night-text)); }
+.work-comment-delete-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.work-comment-delete-actions button { margin: 0; padding: 7px 12px; font-size: .85rem; }
+.work-comment-delete-actions button:last-child { background: transparent; border: 1px solid light-dark(#ced8e4, var(--night-edge)); color: light-dark(#405773, var(--night-muted)); }
+@keyframes work-comment-delete-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes work-comment-delete-pop { from { opacity: 0; transform: scale(.82); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .work-comment-delete-overlay, .work-comment-delete-dialog { animation: none; }
+}
 @media (max-width: 480px) {
   .navbar { padding: 12px 14px; }
   .navbar-brand { gap: 6px; font-size: 18px; }
