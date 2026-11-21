@@ -779,10 +779,47 @@ label {
   gap: 6px;
 }
 
-.upload-space-picker select {
-  box-sizing: border-box;
-  width: min(100%, 420px);
-  height: 42px;
+.upload-space-picker-label {
+  font-weight: 700;
+}
+
+.upload-space-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+button.upload-space-tag {
+  margin: 0;
+  padding: 6px 12px;
+  border: 1px solid light-dark(#c8d6ee, var(--night-edge));
+  border-radius: 999px;
+  background: light-dark(#e8efff, var(--night-surface));
+  color: light-dark(#3153ac, var(--night-muted));
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button.upload-space-tag.is-selected {
+  border-color: #315cff;
+  background: light-dark(#dce8ff, var(--night-surface));
+  color: light-dark(#1d4ed8, var(--night-text));
+  box-shadow: 0 0 0 1px #315cff;
+}
+
+button.upload-space-tag-create {
+  border-color: light-dark(#d7dee8, var(--night-edge));
+  background: light-dark(#f7f8fa, var(--night-panel));
+  color: light-dark(#5e6e86, var(--night-muted));
+  font-weight: 500;
+}
+
+button.upload-space-tag:disabled,
+button.upload-space-tag-create:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .space-field-note {

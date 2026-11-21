@@ -214,23 +214,40 @@ export function UploadPage() {
           />
         ) : (
           <div className="upload-space-picker">
-            <label htmlFor="space-select">选择空间</label>
+            <span className="upload-space-picker-label" id="space-select-label">选择空间</span>
             <span className="space-field-note">在一个空间里分享所有人的作品</span>
-            <select
-              id="space-select"
-              value={spaceId}
-              disabled={isLoggedIn && spacesStatus !== "ready"}
+            <div
+              className="upload-space-tags"
+              role="group"
+              aria-labelledby="space-select-label"
               aria-busy={spacesStatus === "loading"}
-              onChange={(event) => chooseSpaceOption(event.target.value)}
             >
-              {spacesStatus !== "ready" ? <option value="">{spacesStatus === "loading" ? "加载空间…" : "空间加载失败"}</option> : <>
-              <option value="">请选择空间</option>
-              <option value="__create_space__">+ 新建空间</option>
-              {spaces.filter((space) => new Date(space.expiresAt) > new Date()).map((space) => (
-                <option key={space.id} value={space.id}>{space.name}</option>
-              ))}
-              </>}
-            </select>
+              {spacesStatus === "loading" && <span role="status">加载空间…</span>}
+              {spacesStatus === "error" && <span role="status">空间加载失败</span>}
+              {spacesStatus === "ready" && spaces.filter((space) => new Date(space.expiresAt) > new Date()).map((space) => {
+                const selected = spaceId === space.id;
+                return (
+                  <button
+                    key={space.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    className={`space-tag-chip upload-space-tag${selected ? " is-selected" : ""}`}
+                    onClick={() => chooseSpaceOption(space.id)}
+                  >
+                    {space.name}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                className="space-tag-chip upload-space-tag upload-space-tag-create"
+                disabled={isLoggedIn && spacesStatus !== "ready"}
+                onClick={() => chooseSpaceOption("__create_space__")}
+              >
+                新建空间
+              </button>
+            </div>
             {spacesStatus === "error" && <button type="button" onClick={() => { setMessage(""); setSpacesReload(value => value + 1); }}>重新加载空间</button>}
             {selectedSpace && (
               <span className="retention-note retention-note--user">
