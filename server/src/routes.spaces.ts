@@ -23,7 +23,7 @@ import {
 import { removeDeploymentFolder, saveDeploymentFiles } from "./storage";
 import { registerSpaceTagRoutes } from "./space-tags";
 import { registerPublicSpaceDownloadRoute, registerSpaceDownloadRoutes } from "./space-downloads";
-import { mergeSpacesHandler } from "./space-merge";
+import { mergeAvailabilityHandler, mergeSpacesHandler } from "./space-merge";
 import { randomSlug, uploaderAgentForStorage } from "./utils";
 
 import { config } from "./config";
@@ -124,6 +124,7 @@ registerSpaceContributorRoutes(spaceRouter);
 registerSpaceTagRoutes(spaceRouter, "/:id", false);
 registerSpaceDownloadRoutes(spaceRouter, "/:id", false);
 registerPublicSpaceDownloadRoute(spaceRouter);
+spaceRouter.post("/merge/availability", requireAuth, mergeAvailabilityHandler);
 spaceRouter.post("/merge", requireAuth, mergeSpacesHandler(false));
 
 spaceRouter.post("/", requireAuth, async (req, res) => {

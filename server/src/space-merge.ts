@@ -45,6 +45,53 @@ function assertSameOwner(spaces: { ownerUserId: string }[]) {
   }
 }
 
+export function isSlugReusableDuringMerge(
+  existingId: string | undefined,
+  sourceIds: string[],
+  sourceDisposition: "keep" | "remove",
+): boolean {
+  if (!existingId) return true;
+  return sourceDisposition === "remove" && sourceIds.includes(existingId);
+}
+
+export function mergeAvailabilityHandler(req: Request, res: Response, next: NextFunction) {
+  const parsed = mergeSchema.safeParse(req.body);
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  const slug = typeof req.body?.slug === "string" ? req.body.slug.trim() : "";
+  const errors: { name?: string; slug?: string } = {};
+  if (!name || name.length > 80) {
+    errors.name = "新空间名称须为 1 至 80 个字，请修改后再合并";
+  }
+  if (slug && !/^[a-z0-9-]{2,40}$/.test(slug)) {
+    errors.slug = "网址后缀须为 2 至 40 位小写字母、数字或连字符，请修改后再合并";
+  }
+  if (!parsed.success || new Set(parsed.data.sourceIds).size !== parsed.data.sourceIds.length) {
+    if (!errors.name && !errors.slug) {
+      res.status(400).json({ message: "请选择至少两个不同的空间，并填写有效的新空间名称和网址后缀" });
+      return;
+    }
+    res.status(409).json({ message: errors.slug || errors.name, errors });
+    return;
+  }
+  void (async () => {
+    try {
+      if (slug && !errors.slug) {
+        const existing = await prisma.space.findUnique({ where: { slug }, select: { id: true } });
+        if (!isSlugReusableDuringMerge(existing?.id, parsed.data.sourceIds, parsed.data.sourceDisposition)) {
+          errors.slug = "该网址后缀已被使用，请修改后再合并";
+        }
+      }
+      if (errors.name || errors.slug) {
+        res.status(409).json({ message: errors.slug || errors.name, errors });
+        return;
+      }
+      res.json({ ok: true });
+    } catch (error) {
+      next(error);
+    }
+  })();
+}
+
 export function mergeSpacesHandler(admin: boolean) {
   return async (req: Request, res: Response, next: NextFunction) => {
     const parsed = mergeSchema.safeParse(req.body);
@@ -138,7 +185,12 @@ export function mergeSpacesHandler(admin: boolean) {
               data: { slug: temporarySlug() },
             });
           } else {
-            slug = randomSlug(8);
+            throw new MergeError(409, "该网址后缀已被使用，请修改后再合并");
+          }
+        } else if (parsed.data.slug) {
+          const occupied = await tx.space.findUnique({ where: { slug }, select: { id: true } });
+          if (occupied) {
+            throw new MergeError(409, "该网址后缀已被使用，请修改后再合并");
           }
         }
         const space = await tx.space.create({
@@ -218,7 +270,7 @@ export function mergeSpacesHandler(admin: boolean) {
         return;
       }
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-        res.status(409).json({ message: "网址后缀已被其他空间使用" });
+        res.status(409).json({ message: "该网址后缀已被使用，请修改后再合并", errors: { slug: "该网址后缀已被使用，请修改后再合并" } });
         return;
       }
       next(error);

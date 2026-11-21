@@ -18,7 +18,7 @@ import { getSpaceViewCounts, sumWorkViews } from "./space-views";
 import { requireAdmin, requireAuth } from "./middleware";
 import { registerSpaceTagRoutes } from "./space-tags";
 import { registerSpaceDownloadRoutes } from "./space-downloads";
-import { mergeSpacesHandler } from "./space-merge";
+import { mergeAvailabilityHandler, mergeSpacesHandler } from "./space-merge";
 import {workCapabilities,canManageSpace} from "./space-permissions";
 
 import { registerMigrationAdminRoutes } from "./account-migration";
@@ -29,6 +29,7 @@ adminRouter.use(requireAuth, requireAdmin);
 registerMigrationAdminRoutes(adminRouter);
 registerSpaceTagRoutes(adminRouter, "/spaces/:id", true);
 registerSpaceDownloadRoutes(adminRouter, "/spaces/:id", true);
+adminRouter.post("/spaces/merge/availability", mergeAvailabilityHandler);
 adminRouter.post("/spaces/merge", mergeSpacesHandler(true));
 
 adminRouter.get("/deployments/personal", async (req, res) => {

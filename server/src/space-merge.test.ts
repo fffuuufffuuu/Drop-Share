@@ -7,11 +7,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { config } from "./config";
 import { prisma } from "./db";
-import { mergeSpacesHandler, sourceTagNames } from "./space-merge";
+import { isSlugReusableDuringMerge, mergeAvailabilityHandler, mergeSpacesHandler, sourceTagNames } from "./space-merge";
 
 vi.mock("./db", () => ({
   prisma: {
-    space: { findMany: vi.fn() },
+    space: { findMany: vi.fn(), findUnique: vi.fn() },
     deployment: { findMany: vi.fn() },
     $transaction: vi.fn(),
   },
@@ -35,12 +35,25 @@ function app(admin = false) {
   return server;
 }
 
+function availabilityApp() {
+  const server = express();
+  server.use(express.json());
+  server.post("/availability", (req, _res, next) => {
+    req.authUser = { userId: "owner", username: "tester" };
+    next();
+  }, mergeAvailabilityHandler);
+  server.use((error: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    res.status(500).json({ message: error.message });
+  });
+  return server;
+}
+
 describe("space merge", () => {
   let tempRoot = "";
   let tx: {
     $queryRaw: ReturnType<typeof vi.fn>;
     spaceAdministrator:{findMany:ReturnType<typeof vi.fn>;createMany:ReturnType<typeof vi.fn>};
-    space: { findMany: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn> };
+    space: { findMany: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn> };
     spaceTag: { findMany: ReturnType<typeof vi.fn>; createMany: ReturnType<typeof vi.fn> };
     deploymentTag: { createMany: ReturnType<typeof vi.fn> };
     deployment: {
@@ -58,6 +71,7 @@ describe("space merge", () => {
       spaceAdministrator:{findMany:vi.fn().mockResolvedValue([]),createMany:vi.fn()},
       space: {
         findMany: vi.fn().mockResolvedValue(sourceSpaces),
+        findUnique: vi.fn().mockResolvedValue(null),
         create: vi.fn().mockImplementation(async ({ data }) => data),
         update: vi.fn().mockImplementation(async ({ data }) => data),
         delete: vi.fn().mockResolvedValue({}),
@@ -258,18 +272,75 @@ describe("space merge", () => {
     expect(response.body.slug).toBe("physics");
   });
 
-  it("allocates a new suffix when originals are kept and the requested suffix is already used", async () => {
+  it("rejects a requested suffix that is still used when originals are kept", async () => {
     vi.mocked(prisma.space.findMany).mockResolvedValue(sourceSpaces as never);
     vi.mocked(prisma.deployment.findMany).mockResolvedValue([] as never);
     const response = await request(app()).post("/merge").send({
       sourceIds: ["first", "second"], name: "物理", slug: "physics", sourceDisposition: "keep",
     });
-    expect(response.status).toBe(201);
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({ message: "该网址后缀已被使用，请修改后再合并" });
     expect(tx.space.update).not.toHaveBeenCalled();
-    expect(tx.space.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ name: "物理", slug: expect.not.stringMatching(/^physics$/) }),
+    expect(tx.space.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects a suffix already used by a space that is not being removed", async () => {
+    tx.space.findUnique.mockResolvedValue({ id: "someone-else" });
+    const response = await request(app()).post("/merge").send({
+      sourceIds: ["first", "second"], name: "科学", slug: "taken", sourceDisposition: "remove",
     });
-    expect(response.body.slug).not.toBe("physics");
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({
+      message: "该网址后缀已被使用，请修改后再合并",
+    });
+    expect(tx.space.create).not.toHaveBeenCalled();
+  });
+
+  it("reports whether a merge suffix can be reused before confirmation", async () => {
+    vi.mocked(prisma.space.findUnique).mockResolvedValue({ id: "first" } as never);
+    const reusable = await request(availabilityApp()).post("/availability").send({
+      sourceIds: ["first", "second"], name: "科学", slug: "physics", sourceDisposition: "remove",
+    });
+    expect(reusable.status).toBe(200);
+    expect(reusable.body).toEqual({ ok: true });
+
+    const kept = await request(availabilityApp()).post("/availability").send({
+      sourceIds: ["first", "second"], name: "科学", slug: "physics", sourceDisposition: "keep",
+    });
+    expect(kept.status).toBe(409);
+    expect(kept.body).toEqual({
+      message: "该网址后缀已被使用，请修改后再合并",
+      errors: { slug: "该网址后缀已被使用，请修改后再合并" },
+    });
+
+    vi.mocked(prisma.space.findUnique).mockResolvedValue(null as never);
+    const free = await request(availabilityApp()).post("/availability").send({
+      sourceIds: ["first", "second"], name: "科学", slug: "science", sourceDisposition: "keep",
+    });
+    expect(free.status).toBe(200);
+    expect(free.body).toEqual({ ok: true });
+  });
+
+  it("treats space names as format-only and does not invent name uniqueness", async () => {
+    vi.mocked(prisma.space.findUnique).mockResolvedValue(null as never);
+    const response = await request(availabilityApp()).post("/availability").send({
+      sourceIds: ["first", "second"], name: "物理", sourceDisposition: "remove",
+    });
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ ok: true });
+
+    const invalid = await request(availabilityApp()).post("/availability").send({
+      sourceIds: ["first", "second"], name: "   ", slug: "science", sourceDisposition: "remove",
+    });
+    expect(invalid.status).toBe(409);
+    expect(invalid.body.errors.name).toMatch(/新空间名称须为 1 至 80 个字/);
+  });
+
+  it("decides suffix reuse from the original-space disposition", () => {
+    expect(isSlugReusableDuringMerge(undefined, ["first"], "keep")).toBe(true);
+    expect(isSlugReusableDuringMerge("first", ["first", "second"], "remove")).toBe(true);
+    expect(isSlugReusableDuringMerge("first", ["first", "second"], "keep")).toBe(false);
+    expect(isSlugReusableDuringMerge("other", ["first", "second"], "remove")).toBe(false);
   });
 
   it("rejects a single space or duplicate source ids", async () => {
