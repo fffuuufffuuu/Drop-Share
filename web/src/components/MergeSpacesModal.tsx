@@ -172,7 +172,7 @@ export function MergeSpacesModal({
           <h3 id="merge-spaces-title">合并空间</h3>
         </div>
         <div className="merge-spaces-modal-body">
-          <p>所选空间的作品会分别获得以原空间命名的标签。新空间的到期时间取其中最晚的日期。</p>
+          <p className="hint">所选空间的作品会分别获得以原空间命名的标签。新空间的到期时间取其中最晚的日期。</p>
           <div className="merge-space-options-heading">
             <span className="merge-space-options-label" id="merge-space-options-label">选择要合并的空间</span>
             <p className="hint merge-space-owner-hint">仅能合并同一创建者的空间，新空间归该创建者。</p>
@@ -215,20 +215,26 @@ export function MergeSpacesModal({
               );
             })}
           </div>
-          <label htmlFor="merge-space-name">新空间名称</label>
-          <input id="merge-space-name" value={name} maxLength={80} aria-invalid={Boolean(fieldErrors.name)}
-            aria-describedby={fieldErrors.name ? "merge-space-name-error" : undefined}
-            onChange={(event) => { setName(event.target.value); if (fieldErrors.name) setFieldErrors((current) => ({ ...current, name: undefined })); }} />
-          {fieldErrors.name && <p id="merge-space-name-error" className="merge-spaces-field-error" role="alert">{fieldErrors.name}</p>}
-          <label htmlFor="merge-space-slug">网址后缀（可选）</label>
-          <input id="merge-space-slug" value={slug} maxLength={40} placeholder="留空自动生成"
-            aria-invalid={Boolean(fieldErrors.slug)}
-            aria-describedby={fieldErrors.slug ? "merge-space-slug-error" : undefined}
-            onChange={(event) => {
-              setSlug(event.target.value);
-              if (fieldErrors.slug) setFieldErrors((current) => ({ ...current, slug: undefined }));
-            }} />
-          {fieldErrors.slug && <p id="merge-space-slug-error" className="merge-spaces-field-error" role="alert">{fieldErrors.slug}</p>}
+          <div className="merge-spaces-fields-row">
+            <div className="merge-spaces-field">
+              <label htmlFor="merge-space-name">新空间名称</label>
+              <input id="merge-space-name" value={name} maxLength={80} aria-invalid={Boolean(fieldErrors.name)}
+                aria-describedby={fieldErrors.name ? "merge-space-name-error" : undefined}
+                onChange={(event) => { setName(event.target.value); if (fieldErrors.name) setFieldErrors((current) => ({ ...current, name: undefined })); }} />
+              {fieldErrors.name && <p id="merge-space-name-error" className="merge-spaces-field-error" role="alert">{fieldErrors.name}</p>}
+            </div>
+            <div className="merge-spaces-field">
+              <label htmlFor="merge-space-slug">网址后缀（可选）</label>
+              <input id="merge-space-slug" value={slug} maxLength={40} placeholder="留空自动生成"
+                aria-invalid={Boolean(fieldErrors.slug)}
+                aria-describedby={fieldErrors.slug ? "merge-space-slug-error" : undefined}
+                onChange={(event) => {
+                  setSlug(event.target.value);
+                  if (fieldErrors.slug) setFieldErrors((current) => ({ ...current, slug: undefined }));
+                }} />
+              {fieldErrors.slug && <p id="merge-space-slug-error" className="merge-spaces-field-error" role="alert">{fieldErrors.slug}</p>}
+            </div>
+          </div>
           <label htmlFor="merge-source-disposition">原空间处理方式</label>
           <select id="merge-source-disposition" value={sourceDisposition}
             onChange={(event) => setSourceDisposition(event.target.value as "keep" | "remove")}>

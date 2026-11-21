@@ -75,7 +75,15 @@ describe("MergeSpacesModal", () => {
 
     const heading = screen.getByText("选择要合并的空间").closest(".merge-space-options-heading");
     expect(heading).not.toBeNull();
-    expect(within(heading as HTMLElement).getByText("仅能合并同一创建者的空间，新空间归该创建者。")).toHaveClass("merge-space-owner-hint");
+    expect(within(heading as HTMLElement).getByText("仅能合并同一创建者的空间，新空间归该创建者。")).toHaveClass("hint", "merge-space-owner-hint");
+    expect(screen.getByText(/所选空间的作品会分别获得以原空间命名的标签/)).toHaveClass("hint");
+    expect(screen.getByText(/原空间入口链接将失效/)).toHaveClass("hint");
+
+    const nameField = screen.getByRole("textbox", { name: "新空间名称" });
+    const slugField = screen.getByRole("textbox", { name: "网址后缀（可选）" });
+    expect(nameField.closest(".merge-spaces-fields-row")).toBe(slugField.closest(".merge-spaces-fields-row"));
+    expect(nameField.closest(".merge-spaces-field")?.querySelector("label")).toHaveAttribute("for", "merge-space-name");
+    expect(slugField.closest(".merge-spaces-field")?.querySelector("label")).toHaveAttribute("for", "merge-space-slug");
 
     expect(spaceTag(/物理/)).toBeInTheDocument();
     expect(spaceTag(/历史/)).toBeInTheDocument();
