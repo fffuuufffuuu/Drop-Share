@@ -2453,12 +2453,15 @@ td {
   font-weight: 700;
 }
 
-.merge-space-owner-hint {
-  flex: 1 1 12rem;
-  margin: 0;
+.merge-spaces-modal .hint {
   font-size: 0.8rem;
   font-weight: 400;
   color: light-dark(#6b7280, var(--night-muted));
+}
+
+.merge-space-owner-hint {
+  flex: 1 1 12rem;
+  margin: 0;
 }
 
 .merge-space-filter {

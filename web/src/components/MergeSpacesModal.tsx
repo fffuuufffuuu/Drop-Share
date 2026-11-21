@@ -172,7 +172,7 @@ export function MergeSpacesModal({
           <h3 id="merge-spaces-title">合并空间</h3>
         </div>
         <div className="merge-spaces-modal-body">
-          <p>所选空间的作品会分别获得以原空间命名的标签。新空间的到期时间取其中最晚的日期。</p>
+          <p className="hint">所选空间的作品会分别获得以原空间命名的标签。新空间的到期时间取其中最晚的日期。</p>
           <div className="merge-space-options-heading">
             <span className="merge-space-options-label" id="merge-space-options-label">选择要合并的空间</span>
             <p className="hint merge-space-owner-hint">仅能合并同一创建者的空间，新空间归该创建者。</p>
