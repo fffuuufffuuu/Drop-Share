@@ -66,13 +66,15 @@ it("disables destination selection and deployment until the spaces have loaded",
   render(<MemoryRouter><UploadPage /></MemoryRouter>);
   expect(screen.getByRole("button", { name: "部署" })).toBeDisabled();
   await user.click(screen.getByRole("radio", { name: /上传到空间/ }));
-  const select = screen.getByRole("combobox", { name: "选择空间" });
-  expect(select).toBeDisabled(); expect(select).toHaveAttribute("aria-busy", "true");
-  expect(screen.getByRole("option", { name: "加载空间…" })).toBeInTheDocument();
+  const tags = screen.getByRole("group", { name: "选择空间" });
+  expect(tags).toHaveAttribute("aria-busy", "true");
+  expect(tags).toHaveTextContent("加载空间…");
+  expect(screen.getByRole("button", { name: "新建空间" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "部署" })).toBeDisabled();
   resolve({ data: [{ id: "space", name: "课程空间", slug: "course", expiresAt: "2099-12-31" }] });
-  await screen.findByRole("option", { name: "课程空间" });
-  expect(select).not.toBeDisabled(); expect(select).toHaveAttribute("aria-busy", "false");
+  expect(await screen.findByRole("radio", { name: "课程空间" })).toBeEnabled();
+  expect(tags).toHaveAttribute("aria-busy", "false");
+  expect(screen.getByRole("button", { name: "新建空间" })).toBeEnabled();
 });
 
 it("redirects a visitor from the dashboard while preserving the complete intended destination", async () => {

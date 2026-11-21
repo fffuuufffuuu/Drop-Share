@@ -3,7 +3,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../api";
@@ -15,10 +15,16 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+function LocationDisplay() {
+  const location = useLocation();
+  return <output data-testid="location">{`${location.pathname}${location.search}${location.hash}`}</output>;
+}
+
 function renderUploadPage(initialEntry = "/upload") {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <UploadPage />
+      <LocationDisplay />
     </MemoryRouter>,
   );
 }
@@ -100,7 +106,12 @@ describe("UploadPage file choices", () => {
 
     await user.click(screen.getByRole("radio", { name: /上传到空间/ }));
     expect(screen.queryByRole("slider", { name: "链接保留时长" })).not.toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "+ 新建空间" })).toBeInTheDocument();
+    const createTag = screen.getByRole("button", { name: "新建空间" });
+    expect(createTag).toBeInTheDocument();
+    expect(createTag).toHaveClass("upload-space-tag-create");
+    expect(createTag).not.toHaveClass("is-selected");
+    await user.click(createTag);
+    expect(screen.getByTestId("location")).toHaveTextContent("/login?mode=register&next=%2Fupload%3FcreateSpace%3D1");
     expect(getSpy).not.toHaveBeenCalled();
   });
 
@@ -121,9 +132,8 @@ describe("UploadPage file choices", () => {
     expect(screen.queryByRole("button", { name: "匿名部署" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("radio", { name: /上传到空间/ }));
-    const target = screen.getByRole("combobox", { name: "选择空间" });
-    await screen.findByRole("option", { name: "作品集" });
-    await user.selectOptions(target, "s1");
+    const portfolio = await screen.findByRole("radio", { name: "作品集" });
+    await user.click(portfolio);
 
     expect(screen.getByText(/空间内作品跟随空间到期/)).toBeInTheDocument();
     expect(screen.queryByRole("slider", { name: "链接保留时长" }))
@@ -204,11 +214,7 @@ describe("UploadPage file choices", () => {
 
     renderUploadPage();
     await user.click(screen.getByRole("radio", { name: /上传到空间/ }));
-    await screen.findByRole("option", { name: "作品集" });
-    await user.selectOptions(
-      screen.getByRole("combobox", { name: "选择空间" }),
-      "s1",
-    );
+    await user.click(await screen.findByRole("radio", { name: "作品集" }));
     fireEvent.change(screen.getByLabelText("选择 HTML 文件"), {
       target: { files: [file] },
     });
@@ -220,6 +226,42 @@ describe("UploadPage file choices", () => {
     const formData = postSpy.mock.calls[0][1] as FormData;
     expect(formData.get("spaceId")).toBe("s1");
     expect(formData.get("durationDays")).toBeNull();
+  });
+
+  it("lets a signed-in user pick one space tag or open the create-space modal", async () => {
+    signIn();
+    mockSignedInGets([
+      activeSpace,
+      { ...activeSpace, id: "s2", name: "课程空间", slug: "course" },
+    ]);
+    const user = userEvent.setup();
+    renderUploadPage();
+
+    await user.click(screen.getByRole("radio", { name: /上传到空间/ }));
+    const portfolio = await screen.findByRole("radio", { name: "作品集" });
+    const course = screen.getByRole("radio", { name: "课程空间" });
+    const createTag = screen.getByRole("button", { name: "新建空间" });
+    expect(portfolio).toHaveAttribute("aria-checked", "false");
+    expect(createTag).toHaveClass("upload-space-tag-create");
+    expect([...screen.getByRole("group", { name: "选择空间" }).querySelectorAll("button")].map((node) => node.textContent)).toEqual([
+      "作品集", "课程空间", "新建空间",
+    ]);
+
+    await user.click(portfolio);
+    expect(portfolio).toHaveClass("is-selected");
+    expect(portfolio).toHaveAttribute("aria-checked", "true");
+    expect(course).not.toHaveClass("is-selected");
+    expect(course).toHaveAttribute("aria-checked", "false");
+    expect(createTag).not.toHaveClass("is-selected");
+    expect(screen.getByText(/空间内作品跟随空间到期/)).toBeInTheDocument();
+
+    await user.click(course);
+    expect(course).toHaveClass("is-selected");
+    expect(portfolio).not.toHaveClass("is-selected");
+
+    await user.click(createTag);
+    expect(screen.getByRole("dialog", { name: "新建空间" })).toBeInTheDocument();
+    expect(course).toHaveClass("is-selected");
   });
 
   it("opens the create-space modal from a continued registration", async () => {
